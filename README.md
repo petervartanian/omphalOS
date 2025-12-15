@@ -1,8 +1,8 @@
 # omphalOS
 
-omphalOS exists for a simple reason: analytic conclusions outlive the circumstances that produced them.
+omphalOS exists for a simple reason: _Analytic conclusions outlive the circumstances that produced them._
 
-In U.S. governmental analytical environments — the setting for which this system was first built in May 2024, then modernized for open release in December 2025 — an output that may inform action is expected to remain (i) legible under review, (ii) traceable to its provenance, and (iii) transmissible only under deliberate restraint.
+In U.S.-governmental environments vis-à-vis trade, technology, export controls, and enforcement — the setting(s) for which this system was first built in May 2024, then modernized for open release in December 2025 — an output that may inform action is expected to remain (i) legible under review, (ii) traceable to its provenance, and (iii) transmissible only under deliberate restraint.
 
 The purpose here is practical: **to make that posture routine.**
 
