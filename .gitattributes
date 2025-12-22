@@ -1,0 +1,7 @@
+*.sql linguist-language=SQL
+
+artifacts/** linguist-generated=true
+examples/sample_run/** linguist-generated=true
+
+**/__pycache__/** linguist-generated=true
+*.pyc linguist-generated=true
