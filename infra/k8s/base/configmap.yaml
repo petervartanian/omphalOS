@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omphalos-config
+  namespace: omphalos
+data:
+  RUN_CONFIG_PATH: "config/runs/example_run.yaml"

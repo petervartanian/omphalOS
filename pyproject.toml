@@ -21,6 +21,20 @@ dev = [
   "types-PyYAML",
 ]
 
+warehouse = [
+  "dbt-core>=1.7",
+  "dbt-duckdb>=1.7",
+  "psycopg[binary]>=3.1",
+]
+
+orchestration = [
+  "apache-airflow>=2.8",
+]
+
+spark = [
+  "pyspark>=3.5",
+]
+
 [project.scripts]
 omphalos = "omphalos.cli:app"
 

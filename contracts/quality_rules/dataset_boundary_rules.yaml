@@ -1,2 +1,17 @@
 version: "1.0"
-checks: []
+checks:
+  - name: "run_manifest_schema_valid"
+    kind: "schema_validate_glob"
+    params:
+      glob: "run_manifest.json"
+      schema: "contracts/schemas/run_manifest.schema.json"
+    severity: "HIGH"
+    message: "Run manifest validates against schema."
+
+  - name: "lineage_present"
+    kind: "file_count_min"
+    params:
+      globs: ["lineage/lineage.jsonl"]
+      min: 1
+    severity: "HIGH"
+    message: "Lineage event log is present."

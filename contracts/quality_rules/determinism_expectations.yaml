@@ -1,2 +1,18 @@
 version: "1.0"
-checks: []
+checks:
+  - name: "determinism_report_schema_valid"
+    kind: "schema_validate_glob"
+    params:
+      glob: "reports/determinism_report.json"
+      schema: "contracts/schemas/determinism_report.schema.json"
+    severity: "HIGH"
+    message: "Determinism report is schema-valid."
+
+  - name: "determinism_report_pass"
+    kind: "json_field_equals"
+    params:
+      path: "reports/determinism_report.json"
+      field: "status"
+      value: "PASS"
+    severity: "HIGH"
+    message: "Determinism report status is PASS."

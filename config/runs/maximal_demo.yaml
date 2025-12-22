@@ -1,0 +1,14 @@
+schema_version: "1.0"
+run:
+  seed: 1337
+  run_name: "maximal_demo"
+  hermetic: true
+  output_root: "artifacts/runs"
+inputs:
+  trade_feed:
+    records: 250
+  registry:
+    entities: 60
+rules:
+  pack: "maximal"
+  paths: []
