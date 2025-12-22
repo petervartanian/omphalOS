@@ -154,15 +154,3 @@ I recommend that you start with:
 ## License
 
 Apache-2.0; see `LICENSE` and `NOTICE`; citation metadata is in `CITATION.cff`.
-
-
-## Surfaces (Python + SQL + more)
-
-The repo ships one deterministic core and multiple optional surfaces:
-
-- **SQL/dbt**: `warehouse/` (dbt project), `sql/` (plain analyst SQL)
-- **Orchestration**: `orchestration/` + `orchestration/airflow/` + `scripts/`
-- **Spark**: `spark/` (example staging jobs)
-- **Deployment**: `infra/k8s/` (Kustomize-ready CronJob) and `infra/terraform/` (artifact-store modules)
-
-Start with `docs/surfaces.md`.
