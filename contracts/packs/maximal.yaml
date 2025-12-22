@@ -1,0 +1,14 @@
+version: "1.0"
+name: "maximal"
+quality_rules:
+  - "contracts/quality_rules/quality_rules.yaml"
+  - "contracts/quality_rules/strict_quality_rules.yaml"
+  - "contracts/quality_rules/dataset_boundary_rules.yaml"
+  - "contracts/quality_rules/determinism_expectations.yaml"
+  - "contracts/quality_rules/export_rules.yaml"
+  - "contracts/quality_rules/release_gates.yaml"
+  - "contracts/quality_rules/security_posture_expectations.yaml"
+  - "contracts/quality_rules/warehouse_model_rules.yaml"
+publishability_rules:
+  - "contracts/quality_rules/publishability_gates.yaml"
+  - "contracts/quality_rules/strict_publishability_gates.yaml"

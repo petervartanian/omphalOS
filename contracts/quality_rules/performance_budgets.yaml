@@ -1,2 +1,9 @@
 version: "1.0"
-checks: []
+checks:
+  - name: "packet_count_reasonable"
+    kind: "file_count_min"
+    params:
+      globs: ["exports/packets/*.json"]
+      min: 1
+    severity: "LOW"
+    message: "Packets exist (budget enforcement is environment-specific)."

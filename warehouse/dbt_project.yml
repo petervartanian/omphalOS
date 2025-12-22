@@ -1,2 +1,18 @@
 name: omphalos_warehouse
 version: 0.1.0
+config-version: 2
+
+profile: omphalos_warehouse
+
+model-paths: ["models"]
+analysis-paths: ["analysis"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+models:
+  omphalos_warehouse:
+    +materialized: view
+    staging:
+      +materialized: view
+    marts:
+      +materialized: view

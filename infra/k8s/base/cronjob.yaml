@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: omphalos-nightly-example
+  namespace: omphalos
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: omphalos-runner
+          restartPolicy: Never
+          containers:
+            - name: omphalos
+              image: omphalos:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: OMPHALOS_OUTPUT_ROOT
+                  value: "/var/omphalos/runs"
+                - name: RUN_CONFIG_PATH
+                  valueFrom:
+                    configMapKeyRef:
+                      name: omphalos-config
+                      key: RUN_CONFIG_PATH
+              command: ["/bin/bash","-lc"]
+              args:
+                - |
+                  set -euo pipefail
+                  cd /app
+                  python -m omphalos run --config "${RUN_CONFIG_PATH}" --output-root "${OMPHALOS_OUTPUT_ROOT}"
+              volumeMounts:
+                - name: artifacts
+                  mountPath: /var/omphalos
+          volumes:
+            - name: artifacts
+              persistentVolumeClaim:
+                claimName: omphalos-artifacts

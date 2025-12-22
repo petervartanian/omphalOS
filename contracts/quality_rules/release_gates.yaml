@@ -1,2 +1,18 @@
 version: "1.0"
-checks: []
+checks:
+  - name: "sbom_schema_valid"
+    kind: "schema_validate_glob"
+    params:
+      glob: "reports/sbom_manifest.json"
+      schema: "contracts/schemas/sbom_manifest.schema.json"
+    severity: "MEDIUM"
+    message: "SBOM manifest is present and schema-valid."
+
+  - name: "publishability_report_pass"
+    kind: "json_field_equals"
+    params:
+      path: "reports/publishability_report.json"
+      field: "status"
+      value: "PASS"
+    severity: "HIGH"
+    message: "Publishability report status is PASS."

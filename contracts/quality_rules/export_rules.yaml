@@ -1,2 +1,33 @@
 version: "1.0"
-checks: []
+checks:
+  - name: "briefing_tables_present"
+    kind: "file_count_min"
+    params:
+      globs: ["exports/briefing_tables/*.csv"]
+      min: 1
+    severity: "HIGH"
+    message: "At least one CSV briefing table exists."
+
+  - name: "packets_present"
+    kind: "file_count_min"
+    params:
+      globs: ["exports/packets/*.json"]
+      min: 1
+    severity: "HIGH"
+    message: "At least one evidence packet exists."
+
+  - name: "evidence_packets_schema_valid"
+    kind: "schema_validate_glob"
+    params:
+      glob: "exports/packets/*.json"
+      schema: "contracts/schemas/evidence_packet_contract.schema.json"
+    severity: "HIGH"
+    message: "Evidence packets validate against contract schema."
+
+  - name: "briefing_tables_nonempty"
+    kind: "csv_row_count_min"
+    params:
+      glob: "exports/briefing_tables/*.csv"
+      min_rows: 2
+    severity: "MEDIUM"
+    message: "Briefing tables contain at least one data row."

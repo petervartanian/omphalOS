@@ -1,0 +1,18 @@
+omphalos_warehouse:
+  target: duckdb
+  outputs:
+    duckdb:
+      type: duckdb
+      path: "{{ env_var('OMPHALOS_DUCKDB_PATH', 'artifacts/warehouse/warehouse.duckdb') }}"
+      schema: main
+      threads: 4
+
+    postgres:
+      type: postgres
+      host: "{{ env_var('PGHOST', 'localhost') }}"
+      port: "{{ env_var('PGPORT', 5432) }}"
+      user: "{{ env_var('PGUSER', 'omphalos') }}"
+      password: "{{ env_var('PGPASSWORD', 'omphalos') }}"
+      dbname: "{{ env_var('PGDATABASE', 'omphalos') }}"
+      schema: "{{ env_var('PGSCHEMA', 'public') }}"
+      threads: 4

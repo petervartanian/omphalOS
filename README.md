@@ -34,6 +34,20 @@ If a package cannot answer these questions, it is incomplete work.
 
 ## Minimal use
 
+From a fresh clone, either install the package:
+
+```bash
+python -m pip install -e .
+```
+
+or run directly from source by setting:
+
+```bash
+export PYTHONPATH="$(pwd)/src"
+```
+
+
+
 One may verify the included sample run:
 
 ```bash
@@ -56,6 +70,24 @@ Compare two runs for payload-level equivalence:
 
 ```bash
 python -m omphalos certify --run-a artifacts/runs/<runA> --run-b artifacts/runs/<runB>
+```
+
+## Optional extras (SQL/dbt, Airflow, Spark)
+
+The core runtime stays lightweight. Extra surfaces are available as optional dependencies:
+
+```bash
+# Development tools
+python -m pip install -e ".[dev]"
+
+# SQL/dbt surface (DuckDB + Postgres connectivity)
+python -m pip install -e ".[warehouse]"
+
+# Orchestration surface
+python -m pip install -e ".[orchestration]"
+
+# Spark surface
+python -m pip install -e ".[spark]"
 ```
 
 ## Distribution
@@ -122,3 +154,15 @@ I recommend that you start with:
 ## License
 
 Apache-2.0; see `LICENSE` and `NOTICE`; citation metadata is in `CITATION.cff`.
+
+
+## Surfaces (Python + SQL + more)
+
+The repo ships one deterministic core and multiple optional surfaces:
+
+- **SQL/dbt**: `warehouse/` (dbt project), `sql/` (plain analyst SQL)
+- **Orchestration**: `orchestration/` + `orchestration/airflow/` + `scripts/`
+- **Spark**: `spark/` (example staging jobs)
+- **Deployment**: `infra/k8s/` (Kustomize-ready CronJob) and `infra/terraform/` (artifact-store modules)
+
+Start with `docs/surfaces.md`.

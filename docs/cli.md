@@ -9,9 +9,9 @@ This document is the reference for the `omphalos` CLI.
 
 ## Commands
 
-### `omphalos run <config.yaml>`
+### `omphalos run --config <config.yaml>`
 
-Executes a run declared by a config file and writes a run directory under `artifacts/runs/`.
+Executes a run declared by a config file and writes a run directory under `run.output_root` (default: `artifacts/runs/`).
 
 Common flags:
 
@@ -46,7 +46,7 @@ Verifies an extracted bundle or archive against its release manifest.
 Run, verify, and bundle:
 
 ```bash
-omphalos run config/runs/example_run.yaml
+omphalos run --config config/runs/example_run.yaml
 omphalos verify artifacts/runs/<run_id>
 omphalos release build artifacts/runs/<run_id> -o artifacts/releases/<run_id>.tar.gz
 omphalos release verify artifacts/releases/<run_id>.tar.gz

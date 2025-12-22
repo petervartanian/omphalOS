@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "trade_feed staging schema (Spark surface)",
+  "type": "object",
+  "properties": {
+    "shipment_id": {"type": "string"},
+    "exporter_name": {"type": "string"},
+    "importer_name": {"type": "string"},
+    "country": {"type": "string"},
+    "hs_code": {"type": "string"},
+    "value_usd": {"type": "number"},
+    "ship_date": {"type": "string"}
+  },
+  "required": ["shipment_id","country","hs_code","value_usd","ship_date"]
+}

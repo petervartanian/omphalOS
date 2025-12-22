@@ -1,2 +1,72 @@
 version: 2
-models: []
+
+sources:
+  - name: raw
+    description: >
+      Raw tables written by the omphalOS reference pipeline into each run's
+      SQLite warehouse (`<run_dir>/warehouse/warehouse.sqlite`).
+    tables:
+      - name: trade_feed
+        description: Synthetic demo trade shipment feed.
+        columns:
+          - name: shipment_id
+            tests: [not_null, unique]
+          - name: country
+            tests: [not_null]
+          - name: hs_code
+            tests: [not_null]
+      - name: registry
+        description: Synthetic demo entity registry.
+        columns:
+          - name: entity_id
+            tests: [not_null, unique]
+          - name: entity_name
+            tests: [not_null]
+      - name: entity_matches
+        description: Candidate matches between shipments and registry entities.
+        columns:
+          - name: shipment_id
+            tests: [not_null]
+          - name: entity_id
+            tests: [not_null]
+      - name: entity_scores
+        description: Entity-level aggregation and chokepoint score.
+        columns:
+          - name: entity_id
+            tests: [not_null]
+          - name: chokepoint_score
+            tests: [not_null]
+
+models:
+  - name: stg_trade_feed
+    description: Clean projection of raw trade_feed for downstream marts.
+  - name: stg_registry
+    description: Clean projection of raw registry.
+  - name: stg_entity_matches
+    description: Clean projection of raw entity_matches.
+  - name: stg_entity_scores
+    description: Clean projection of raw entity_scores.
+
+  - name: mart_shipments_by_entity
+    description: >
+      Shipment-level mart with the best match selected per shipment and enriched
+      with entity attributes.
+    columns:
+      - name: shipment_id
+        tests: [not_null, unique]
+
+  - name: mart_entity_scores
+    description: >
+      Entity scoring mart, enriched with a deterministic rank for review workflows.
+    columns:
+      - name: entity_id
+        tests: [not_null]
+
+  - name: mart_review_queue
+    description: Shipments requiring human review (match_status == 'REVIEW').
+
+  - name: mart_country_exposure
+    description: Aggregation of shipment value by shipment country.
+
+  - name: mart_hs_code_summary
+    description: Aggregation of shipment value by HS code.

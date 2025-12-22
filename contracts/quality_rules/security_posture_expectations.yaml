@@ -1,2 +1,9 @@
 version: "1.0"
-checks: []
+checks:
+  - name: "publishability_report_schema_valid"
+    kind: "schema_validate_glob"
+    params:
+      glob: "reports/publishability_report.json"
+      schema: "contracts/schemas/publishability_report.schema.json"
+    severity: "HIGH"
+    message: "Publishability report is schema-valid."

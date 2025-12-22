@@ -1,2 +1,17 @@
 version: "1.0"
-checks: []
+checks:
+  - name: "warehouse_present"
+    kind: "file_count_min"
+    params:
+      globs: ["warehouse/warehouse.sqlite"]
+      min: 1
+    severity: "HIGH"
+    message: "SQLite warehouse artifact exists."
+
+  - name: "warehouse_schema_doc_present"
+    kind: "file_count_min"
+    params:
+      globs: ["warehouse/db/schema.sql"]
+      min: 1
+    severity: "LOW"
+    message: "Warehouse schema documentation exists in the repo."
