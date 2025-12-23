@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: omphalos-nightly
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          volumes:
+            - name: artifacts
+              persistentVolumeClaim:
+                claimName: omphalos-artifacts

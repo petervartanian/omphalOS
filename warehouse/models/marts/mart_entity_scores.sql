@@ -1,25 +1,32 @@
-with s as (
-  select * from {{ ref('stg_entity_scores') }}
+WITH base AS (
+  SELECT * FROM {{ ref('int_entity_exposure') }}
 ),
-ranked as (
-  select
-    *,
-    dense_rank() over (order by chokepoint_score desc) as risk_rank,
-    ntile(4) over (order by chokepoint_score desc) as risk_quartile
-  from s
+scored AS (
+  SELECT
+    entity_id,
+    entity_name,
+    country,
+    shipment_count,
+    total_value_usd,
+    mean_match_score,
+    matched_shipments,
+    CASE
+      WHEN shipment_count = 0 THEN 0.0
+      ELSE CAST(matched_shipments AS DOUBLE) / CAST(shipment_count AS DOUBLE)
+    END AS match_rate,
+    CASE
+      WHEN total_value_usd IS NULL THEN 0.0
+      ELSE total_value_usd
+    END AS value_signal
+  FROM base
 )
-select
+SELECT
   entity_id,
   entity_name,
   country,
   shipment_count,
   total_value_usd,
-  chokepoint_score,
-  risk_rank,
-  case risk_quartile
-    when 1 then 'highest'
-    when 2 then 'high'
-    when 3 then 'medium'
-    else 'low'
-  end as risk_tier
-from ranked
+  (value_signal * mean_match_score * match_rate) AS chokepoint_score,
+  mean_match_score,
+  match_rate
+FROM scored;

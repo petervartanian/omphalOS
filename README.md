@@ -1,174 +1,106 @@
-omphalOS
+# omphalOS
 
-Deterministic workbench that ingests a trade feed and an entity registry, resolves entity matches, produces scored outputs, and packages artifacts for verification and release.
+omphalOS is a deterministic analysis workbench for trade and technology-transfer oversight. It builds a run directory that contains: inputs, normalized datasets, a warehouse, scored entities, review tables, exports, and a machine-checkable integrity index.
 
-Directory map
-- src/omphalos: Python implementation (CLI, pipeline, rules, artifacts, verification)
-- config: run configurations
-- warehouse: SQLite schema plus dbt project for modeling
-- sql: curated SQL catalog and playbooks targeting a run warehouse
-- orchestration: Airflow DAGs and scheduler surfaces
-- spark: PySpark and Scala Spark transforms that mirror warehouse rollups
-- infra: Terraform and Kubernetes manifests
-- policies: OPA policies for publishability and quality gates
-- agents: Go and Rust verifiers for run bundles
-- ui: run_manifest inspector (React)
+The repository ships a reference implementation with synthetic data. It is structured to support the same workflow across workstation runs, scheduled runs, and deployed runs, while preserving a stable artifact contract.
 
-<<<<<<< Updated upstream
-The purpose, here, is practical: **to make that posture routine.**
+## Scope
 
-This public release is a sanitized reference implementation, and all example data is synthetic.
+omphalOS covers four tasks:
 
-## What the system asserts
+1. Ingest: load a trade feed and a registry (lists, watchlists, or reference entities).
+2. Normalize: canonicalize fields, enforce schemas, and derive deterministic features.
+3. Score and assemble: match trade records to registry entities, compute entity exposure summaries, and write review-ready tables.
+4. Package: fingerprint all outputs, emit a run manifest, and (optionally) assemble a release bundle for distribution.
 
-A run is treated as an evidentiary package: it yields deliverables for a reader and, inseparably, a record adequate to explain what was done, reproduce it when feasible, and detect post-hoc alteration without argument.
+## Run directory contract
 
-The claims, then, are intentionally narrow:
+A run is an immutable directory rooted at:
 
-1. Integrity: a completed run directory can be checked against its manifest. (To wit, if the fingerprints do not match, the package has changed.)
-2. Comparability: two runs can be compared at the level of declared outputs, so disagreement can be located rather than narrated.
-3. Controlled distribution: a publishability scan surfaces common disclosure hazards before a package leaves its originating context.
+artifacts/runs/<run_id>/
 
-No stronger guarantee is implied. Correctness remains a matter of method, inputs, and judgment.
+The directory is treated as write-once: outputs are written under stable paths, then indexed and fingerprinted. The manifest contains:
 
-## What a reader can expect from the record
+- metadata: tool version, run_id, timestamps, environment identifiers
+- declared artifacts: relative paths, sizes, sha256
+- merkle root of the artifact set
+- structured reports: dataset validation, matching statistics, scoring summaries
+- release metadata when a bundle is assembled
 
-A run produces a directory intended to travel as a unit. The directory is structured so a reviewer can answer, from the artifacts alone, the questions that reliably matter once work leaves its originating workspace:
+This contract is the unit of comparison and verification.
 
-- What inputs were admitted, and what boundaries were enforced?
-- What rules governed transformations, and where are those rules stated?
-- Which outputs are intended for consumption, which are intermediate, and which require human review?
-- What may be shared, with whom, and with what risk of inadvertent disclosure?
-- When two executions disagree, is the disagreement substantive or procedural?
+## Data model
 
-If a package cannot answer these questions, it is incomplete work.
+The reference warehouse is a SQLite database written to:
 
-## Minimal use
+artifacts/runs/<run_id>/warehouse/warehouse.sqlite
 
-From a fresh clone, either install the package:
+Base tables:
 
-```bash
-python -m pip install -e .
-```
+- trade_feed: one row per shipment
+- registry: one row per entity
+- entity_matches: one row per shipment-entity candidate match
+- entity_scores: one row per entity summary
 
-or run directly from source by setting:
+The maximal pipeline extends trade_feed with exporter_country and importer_country while preserving the legacy country field.
 
-```bash
-export PYTHONPATH="$(pwd)/src"
-```
+## Warehouse and SQL surfaces
 
+The repository contains two SQL surfaces:
 
+1. Warehouse transforms: a dbt project under warehouse/ that defines staging, intermediate, and mart models. It is written to run against SQLite, DuckDB, or Postgres using profiles shipped under warehouse/profiles/.
+2. Analyst catalog: a curated query library under sql/ organized by briefing, review, audit, and investigations. Catalog execution records the query text, parameters, and output fingerprints into the run directory.
 
-One may verify the included sample run:
+Both surfaces are designed to be executable and to emit artifacts that the manifest can index.
 
-```bash
-python -m omphalos verify --run-dir examples/sample_run
-```
+## Orchestration and deployment
 
-Execute the synthetic reference pipeline:
+The repository includes:
 
-```bash
-python -m omphalos run --config config/runs/example_run.yaml
-```
+- scripts/ as the canonical operator interface (run, verify, certify, backfill, release-build, release-verify)
+- orchestration/airflow/ with DAGs that call the same runner interfaces
+- infra/k8s with base manifests and overlays for scheduled jobs
+- infra/terraform with modules and cloud examples for storage, identity, and logging
+- spark/scala as an optional scaling path for ingestion and coarse aggregations
 
-Verify a generated run directory:
+## Policy
 
-```bash
-python -m omphalos verify --run-dir artifacts/runs/<run_id>
-```
+policies/opa contains Rego policies that can evaluate:
 
-Compare two runs for payload-level equivalence:
+- run manifests and release bundles
+- publishability constraints
+- infrastructure constraints for Terraform plans and Kubernetes manifests
 
-```bash
-python -m omphalos certify --run-a artifacts/runs/<runA> --run-b artifacts/runs/<runB>
-```
+Policy evaluation produces structured reports under the run directory.
 
-## Optional extras (SQL/dbt, Airflow, Spark)
+## User interface
 
-The core runtime stays lightweight. Extra surfaces are available as optional dependencies:
+ui/ provides a local run browser that renders:
 
-```bash
-# Development tools
-python -m pip install -e ".[dev]"
+- run manifests
+- reports and diffs between runs
+- review tables and export artifacts
 
-# SQL/dbt surface (DuckDB + Postgres connectivity)
-python -m pip install -e ".[warehouse]"
+The UI reads from a small API server under src/omphalos/api.
 
-# Orchestration surface
-python -m pip install -e ".[orchestration]"
+## Independent verifiers
 
-# Spark surface
-python -m pip install -e ".[spark]"
-```
+agents/ contains small verifiers that can validate a run directory without importing the Python package:
 
-## Distribution
+- agents/go/omphalos-verify
+- agents/rust/omphalos-verify
 
-When a run must be transmitted as a single object:
+## Command line
 
-```bash
-python -m omphalos release build --run-dir artifacts/runs/<run_id> --out artifacts/releases/<run_id>.tar.gz
-python -m omphalos release verify --bundle artifacts/releases/<run_id>.tar.gz
-```
+The CLI exposes:
 
-Before distributing outputs outside the environment in which they were generated:
+- omphalos run: reference pipeline on synthetic data
+- omphalos verify: recompute fingerprints and validate the manifest
+- omphalos compare: compare declared artifacts between runs
+- omphalos release: build and verify release bundles
 
-```bash
-python -m omphalos publishability scan --path . --out artifacts/reports/publishability.json
-```
+Maximal pipelines and additional surfaces are available under src/omphalos/maximal and are invoked through explicit commands and job specs.
 
-The scan ought to be treated as a pre-flight gate, whereupon a clean report reduces common failure modes; it does not constitute a blanket safety determination.
+## Files kept for provenance
 
-## Configuration and declared rules
-
-Runs are configured in `config/runs/`. Schemas and rule packs live in `contracts/`.
-
-The governing posture is explicitness. Shapes worth consuming should be declared. Rules worth relying on should be written down. Failures should be inspectable.
-
-## Appendix A: run directory layout
-
-A typical run directory includes:
-
-- `run_manifest.json`  
-  Inventory of outputs with integrity fingerprints.
-
-- `exports/`  
-  Reader-facing products (tables, narrative, packet-style records).
-
-- `reports/`  
-  Structured checks and summaries (quality, determinism comparison, publishability scan, dependency inventory).
-
-- `lineage/`  
-  Append-only event record of execution.
-
-- `warehouse/`  
-  Local SQLite artifact used by the reference pipeline.
-
-## Appendix B: operating expectations
-
-omphalOS assumed two expectations throughout itself:
-
-Firstly, the run directory is treated as an immutable package once the run completes. Editing outputs “for presentation” after completion is a change in evidence. If edits are required, the disciplined move is to rerun under a revised configuration and allow the record to reflect the revision.
-
-Secondly, comparisons are only as meaningful as the boundaries you enforce. If the run’s inputs depend on ambient state—untracked files, implicit credentials, external services whose responses are not recorded—then replay will converge on approximation rather than identity. The system will still produce a record; it cannot supply missing constraints.
-
-## Documentation
-
-I recommend that you start with:
-
-- `docs/overview.md`
-- `docs/architecture.md`
-- `docs/artifacts.md`
-- `docs/cli.md`
-- `docs/open_source_readiness.md`
-- `docs/threat_model.md`
-
-## License
-
-Apache-2.0; see `LICENSE` and `NOTICE`; citation metadata is in `CITATION.cff`.
-=======
-Common commands
-- omphalos run --config config/runs/example_run.yaml
-- omphalos verify --run-dir <run_dir>
-- omphalos release build --run-dir <run_dir> --out <bundle.tar.gz>
-- omphalos sql run --run-dir <run_dir> --manifest sql/manifests/briefing_pack.yaml
->>>>>>> Stashed changes
+Original repository files are preserved. Where a file is materially upgraded, the prior content is copied into .legacy_snapshots/ with the same relative path before modification.

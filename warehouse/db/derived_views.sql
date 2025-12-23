@@ -1,56 +1,49 @@
--- Derived views for common analyst workflows
-
-CREATE VIEW IF NOT EXISTS v_trade_hs_slices AS
+CREATE VIEW IF NOT EXISTS v_trade_feed_enriched AS
 SELECT
   shipment_id,
   exporter_name,
   importer_name,
-  exporter_country,
-  importer_country,
-  COALESCE(exporter_country, country) AS country,
+  COALESCE(exporter_country, country) AS exporter_country,
+  COALESCE(importer_country, country) AS importer_country,
+  COALESCE(country, exporter_country) AS country,
   hs_code,
-  substr(hs_code, 1, 2) AS hs2,
-  substr(hs_code, 1, 4) AS hs4,
-  substr(hs_code, 1, 6) AS hs6,
+  SUBSTR(hs_code, 1, 2) AS hs2,
+  SUBSTR(hs_code, 1, 4) AS hs4,
+  SUBSTR(hs_code, 1, 6) AS hs6,
   value_usd,
-  ship_date
+  ship_date,
+  SUBSTR(ship_date, 1, 7) AS ship_month,
+  SUBSTR(ship_date, 1, 4) AS ship_year
 FROM trade_feed;
 
-CREATE VIEW IF NOT EXISTS v_trade_with_match AS
+CREATE VIEW IF NOT EXISTS v_entity_exposure AS
 SELECT
-  t.shipment_id,
-  t.exporter_name,
-  t.importer_name,
-  t.exporter_country,
-  t.importer_country,
-  t.country,
-  t.hs_code,
-  t.value_usd,
-  t.ship_date,
-  m.entity_id,
-  m.score AS match_score,
-  m.status AS match_status
-FROM trade_feed t
-LEFT JOIN entity_matches m
-ON m.shipment_id = t.shipment_id;
-
-CREATE VIEW IF NOT EXISTS v_entity_trade_rollup AS
-SELECT
-  m.entity_id,
+  em.entity_id,
   r.entity_name,
   r.country,
-  count(*) AS shipment_count,
-  sum(t.value_usd) AS total_value_usd,
-  avg(m.score) AS mean_match_score
-FROM entity_matches m
-JOIN trade_feed t ON t.shipment_id = m.shipment_id
-JOIN registry r ON r.entity_id = m.entity_id
-GROUP BY 1,2,3;
+  COUNT(DISTINCT tf.shipment_id) AS shipment_count,
+  SUM(tf.value_usd) AS total_value_usd,
+  AVG(em.score) AS mean_match_score,
+  SUM(CASE WHEN em.status = 'MATCH' THEN 1 ELSE 0 END) AS matched_shipments
+FROM entity_matches em
+JOIN v_trade_feed_enriched tf ON tf.shipment_id = em.shipment_id
+LEFT JOIN registry r ON r.entity_id = em.entity_id
+GROUP BY em.entity_id, r.entity_name, r.country;
 
-CREATE VIEW IF NOT EXISTS v_review_queue_candidates AS
+CREATE VIEW IF NOT EXISTS v_hs2_exposure AS
 SELECT
-  rq.shipment_id,
-  rq.exporter_name,
-  rq.reason,
-  rq.candidates_json
-FROM review_queue rq;
+  hs2,
+  COUNT(*) AS shipment_count,
+  SUM(value_usd) AS total_value_usd
+FROM v_trade_feed_enriched
+GROUP BY hs2;
+
+CREATE VIEW IF NOT EXISTS v_exporter_monthly AS
+SELECT
+  exporter_name,
+  exporter_country,
+  ship_month,
+  COUNT(*) AS shipment_count,
+  SUM(value_usd) AS total_value_usd
+FROM v_trade_feed_enriched
+GROUP BY exporter_name, exporter_country, ship_month;

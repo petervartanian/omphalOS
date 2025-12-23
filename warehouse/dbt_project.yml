@@ -1,18 +1,17 @@
 name: omphalos_warehouse
-version: 0.2.0
+version: 1.0.0
 config-version: 2
-
-profile: omphalos_warehouse
+profile: omphalos
 
 model-paths: ["models"]
-analysis-paths: ["analysis"]
-test-paths: ["tests"]
 macro-paths: ["macros"]
+test-paths: ["tests"]
 seed-paths: ["seeds"]
+analysis-paths: ["analysis"]
+snapshot-paths: ["snapshots"]
 
 models:
   omphalos_warehouse:
-    +materialized: view
     staging:
       +materialized: view
     intermediate:

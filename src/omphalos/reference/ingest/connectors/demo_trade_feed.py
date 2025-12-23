@@ -89,9 +89,7 @@ class DemoTradeFeedConnector:
                 exporter = rng.choice(exporters)
 
             importer = rng.choice(importers) + " " + rng.choice(importers)
-            exporter_country = rng.choice(countries)
-            importer_country = "US" if rng.random() < 0.60 else rng.choice(countries)
-            country = exporter_country
+            country = rng.choice(countries)
             hs = rng.choice(hs_codes)
             value = round(rng.random() * 100000 + 500, 2)
             d = base + timedelta(days=int(rng.random() * 365))
@@ -101,8 +99,6 @@ class DemoTradeFeedConnector:
                     "shipment_id": sid,
                     "exporter_name": vary_name(exporter),
                     "importer_name": importer,
-                    "exporter_country": exporter_country,
-                    "importer_country": importer_country,
                     "country": country,
                     "hs_code": hs,
                     "value_usd": float(value),

@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: omphalos-run
+spec:
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: omphalos-runner
+      containers:
+        - name: omphalos
+          image: omphalos:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "omphalos", "run", "--config", "/etc/omphalos/run.yaml"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/omphalos
+            - name: artifacts
+              mountPath: /var/lib/omphalos
+      volumes:
+        - name: config
+          configMap:
+            name: omphalos-config
+        - name: artifacts
+          emptyDir: {}

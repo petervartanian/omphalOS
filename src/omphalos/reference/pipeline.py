@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Tuple
 
 from omphalos.core.contracts import load_json_schema, validate_json_against_schema
 from omphalos.core.fingerprint import sha256_file, sha256_json
-from omphalos.core.io.db import connect_sqlite, exec_sql_script, insert_many
+from omphalos.core.io.db import connect_sqlite, create_table, insert_many
 from omphalos.core.lineage import LineageEvent
 from omphalos.core.time import deterministic_now_iso
 
@@ -74,34 +74,46 @@ def run_reference_pipeline(*, cfg, run_dir: Path, clock_seed: str, logger, run_i
     warehouse_path.parent.mkdir(parents=True, exist_ok=True)
     conn = connect_sqlite(warehouse_path)
     try:
-        schema_text = Path("warehouse/db/schema.sql").read_text(encoding="utf-8")
-        exec_sql_script(conn, schema_text)
-
+        create_table(conn, "trade_feed", [
+            "shipment_id TEXT PRIMARY KEY",
+            "exporter_name TEXT",
+            "importer_name TEXT",
+            "country TEXT",
+            "hs_code TEXT",
+            "value_usd REAL",
+            "ship_date TEXT"
+        ])
+        create_table(conn, "registry", [
+            "entity_id TEXT PRIMARY KEY",
+            "entity_name TEXT",
+            "country TEXT"
+        ])
+        create_table(conn, "entity_matches", [
+            "shipment_id TEXT",
+            "entity_id TEXT",
+            "score REAL",
+            "status TEXT",
+            "explanation TEXT"
+        ])
+        create_table(conn, "entity_scores", [
+            "entity_id TEXT",
+            "entity_name TEXT",
+            "country TEXT",
+            "shipment_count INTEGER",
+            "total_value_usd REAL",
+            "chokepoint_score REAL"
+        ])
         insert_many(conn, "trade_feed", trade_norm)
         insert_many(conn, "registry", registry_norm)
         insert_many(conn, "entity_matches", matches)
-
-        review_rows: List[Dict[str, Any]] = []
-        for item in review_queue:
-            review_rows.append({
-                "shipment_id": item["shipment_id"],
-                "exporter_name": item["exporter_name"],
-                "reason": item["reason"],
-                "candidates_json": json.dumps(item["candidates"], sort_keys=True),
-            })
-        insert_many(conn, "review_queue", review_rows)
-
         insert_many(conn, "entity_scores", entity_scores)
-
-        views_text = Path("warehouse/db/derived_views.sql").read_text(encoding="utf-8")
-        exec_sql_script(conn, views_text)
-
         conn.commit()
     finally:
         conn.close()
     lineage.append(LineageEvent.create(run_id, "WAREHOUSE", ["trade_feed_norm", "registry_norm", "entity_matches"], ["warehouse.sqlite"], {"path": "warehouse/warehouse.sqlite"}, clock_seed))
     logger.log("INFO", "warehouse_complete", path="warehouse/warehouse.sqlite")
-# EXPORT products
+
+    # EXPORT products
     exports_paths: Dict[str, List[str]] = {"briefing_tables": [], "packets": [], "narratives": []}
     exports_fps: Dict[str, str] = {}
 

@@ -27,7 +27,3 @@ def insert_many(conn: sqlite3.Connection, name: str, rows: Iterable[Mapping[str,
     sql = f"INSERT INTO {name} ({','.join(keys)}) VALUES ({placeholders});"
     conn.executemany(sql, [[r[k] for k in keys] for r in rows_list])
     return len(rows_list)
-
-
-def exec_sql_script(conn: sqlite3.Connection, sql_text: str) -> None:
-    conn.executescript(sql_text)

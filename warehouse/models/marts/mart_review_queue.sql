@@ -1,22 +1,25 @@
-with rq as (
-  select * from {{ ref('stg_review_queue') }}
+WITH scores AS (
+  SELECT * FROM {{ ref('mart_entity_scores') }}
 ),
-t as (
-  select * from {{ ref('int_trade_hs_slices') }}
+ranked AS (
+  SELECT
+    entity_id,
+    entity_name,
+    country,
+    shipment_count,
+    total_value_usd,
+    chokepoint_score,
+    ROW_NUMBER() OVER (ORDER BY chokepoint_score DESC, total_value_usd DESC) AS rk
+  FROM scores
 )
-select
-  rq.shipment_id,
-  rq.exporter_name,
-  rq.reason,
-  rq.candidates_json,
-  t.importer_name,
-  t.exporter_country,
-  t.importer_country,
-  t.country,
-  t.hs_code,
-  t.hs2,
-  t.hs4,
-  t.value_usd,
-  t.ship_date
-from rq
-left join t on t.shipment_id = rq.shipment_id
+SELECT
+  CAST(rk AS TEXT) AS review_id,
+  CURRENT_TIMESTAMP AS created_at,
+  entity_id,
+  entity_name,
+  country,
+  chokepoint_score AS severity,
+  'Ranked by chokepoint_score; tie-break by total_value_usd.' AS rationale,
+  '{"source":"warehouse","model":"mart_review_queue"}' AS payload_json
+FROM ranked
+WHERE rk <= 250;

@@ -1,7 +1,7 @@
 {% macro safe_divide(numerator, denominator) -%}
-case
-  when {{ denominator }} is null then null
-  when {{ denominator }} = 0 then null
-  else ({{ numerator }} * 1.0) / {{ denominator }}
-end
+CASE
+  WHEN {{ denominator }} IS NULL THEN 0.0
+  WHEN {{ denominator }} = 0 THEN 0.0
+  ELSE CAST({{ numerator }} AS DOUBLE) / CAST({{ denominator }} AS DOUBLE)
+END
 {%- endmacro %}

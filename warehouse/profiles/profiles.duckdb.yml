@@ -1,8 +1,0 @@
-omphalos_warehouse:
-  target: duckdb
-  outputs:
-    duckdb:
-      type: duckdb
-      threads: 4
-      path: "warehouse.duckdb"
-      schema: main

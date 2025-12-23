@@ -1,0 +1,9 @@
+name: briefing
+parameters:
+  limit: 100
+queries:
+  - path: sql/briefing/top_entities.sql
+  - path: sql/briefing/top_exporters.sql
+  - path: sql/briefing/top_importers.sql
+  - path: sql/briefing/top_hs2.sql
+  - path: sql/briefing/monthly_value_trend.sql

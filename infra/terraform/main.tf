@@ -5,21 +5,13 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0"
     }
+    google = {
+      source  = "hashicorp/google"
+      version = ">= 5.0"
+    }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 3.0"
+    }
   }
-}
-
-provider "aws" {
-  region = var.region
-}
-
-module "artifact_bucket" {
-  source      = "./modules/artifact_bucket"
-  name_prefix = var.name_prefix
-  tags        = var.tags
-}
-
-module "run_registry" {
-  source      = "./modules/run_registry"
-  name_prefix = var.name_prefix
-  tags        = var.tags
 }

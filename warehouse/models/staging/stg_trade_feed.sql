@@ -1,14 +1,22 @@
-with base as (
-  select * from {{ source('raw', 'trade_feed') }}
+WITH src AS (
+  SELECT * FROM {{ source('warehouse', 'trade_feed') }}
+),
+typed AS (
+  SELECT
+    shipment_id,
+    UPPER(TRIM(exporter_name)) AS exporter_name,
+    UPPER(TRIM(importer_name)) AS importer_name,
+    COALESCE(exporter_country, country) AS exporter_country,
+    COALESCE(importer_country, country) AS importer_country,
+    COALESCE(country, exporter_country) AS country,
+    hs_code,
+    SUBSTR(hs_code, 1, 2) AS hs2,
+    SUBSTR(hs_code, 1, 4) AS hs4,
+    SUBSTR(hs_code, 1, 6) AS hs6,
+    CAST(value_usd AS DOUBLE) AS value_usd,
+    ship_date,
+    SUBSTR(ship_date, 1, 7) AS ship_month,
+    SUBSTR(ship_date, 1, 4) AS ship_year
+  FROM src
 )
-select
-  shipment_id,
-  upper(trim(exporter_name)) as exporter_name,
-  upper(trim(importer_name)) as importer_name,
-  exporter_country,
-  importer_country,
-  coalesce(exporter_country, country) as country,
-  hs_code,
-  cast(value_usd as {{ dbt.type_numeric() }}) as value_usd,
-  ship_date
-from base
+SELECT * FROM typed;

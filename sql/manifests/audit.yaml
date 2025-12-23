@@ -1,0 +1,8 @@
+name: audit
+parameters:
+  limit: 200
+queries:
+  - path: sql/audit/row_counts.sql
+  - path: sql/audit/duplicate_shipments.sql
+  - path: sql/audit/missing_required_fields.sql
+  - path: sql/audit/match_rate_overall.sql

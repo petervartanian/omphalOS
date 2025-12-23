@@ -1,5 +1,0 @@
-selectors:
-  - name: default
-    definition:
-      method: fqn
-      value: "*"

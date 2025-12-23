@@ -134,16 +134,3 @@ def app_entry() -> None:
         app()
     except WorkbenchError as e:
         _die(str(e))
-
-
-sql_app = typer.Typer(help="Execute curated SQL against a run warehouse.")
-app.add_typer(sql_app, name="sql")
-
-@sql_app.command("run")
-def sql_run(run_dir: Path = typer.Option(..., help="Run directory"), manifest: Path = typer.Option(..., help="SQL manifest YAML")) -> None:
-    from omphalos.warehouse.sqlrun import run_manifest as _run_manifest
-    _run_manifest(run_dir=run_dir, manifest_path=manifest)
-    typer.echo(str(run_dir))
-
-
-

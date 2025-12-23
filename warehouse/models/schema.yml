@@ -1,54 +1,111 @@
 version: 2
 
 sources:
-  - name: raw
-    description: Tables materialized by the reference pipeline.
+  - name: warehouse
+    schema: main
     tables:
       - name: trade_feed
         columns:
           - name: shipment_id
-            tests: [not_null, unique]
+            tests:
+              - unique
+              - not_null
+          - name: exporter_name
+            tests:
+              - not_null
+          - name: importer_name
+            tests:
+              - not_null
+          - name: hs_code
+            tests:
+              - not_null
+          - name: value_usd
+            tests:
+              - not_null
+          - name: ship_date
+            tests:
+              - not_null
       - name: registry
         columns:
           - name: entity_id
-            tests: [not_null, unique]
+            tests:
+              - unique
+              - not_null
+          - name: entity_name
+            tests:
+              - not_null
       - name: entity_matches
-      - name: review_queue
+        columns:
+          - name: shipment_id
+            tests:
+              - not_null
+          - name: entity_id
+            tests:
+              - not_null
+          - name: score
+            tests:
+              - not_null
+          - name: status
+            tests:
+              - not_null
       - name: entity_scores
+        columns:
+          - name: entity_id
+            tests:
+              - unique
+              - not_null
 
 models:
   - name: stg_trade_feed
-    description: Canonical trade feed rows.
     columns:
       - name: shipment_id
-        tests: [not_null, unique]
-      - name: ship_date
-        tests: [not_null]
-      - name: value_usd
-        tests: [not_null]
-
+        tests:
+          - unique
+          - not_null
+      - name: hs2
+        tests:
+          - not_null
+      - name: hs4
+        tests:
+          - not_null
+      - name: hs6
+        tests:
+          - not_null
   - name: stg_registry
-    description: Canonical entity registry rows.
     columns:
       - name: entity_id
-        tests: [not_null, unique]
-
+        tests:
+          - unique
+          - not_null
   - name: stg_entity_matches
-    description: Shipment to entity match decisions.
     columns:
       - name: shipment_id
-        tests: [not_null]
+        tests:
+          - not_null
       - name: entity_id
-        tests: [not_null]
-
-  - name: stg_review_queue
-    description: Review queue items with candidate lists.
-    columns:
-      - name: shipment_id
-        tests: [not_null, unique]
-
-  - name: stg_entity_scores
-    description: Entity scores produced by the analytics stage.
+        tests:
+          - not_null
+  - name: int_entity_exposure
     columns:
       - name: entity_id
-        tests: [not_null]
+        tests:
+          - unique
+          - not_null
+  - name: mart_entity_scores
+    columns:
+      - name: entity_id
+        tests:
+          - unique
+          - not_null
+      - name: chokepoint_score
+        tests:
+          - not_null
+
+  - name: mart_review_queue
+  - name: mart_briefing_entities
+  - name: mart_briefing_hs2
+  - name: mart_audit_run_summary
+  - name: mart_top_exporters_by_value
+  - name: mart_top_importers_by_value
+  - name: mart_top_routes_by_value
+  - name: mart_top_hs2_by_value

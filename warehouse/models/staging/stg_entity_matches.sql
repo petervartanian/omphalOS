@@ -1,7 +1,10 @@
-select
+WITH src AS (
+  SELECT * FROM {{ source('warehouse', 'entity_matches') }}
+)
+SELECT
   shipment_id,
   entity_id,
-  cast(score as {{ dbt.type_numeric() }}) as score,
+  CAST(score AS DOUBLE) AS score,
   status,
   explanation
-from {{ source('raw', 'entity_matches') }}
+FROM src;

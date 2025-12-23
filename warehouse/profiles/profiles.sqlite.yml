@@ -1,8 +1,0 @@
-omphalos_warehouse:
-  target: sqlite
-  outputs:
-    sqlite:
-      type: sqlite
-      threads: 1
-      database: "warehouse.sqlite"
-      schema: main

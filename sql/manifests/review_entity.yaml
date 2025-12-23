@@ -1,0 +1,8 @@
+name: review_entity
+parameters:
+  entity_id: ""
+  limit: 500
+queries:
+  - path: sql/review/entity_detail.sql
+  - path: sql/review/entity_shipments.sql
+  - path: sql/review/entity_matches_distribution.sql

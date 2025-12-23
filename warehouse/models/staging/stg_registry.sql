@@ -1,5 +1,8 @@
-select
+WITH src AS (
+  SELECT * FROM {{ source('warehouse', 'registry') }}
+)
+SELECT
   entity_id,
-  upper(trim(entity_name)) as entity_name,
-  upper(trim(country)) as country
-from {{ source('raw', 'registry') }}
+  UPPER(TRIM(entity_name)) AS entity_name,
+  UPPER(TRIM(country)) AS country
+FROM src;
