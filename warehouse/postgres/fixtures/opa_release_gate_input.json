@@ -1,0 +1,8 @@
+{
+  "run_id": "sample_run",
+  "payload_root_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "required_artifacts": [
+    "run_manifest.json",
+    "warehouse/warehouse.duckdb"
+  ]
+}
