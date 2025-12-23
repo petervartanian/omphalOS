@@ -1,7 +1,0 @@
-omphalos_duckdb:
-  target: local
-  outputs:
-    local:
-      type: duckdb
-      path: ../artifacts/runs/{{ env_var('OMPHALOS_RUN_ID', 'latest') }}/warehouse/warehouse.duckdb
-      schema: main

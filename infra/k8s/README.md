@@ -1,3 +1,0 @@
-# Kubernetes
-
-Placeholders for manifests.

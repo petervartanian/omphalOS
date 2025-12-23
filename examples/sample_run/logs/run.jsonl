@@ -1,8 +1,0 @@
-{"level": "INFO", "msg": "run_start", "run_id": "run-7ce26d58-0cf2", "ts": "2010-07-24T08:27:22Z"}
-{"level": "INFO", "msg": "ingest_complete", "registry": 20, "trade_feed": 60, "ts": "2004-03-23T15:41:13Z"}
-{"level": "INFO", "msg": "normalize_complete", "ts": "2019-08-22T10:56:41Z"}
-{"level": "INFO", "matched": 11, "msg": "resolve_complete", "review": 49, "total": 60, "ts": "2010-10-02T21:03:22Z"}
-{"entities": 4, "level": "INFO", "msg": "analyze_complete", "ts": "2010-11-16T21:19:28Z"}
-{"level": "INFO", "msg": "warehouse_complete", "path": "warehouse/warehouse.sqlite", "ts": "2007-08-01T17:46:12Z"}
-{"briefing_tables": 1, "level": "INFO", "msg": "export_complete", "narratives": 1, "packets": 4, "ts": "2002-04-19T22:31:07Z"}
-{"level": "INFO", "msg": "run_complete", "payload_root_hash": "10eb38a88a7842af372d1af6d0edffcad4ff8d3744b48c1a23aaf139afa1dbbd", "run_id": "run-7ce26d58-0cf2", "ts": "2016-12-07T07:16:41Z"}
