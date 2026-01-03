@@ -1,58 +1,231 @@
 {
+  "annexes": {
+    "intangibles": [],
+    "maritime_legs": [
+      {
+        "arrive_date": "2024-06-25",
+        "carrier": "GULLSTREAM CARRIERS",
+        "depart_date": "2024-06-25",
+        "from_port": "PORT LANTERN",
+        "leg_id": "L000022",
+        "shipment_id": "S000022",
+        "to_port": "PORT ASTER",
+        "transshipment": 0,
+        "vessel_type": "BULK"
+      },
+      {
+        "arrive_date": "2024-10-15",
+        "carrier": "BLUE QUAY SHIPPING",
+        "depart_date": "2024-10-15",
+        "from_port": "PORT IRONLEAF",
+        "leg_id": "L000109",
+        "shipment_id": "S000109",
+        "to_port": "PORT NEBULA",
+        "transshipment": 0,
+        "vessel_type": "TANKER"
+      },
+      {
+        "arrive_date": "2024-06-24",
+        "carrier": "NORTHWIND LINES",
+        "depart_date": "2024-06-24",
+        "from_port": "PORT IRONLEAF",
+        "leg_id": "L000124",
+        "shipment_id": "S000124",
+        "to_port": "PORT HALCYON",
+        "transshipment": 1,
+        "vessel_type": "TANKER"
+      },
+      {
+        "arrive_date": "2024-08-28",
+        "carrier": "NORTHWIND LINES",
+        "depart_date": "2024-08-28",
+        "from_port": "PORT HALCYON",
+        "leg_id": "L000125",
+        "shipment_id": "S000125",
+        "to_port": "PORT KESTREL",
+        "transshipment": 1,
+        "vessel_type": "RO-RO"
+      }
+    ],
+    "payments": [
+      {
+        "amount_usd": 42811.26,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "ORCHID EXPORT",
+        "payer_name": "LANTERN PARTNERS IMPORTS",
+        "payment_date": "2024-08-21",
+        "payment_id": "P000010",
+        "shipment_id": "S000010"
+      },
+      {
+        "amount_usd": 13302.68,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "RIVERMARK FINANCE",
+        "method": "NETTING",
+        "payee_name": "ORCHID EXPORT",
+        "payer_name": "LANTERN PARTNERS IMPORTS",
+        "payment_date": "2024-08-21",
+        "payment_id": "P000010B",
+        "shipment_id": "S000010"
+      },
+      {
+        "amount_usd": 174023.93,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "KESTREL ENERGY KK",
+        "payer_name": "GOSSAMER HOUSE TRADING",
+        "payment_date": "2024-06-25",
+        "payment_id": "P000022",
+        "shipment_id": "S000022"
+      },
+      {
+        "amount_usd": 32451.33,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "KESTREL ENERGY KK",
+        "payer_name": "GOSSAMER HOUSE TRADING",
+        "payment_date": "2024-06-25",
+        "payment_id": "P000022B",
+        "shipment_id": "S000022"
+      },
+      {
+        "amount_usd": 90779.48,
+        "currency": "USD",
+        "insurer": "EMBER UNDERWRITERS",
+        "intermediary_bank": "RIVERMARK FINANCE",
+        "method": "CARD",
+        "payee_name": "KESTREL ENERGY KK",
+        "payer_name": "HALCYON HOUSE IMPORTS",
+        "payment_date": "2024-10-15",
+        "payment_id": "P000109",
+        "shipment_id": "S000109"
+      },
+      {
+        "amount_usd": 407396.61,
+        "currency": "USD",
+        "insurer": "EMBER UNDERWRITERS",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "WIRE",
+        "payee_name": "KESTREL ENERGY KK",
+        "payer_name": "FATHOM HOUSE SUPPLY",
+        "payment_date": "2024-06-24",
+        "payment_id": "P000124",
+        "shipment_id": "S000124"
+      },
+      {
+        "amount_usd": 250550.95,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "KESTREL ENERGY",
+        "payer_name": "SABLE HOUSE DISTRIBUTION",
+        "payment_date": "2024-08-28",
+        "payment_id": "P000125",
+        "shipment_id": "S000125"
+      }
+    ],
+    "procurement": [
+      {
+        "award_date": "2024-09-28",
+        "buyer_name": "RIDGELINE CO DISTRIBUTION",
+        "description": "MARITIME_SHIPBUILDING_PORTS PROCUREMENT (INVENTED)",
+        "domain": "maritime_shipbuilding_ports",
+        "notice_date": "2024-08-12",
+        "supplier_name": "KESTREL ENERGY KK",
+        "tender_id": "T00019",
+        "value_usd": 190936.34
+      }
+    ],
+    "research_links": [
+      {
+        "entity_name": "KESTREL ENERGY KK",
+        "lab_name": "CANTICLE LAB",
+        "link_date": "2024-06-23",
+        "link_id": "R00005",
+        "publication_title": "INVENTED STUDY 5: SENSING",
+        "similarity": 0.59
+      }
+    ],
+    "services": []
+  },
   "claim": "Entity exhibits elevated chokepoint exposure under the reference scoring model.",
-  "created_at": "2003-04-15T19:37:48Z",
+  "created_at": "2019-11-05T00:01:32Z",
   "entity": {
-    "chokepoint_score": 0.370736,
-    "country": "MX",
+    "chokepoint_score": 0.0,
+    "country": "TR",
     "entity_id": "E0001",
-    "entity_name": "ASTER JUNIPER",
-    "shipment_count": 11,
-    "total_value_usd": 611496.36
+    "entity_name": "KESTREL ENERGY KK",
+    "shipment_count": 6,
+    "total_value_usd": 914337.06
   },
   "evidence": [
     {
-      "hs_code": "9013",
-      "match_score": 0.3333333333333333,
+      "domain": "luxury_dual_use_consumer",
+      "hs_code": "711319",
+      "incoterm": "CFR",
+      "match_score": 0.0,
       "match_status": "REVIEW",
-      "ship_date": "2024-04-15",
+      "ship_date": "2024-08-21",
       "shipment_id": "S000010",
-      "value_usd": 73444.53
+      "transport_mode": "ROAD",
+      "value_usd": 48298.59
     },
     {
-      "hs_code": "7601",
-      "match_score": 0.3333333333333333,
-      "match_status": "REVIEW",
-      "ship_date": "2024-05-06",
-      "shipment_id": "S000015",
-      "value_usd": 89204.03
+      "domain": "maritime_shipbuilding_ports",
+      "hs_code": "731449",
+      "incoterm": "FCA",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-06-25",
+      "shipment_id": "S000022",
+      "transport_mode": "SEA",
+      "value_usd": 154465.96
     },
     {
-      "hs_code": "9013",
-      "match_score": 0.3333333333333333,
-      "match_status": "REVIEW",
-      "ship_date": "2024-05-18",
-      "shipment_id": "S000019",
-      "value_usd": 68772.31
+      "domain": "services",
+      "hs_code": "999700",
+      "incoterm": "CIF",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-10-15",
+      "shipment_id": "S000109",
+      "transport_mode": "SEA",
+      "value_usd": 89991.17
     },
     {
-      "hs_code": "8504",
-      "match_score": 0.3333333333333333,
-      "match_status": "REVIEW",
-      "ship_date": "2024-11-13",
-      "shipment_id": "S000023",
-      "value_usd": 46164.37
+      "domain": "aerospace_uas_avionics",
+      "hs_code": "901420",
+      "incoterm": "DAP",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-06-24",
+      "shipment_id": "S000124",
+      "transport_mode": "SEA",
+      "value_usd": 324005.43
     },
     {
-      "hs_code": "7601",
-      "match_score": 0.3333333333333333,
+      "domain": "energy_equipment",
+      "hs_code": "841011",
+      "incoterm": "FCA",
+      "match_score": 0.6666666666666666,
       "match_status": "REVIEW",
-      "ship_date": "2024-08-19",
-      "shipment_id": "S000024",
-      "value_usd": 10853.71
+      "ship_date": "2024-08-28",
+      "shipment_id": "S000125",
+      "transport_mode": "SEA",
+      "value_usd": 258962.19
     }
   ],
   "hashes": {
-    "packet": "53213ed2173b24f4c2864f0df21295961f260b477b91b8fa06e45c44218a760b"
+    "packet": "acbe7258b25d007d9e7f7c67989c111f9cf670c1568d17d72f23b1b378fe3f9d"
   },
   "lineage": [
     "RESOLVE",
@@ -64,6 +237,6 @@
     "reason": "at_least_one_low_confidence_match",
     "status": "REVIEW"
   },
-  "run_id": "run-7ce26d58-0cf2",
+  "run_id": "run-781327b7-a7a5",
   "schema_version": "1.0"
 }

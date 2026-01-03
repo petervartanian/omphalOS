@@ -13,12 +13,25 @@ def _index_by_shipment(trade_rows: List[dict[str, Any]]) -> Dict[str, dict[str, 
     return {r["shipment_id"]: r for r in trade_rows}
 
 
+def _index_many(rows: List[dict[str, Any]], key: str) -> Dict[str, List[dict[str, Any]]]:
+    out: Dict[str, List[dict[str, Any]]] = {}
+    for r in rows:
+        out.setdefault(str(r.get(key, "")), []).append(r)
+    return out
+
+
 def write_evidence_packets(
     run_dir: Path,
     entity_scores: List[dict[str, Any]],
     trade_rows: List[dict[str, Any]],
     matches: List[dict[str, Any]],
     review_queue: List[dict[str, Any]],
+    payments: List[dict[str, Any]],
+    procurement: List[dict[str, Any]],
+    services: List[dict[str, Any]],
+    intangibles: List[dict[str, Any]],
+    research_links: List[dict[str, Any]],
+    maritime_legs: List[dict[str, Any]],
     run_id: str,
     clock_seed: str,
 ) -> List[str]:
@@ -31,7 +44,13 @@ def write_evidence_packets(
     for m in matches:
         matches_by_entity.setdefault(m["entity_id"], []).append(m)
 
-    review_by_ship = {r["shipment_id"]: r for r in review_queue}
+    # Pre-index annex data for efficient per-entity selection.
+    payments_by_ship = _index_many(payments, "shipment_id")
+    legs_by_ship = _index_many(maritime_legs, "shipment_id")
+    procurement_by_supplier = _index_many(procurement, "supplier_name")
+    services_by_provider = _index_many(services, "provider_name")
+    intangibles_by_owner = _index_many(intangibles, "owner_name")
+    research_by_entity = _index_many(research_links, "entity_name")
 
     out_paths: List[str] = []
     for e in entity_scores[:20]:  # bounded for demo determinism and size
@@ -45,15 +64,20 @@ def write_evidence_packets(
         review_status = "CLEAR"
         review_reason = "sufficient_confidence"
 
+        ship_ids: List[str] = []
         for m in entity_matches:
             tr = trade_by_id.get(m["shipment_id"])
             if not tr:
                 continue
+            ship_ids.append(tr["shipment_id"])
             ev = {
                 "shipment_id": tr["shipment_id"],
                 "hs_code": tr["hs_code"],
+                "domain": tr.get("domain", ""),
                 "value_usd": tr["value_usd"],
                 "ship_date": tr["ship_date"],
+                "transport_mode": tr.get("transport_mode", ""),
+                "incoterm": tr.get("incoterm", ""),
                 "match_score": m["score"],
                 "match_status": m["status"],
             }
@@ -61,6 +85,17 @@ def write_evidence_packets(
             if m["status"] == "REVIEW":
                 review_status = "REVIEW"
                 review_reason = "at_least_one_low_confidence_match"
+
+        entity_name = str(e["entity_name"])
+
+        annexes = {
+            "payments": [p for sid in ship_ids for p in payments_by_ship.get(sid, [])][:10],
+            "maritime_legs": [l for sid in ship_ids for l in legs_by_ship.get(sid, [])][:10],
+            "procurement": procurement_by_supplier.get(entity_name, [])[:10],
+            "services": services_by_provider.get(entity_name, [])[:10],
+            "intangibles": intangibles_by_owner.get(entity_name, [])[:10],
+            "research_links": research_by_entity.get(entity_name, [])[:10],
+        }
 
         packet = {
             "schema_version": "1.0",
@@ -70,13 +105,14 @@ def write_evidence_packets(
             "claim": "Entity exhibits elevated chokepoint exposure under the reference scoring model.",
             "entity": {
                 "entity_id": eid,
-                "entity_name": e["entity_name"],
+                "entity_name": entity_name,
                 "country": e["country"],
                 "chokepoint_score": e["chokepoint_score"],
                 "shipment_count": e["shipment_count"],
                 "total_value_usd": e["total_value_usd"],
             },
             "evidence": evidence,
+            "annexes": annexes,
             "lineage": lineage_refs,
             "review": {"status": review_status, "reason": review_reason},
             "hashes": {"packet": ""},

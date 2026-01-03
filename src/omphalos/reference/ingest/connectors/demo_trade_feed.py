@@ -42,9 +42,43 @@ class DemoTradeFeedConnector:
         if non_ambiguous_exporters:
             exporters = non_ambiguous_exporters
 
-        importers = ["North", "South", "East", "West", "Harbor", "Ridge"]
+        stems = [
+            "Aster",
+            "Boreal",
+            "Cobalt",
+            "Dorian",
+            "Echelon",
+            "Fathom",
+            "Gossamer",
+            "Halcyon",
+            "Iris",
+            "Juniper",
+            "Kestrel",
+            "Lattice",
+            "Mosaic",
+            "Nimbus",
+            "Orchid",
+            "Pioneer",
+        ]
         countries = ["US", "CA", "MX", "BR", "GB", "DE", "FR", "NL", "PL", "TR", "IN", "JP", "KR", "VN", "SG"]
-        hs_codes = ["8504", "8542", "8471", "8703", "3004", "9013", "7601", "7403"]
+        domains = [
+            "chem_precursors",
+            "machine_tools",
+            "aerospace_uas_avionics",
+            "maritime_shipbuilding_ports",
+            "energy_equipment",
+            "medical_bio_lab",
+            "luxury_dual_use_consumer",
+        ]
+        hs_by_domain = {
+            "chem_precursors": ["2933", "2905", "2918", "3811"],
+            "machine_tools": ["8456", "8466", "8462"],
+            "aerospace_uas_avionics": ["8807", "8526", "9031"],
+            "maritime_shipbuilding_ports": ["8907", "8419", "8431"],
+            "energy_equipment": ["8502", "8501", "8411"],
+            "medical_bio_lab": ["9018", "9027", "3002"],
+            "luxury_dual_use_consumer": ["9101", "4202", "7113"],
+        }
         base = date(2024, 1, 1)
 
         suffixes = ["", " LLC", " INC", " CO", " LTD", " GROUP"]
@@ -81,11 +115,16 @@ class DemoTradeFeedConnector:
             else:
                 exporter = rng.choice(exporters)
 
-            importer = rng.choice(importers) + " " + rng.choice(importers)
+            importer = f"{rng.choice(stems)} {rng.choice(['TRADING','SUPPLY','IMPORTS','DISTRIBUTION','PROJECTS'])}"
             country = rng.choice(countries)
-            hs = rng.choice(hs_codes)
+            domain = rng.choice(domains)
+            hs = rng.choice(hs_by_domain[domain])
+            description = f"INVENTED {domain.replace('_',' ').upper()} ITEM"
             value = round(rng.random() * 100000 + 500, 2)
             d = base + timedelta(days=int(rng.random() * 365))
+
+            incoterm = rng.choice(["EXW", "FOB", "CIF", "DAP", "DDP"])
+            transport_mode = rng.choice(["SEA", "AIR", "ROAD", "RAIL"])
 
             rows.append(
                 {
@@ -95,7 +134,11 @@ class DemoTradeFeedConnector:
                     "exporter_country": country,
                     "importer_country": rng.choice(countries),
                     "country": country,
+                    "domain": domain,
                     "hs_code": hs,
+                    "description": description,
+                    "incoterm": incoterm,
+                    "transport_mode": transport_mode,
                     "value_usd": float(value),
                     "ship_date": d.isoformat(),
                 }

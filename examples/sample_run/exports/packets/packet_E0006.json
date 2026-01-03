@@ -1,0 +1,153 @@
+{
+  "annexes": {
+    "intangibles": [],
+    "maritime_legs": [],
+    "payments": [
+      {
+        "amount_usd": 31193.4,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "RIVERMARK FINANCE",
+        "method": "WIRE",
+        "payee_name": "LANTERN LABORATORIES BV",
+        "payer_name": "TIDEMARK PARTNERS IMPORTS",
+        "payment_date": "2024-08-15",
+        "payment_id": "P000007",
+        "shipment_id": "S000007"
+      },
+      {
+        "amount_usd": 55197.99,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "LANTERN LABORATORIES BV",
+        "payer_name": "PENDULUM HOUSE HOLDING",
+        "payment_date": "2024-05-05",
+        "payment_id": "P000023",
+        "shipment_id": "S000023"
+      },
+      {
+        "amount_usd": 40389.63,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "LC",
+        "payee_name": "LANTERN LABORATORIES BV",
+        "payer_name": "PENDULUM VENTURES HOLDING",
+        "payment_date": "2024-04-25",
+        "payment_id": "P000027",
+        "shipment_id": "S000027"
+      },
+      {
+        "amount_usd": 175254.12,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "NETTING",
+        "payee_name": "LANTERN LABORATORIES BV",
+        "payer_name": "QUARRY PARTNERS TRADING",
+        "payment_date": "2024-01-08",
+        "payment_id": "P000063",
+        "shipment_id": "S000063"
+      },
+      {
+        "amount_usd": 107693.79,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "LANTERN LABORATORIES BV",
+        "payer_name": "AURELINE CO DISTRIBUTION",
+        "payment_date": "2024-12-01",
+        "payment_id": "P000066",
+        "shipment_id": "S000066"
+      }
+    ],
+    "procurement": [],
+    "research_links": [],
+    "services": []
+  },
+  "claim": "Entity exhibits elevated chokepoint exposure under the reference scoring model.",
+  "created_at": "2002-11-22T18:42:29Z",
+  "entity": {
+    "chokepoint_score": 0.0,
+    "country": "JP",
+    "entity_id": "E0006",
+    "entity_name": "LANTERN LABORATORIES BV",
+    "shipment_count": 5,
+    "total_value_usd": 329738.26
+  },
+  "evidence": [
+    {
+      "domain": "research_links",
+      "hs_code": "995000",
+      "incoterm": "FOB",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-08-15",
+      "shipment_id": "S000007",
+      "transport_mode": "AIR",
+      "value_usd": 30966.99
+    },
+    {
+      "domain": "medical_bio_lab",
+      "hs_code": "300212",
+      "incoterm": "FOB",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-05-05",
+      "shipment_id": "S000023",
+      "transport_mode": "AIR",
+      "value_usd": 46359.63
+    },
+    {
+      "domain": "luxury_dual_use_consumer",
+      "hs_code": "420221",
+      "incoterm": "FOB",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-04-25",
+      "shipment_id": "S000027",
+      "transport_mode": "AIR",
+      "value_usd": 32354.82
+    },
+    {
+      "domain": "procurement",
+      "hs_code": "996030",
+      "incoterm": "FOB",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-01-08",
+      "shipment_id": "S000063",
+      "transport_mode": "ROAD",
+      "value_usd": 135504.64
+    },
+    {
+      "domain": "intangibles",
+      "hs_code": "998130",
+      "incoterm": "FOB",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-12-01",
+      "shipment_id": "S000066",
+      "transport_mode": "AIR",
+      "value_usd": 84552.18
+    }
+  ],
+  "hashes": {
+    "packet": "bd4fc1f6cf2d258c28278c72529bfdc4c20ff3933c013b43a953f16c114d885a"
+  },
+  "lineage": [
+    "RESOLVE",
+    "ANALYZE",
+    "EXPORT"
+  ],
+  "packet_id": "packet-E0006",
+  "review": {
+    "reason": "sufficient_confidence",
+    "status": "CLEAR"
+  },
+  "run_id": "run-781327b7-a7a5",
+  "schema_version": "1.0"
+}

@@ -1,58 +1,151 @@
 {
+  "annexes": {
+    "intangibles": [
+      {
+        "description": "FIRMWARE TRANSFER (INVENTED)",
+        "intangible_id": "I00014",
+        "intangible_type": "FIRMWARE",
+        "owner_name": "KESTREL BIOSCIENCE LABORATORIES",
+        "transfer_date": "2024-02-18",
+        "transfer_mode": "REMOVABLE_MEDIA"
+      }
+    ],
+    "maritime_legs": [],
+    "payments": [
+      {
+        "amount_usd": 54036.32,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "STONEBRIDGE BANK",
+        "method": "NETTING",
+        "payee_name": "KESTREL BIOSCIENCE LABORATORIES",
+        "payer_name": "IRONLEAF VENTURES IMPORTS",
+        "payment_date": "2024-01-23",
+        "payment_id": "P000037",
+        "shipment_id": "S000037"
+      },
+      {
+        "amount_usd": 306605.41,
+        "currency": "USD",
+        "insurer": "ANCHOR MUTUAL",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "WIRE",
+        "payee_name": "KESTREL-BIOSCIENCE-LABORATORIES",
+        "payer_name": "BASALT CO PROJECTS",
+        "payment_date": "2024-09-28",
+        "payment_id": "P000041",
+        "shipment_id": "S000041"
+      },
+      {
+        "amount_usd": 153095.01,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "STONEBRIDGE BANK",
+        "method": "WIRE",
+        "payee_name": "KESTREL-BIOSCIENCE-LABORATORIES",
+        "payer_name": "LANTERN PARTNERS TRADING",
+        "payment_date": "2024-01-25",
+        "payment_id": "P000076",
+        "shipment_id": "S000076"
+      },
+      {
+        "amount_usd": 40259.77,
+        "currency": "USD",
+        "insurer": "EMBER UNDERWRITERS",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "WIRE",
+        "payee_name": "KESTREL BIOSCIENCE LABORATORIES",
+        "payer_name": "MARINER CO IMPORTS",
+        "payment_date": "2024-10-26",
+        "payment_id": "P000134",
+        "shipment_id": "S000134"
+      },
+      {
+        "amount_usd": 49944.3,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "STONEBRIDGE BANK",
+        "method": "CARD",
+        "payee_name": "KESTREL BIOSCIENCE LABORATORIES",
+        "payer_name": "MARINER VENTURES SUPPLY",
+        "payment_date": "2024-03-28",
+        "payment_id": "P000143",
+        "shipment_id": "S000143"
+      }
+    ],
+    "procurement": [],
+    "research_links": [],
+    "services": []
+  },
   "claim": "Entity exhibits elevated chokepoint exposure under the reference scoring model.",
-  "created_at": "2015-06-20T15:13:15Z",
+  "created_at": "2011-03-24T19:27:08Z",
   "entity": {
-    "chokepoint_score": 0.570483,
-    "country": "IN",
+    "chokepoint_score": 0.0,
+    "country": "TR",
     "entity_id": "E0008",
-    "entity_name": "BOREAL BOREAL",
-    "shipment_count": 13,
-    "total_value_usd": 634603.04
+    "entity_name": "KESTREL BIOSCIENCE LABORATORIES",
+    "shipment_count": 7,
+    "total_value_usd": 918147.99
   },
   "evidence": [
     {
-      "hs_code": "7601",
-      "match_score": 0.5,
-      "match_status": "REVIEW",
-      "ship_date": "2024-07-25",
-      "shipment_id": "S000003",
-      "value_usd": 6411.05
+      "domain": "intangibles",
+      "hs_code": "998110",
+      "incoterm": "EXW",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-01-23",
+      "shipment_id": "S000037",
+      "transport_mode": "ROAD",
+      "value_usd": 49405.12
     },
     {
-      "hs_code": "8471",
-      "match_score": 0.5,
-      "match_status": "REVIEW",
-      "ship_date": "2024-07-27",
-      "shipment_id": "S000006",
-      "value_usd": 10805.57
+      "domain": "aerospace_uas_avionics",
+      "hs_code": "880730",
+      "incoterm": "CFR",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-09-28",
+      "shipment_id": "S000041",
+      "transport_mode": "AIR",
+      "value_usd": 310723.52
     },
     {
-      "hs_code": "8471",
-      "match_score": 0.5,
-      "match_status": "REVIEW",
-      "ship_date": "2024-02-25",
-      "shipment_id": "S000011",
-      "value_usd": 76214.09
+      "domain": "medical_bio_lab",
+      "hs_code": "382219",
+      "incoterm": "EXW",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-01-25",
+      "shipment_id": "S000076",
+      "transport_mode": "RAIL",
+      "value_usd": 118568.82
     },
     {
-      "hs_code": "8542",
-      "match_score": 0.5,
-      "match_status": "REVIEW",
-      "ship_date": "2024-09-13",
-      "shipment_id": "S000014",
-      "value_usd": 6566.94
-    },
-    {
-      "hs_code": "3004",
-      "match_score": 0.5,
-      "match_status": "REVIEW",
+      "domain": "luxury_dual_use_consumer",
+      "hs_code": "910211",
+      "incoterm": "FOB",
+      "match_score": 1.0,
+      "match_status": "MATCH",
       "ship_date": "2024-10-26",
-      "shipment_id": "S000018",
-      "value_usd": 88838.38
+      "shipment_id": "S000134",
+      "transport_mode": "ROAD",
+      "value_usd": 54404.14
+    },
+    {
+      "domain": "medical_bio_lab",
+      "hs_code": "300212",
+      "incoterm": "CIF",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-03-28",
+      "shipment_id": "S000143",
+      "transport_mode": "RAIL",
+      "value_usd": 58283.07
     }
   ],
   "hashes": {
-    "packet": "f9343c13cb97ce591e2ba0bb71bbc384b5a3d5021c2439ae0e2723edcfbdfc7e"
+    "packet": "d503a961b8ee5026b5272d4ce51e007d57e253beb2ea88761ce56b189a11c96a"
   },
   "lineage": [
     "RESOLVE",
@@ -61,9 +154,9 @@
   ],
   "packet_id": "packet-E0008",
   "review": {
-    "reason": "at_least_one_low_confidence_match",
-    "status": "REVIEW"
+    "reason": "sufficient_confidence",
+    "status": "CLEAR"
   },
-  "run_id": "run-7ce26d58-0cf2",
+  "run_id": "run-781327b7-a7a5",
   "schema_version": "1.0"
 }

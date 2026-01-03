@@ -7,13 +7,21 @@ from typing import Any, Dict, List, Tuple
 
 from omphalos.core.contracts import load_json_schema, validate_json_against_schema
 from omphalos.core.fingerprint import sha256_file, sha256_json
-from omphalos.core.io.db import connect_duckdb, execute_sql_file, insert_many
+from omphalos.core.io.db import connect_sqlite, execute_sql_file, insert_many
 from omphalos.core.lineage import LineageEvent
 from omphalos.core.time import deterministic_now_iso
 
-from .ingest.connectors.demo_registry import DemoRegistryConnector
-from .ingest.connectors.demo_trade_feed import DemoTradeFeedConnector
-from .normalize.canonicalize import canonicalize_registry, canonicalize_trade_feed
+from .ingest.connectors.organic_world import OrganicWorld
+from .normalize.canonicalize import (
+    canonicalize_registry,
+    canonicalize_trade_feed,
+    canonicalize_payments,
+    canonicalize_procurement,
+    canonicalize_services,
+    canonicalize_intangibles,
+    canonicalize_research_links,
+    canonicalize_maritime_legs,
+)
 from .resolve.match import resolve_entities
 from .resolve.features import canonical_name
 from .analytics.chokepoints.scoring import compute_chokepoint_scores
@@ -27,30 +35,78 @@ def run_reference_pipeline(*, cfg, run_dir: Path, clock_seed: str, logger, run_i
     lineage: List[LineageEvent] = []
     inputs_index: List[Dict[str, Any]] = []
 
-    registry_rows = DemoRegistryConnector(entities=cfg.inputs.registry_entities).read(seed=cfg.run.seed)
+    world = OrganicWorld(registry_entities=cfg.inputs.registry_entities, trade_records=cfg.inputs.trade_feed_records).build(seed=cfg.run.seed)
+    registry_rows = world["registry"]
+    trade_rows = world["trade_feed"]
+    payments_rows = world["payments"]
+    procurement_rows = world["procurement"]
+    services_rows = world["services"]
+    intangibles_rows = world["intangibles"]
+    research_rows = world["research_links"]
+    maritime_rows = world["maritime_legs"]
 
-    base_counts: Dict[str, int] = {}
-    for r in registry_rows:
-        base = canonical_name(str(r["entity_name"]))
-        base_counts[base] = base_counts.get(base, 0) + 1
-
-    exporter_pool = sorted(base_counts.keys())
-    ambiguous_exporters = sorted([k for k, v in base_counts.items() if v > 1])
-
-    trade_rows = DemoTradeFeedConnector(
-        records=cfg.inputs.trade_feed_records,
-        exporter_pool=exporter_pool,
-        ambiguous_exporters=ambiguous_exporters,
-        ambiguous_fraction=0.05,
-    ).read(seed=cfg.run.seed)
     inputs_index.append({"name": "trade_feed", "fingerprint": sha256_json(trade_rows), "row_count": len(trade_rows)})
     inputs_index.append({"name": "registry", "fingerprint": sha256_json(registry_rows), "row_count": len(registry_rows)})
-    lineage.append(LineageEvent.create(run_id, "INGEST", [], ["trade_feed", "registry"], {"counts": {"trade_feed": len(trade_rows), "registry": len(registry_rows)}}, clock_seed))
-    logger.log("INFO", "ingest_complete", trade_feed=len(trade_rows), registry=len(registry_rows))
+    inputs_index.append({"name": "payments", "fingerprint": sha256_json(payments_rows), "row_count": len(payments_rows)})
+    inputs_index.append({"name": "procurement", "fingerprint": sha256_json(procurement_rows), "row_count": len(procurement_rows)})
+    inputs_index.append({"name": "services", "fingerprint": sha256_json(services_rows), "row_count": len(services_rows)})
+    inputs_index.append({"name": "intangibles", "fingerprint": sha256_json(intangibles_rows), "row_count": len(intangibles_rows)})
+    inputs_index.append({"name": "research_links", "fingerprint": sha256_json(research_rows), "row_count": len(research_rows)})
+    inputs_index.append({"name": "maritime_legs", "fingerprint": sha256_json(maritime_rows), "row_count": len(maritime_rows)})
+
+    lineage.append(
+        LineageEvent.create(
+            run_id,
+            "INGEST",
+            [],
+            ["trade_feed", "registry", "payments", "procurement", "services", "intangibles", "research_links", "maritime_legs"],
+            {
+                "counts": {
+                    "trade_feed": len(trade_rows),
+                    "registry": len(registry_rows),
+                    "payments": len(payments_rows),
+                    "procurement": len(procurement_rows),
+                    "services": len(services_rows),
+                    "intangibles": len(intangibles_rows),
+                    "research_links": len(research_rows),
+                    "maritime_legs": len(maritime_rows),
+                }
+            },
+            clock_seed,
+        )
+    )
+    logger.log(
+        "INFO",
+        "ingest_complete",
+        trade_feed=len(trade_rows),
+        registry=len(registry_rows),
+        payments=len(payments_rows),
+        procurement=len(procurement_rows),
+        services=len(services_rows),
+        intangibles=len(intangibles_rows),
+        research_links=len(research_rows),
+        maritime_legs=len(maritime_rows),
+    )
 
     trade_norm = canonicalize_trade_feed(trade_rows)
     registry_norm = canonicalize_registry(registry_rows)
-    lineage.append(LineageEvent.create(run_id, "NORMALIZE", ["trade_feed", "registry"], ["trade_feed_norm", "registry_norm"], {}, clock_seed))
+    payments_norm = canonicalize_payments(payments_rows)
+    procurement_norm = canonicalize_procurement(procurement_rows)
+    services_norm = canonicalize_services(services_rows)
+    intangibles_norm = canonicalize_intangibles(intangibles_rows)
+    research_norm = canonicalize_research_links(research_rows)
+    maritime_norm = canonicalize_maritime_legs(maritime_rows)
+
+    lineage.append(
+        LineageEvent.create(
+            run_id,
+            "NORMALIZE",
+            ["trade_feed", "registry", "payments", "procurement", "services", "intangibles", "research_links", "maritime_legs"],
+            ["trade_feed_norm", "registry_norm", "payments_norm", "procurement_norm", "services_norm", "intangibles_norm", "research_links_norm", "maritime_legs_norm"],
+            {},
+            clock_seed,
+        )
+    )
     logger.log("INFO", "normalize_complete")
 
     matches, review_queue, match_stats = resolve_entities(trade_norm, registry_norm)
@@ -62,22 +118,28 @@ def run_reference_pipeline(*, cfg, run_dir: Path, clock_seed: str, logger, run_i
     lineage.append(LineageEvent.create(run_id, "ANALYZE", ["entity_matches"], ["entity_scores", "sensitivity"], {"entities": len(entity_scores)}, clock_seed))
     logger.log("INFO", "analyze_complete", entities=len(entity_scores))
 
-    warehouse_path = run_dir / "warehouse" / "warehouse.duckdb"
+    warehouse_path = run_dir / "warehouse" / "warehouse.sqlite"
     warehouse_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = connect_duckdb(warehouse_path)
+    conn = connect_sqlite(warehouse_path)
     try:
         execute_sql_file(conn, Path(__file__).resolve().parents[3] / "warehouse" / "db" / "schema.sql")
         insert_many(conn, "trade_feed", trade_norm)
         insert_many(conn, "registry", registry_norm)
         insert_many(conn, "entity_matches", matches)
         insert_many(conn, "entity_scores", entity_scores)
+        insert_many(conn, "payments", payments_norm)
+        insert_many(conn, "procurement", procurement_norm)
+        insert_many(conn, "services", services_norm)
+        insert_many(conn, "intangibles", intangibles_norm)
+        insert_many(conn, "research_links", research_norm)
+        insert_many(conn, "maritime_legs", maritime_norm)
         conn.commit()
         execute_sql_file(conn, Path(__file__).resolve().parents[3] / "warehouse" / "db" / "derived_views.sql")
         conn.commit()
     finally:
         conn.close()
-    lineage.append(LineageEvent.create(run_id, "WAREHOUSE", ["trade_feed_norm", "registry_norm", "entity_matches"], ["warehouse.duckdb"], {"path": "warehouse/warehouse.duckdb"}, clock_seed))
-    logger.log("INFO", "warehouse_complete", path="warehouse/warehouse.duckdb")
+    lineage.append(LineageEvent.create(run_id, "WAREHOUSE", ["trade_feed_norm", "registry_norm", "entity_matches"], ["warehouse.sqlite"], {"path": "warehouse/warehouse.sqlite"}, clock_seed))
+    logger.log("INFO", "warehouse_complete", path="warehouse/warehouse.sqlite")
 
     exports_paths: Dict[str, List[str]] = {"briefing_tables": [], "packets": [], "narratives": []}
     exports_fps: Dict[str, str] = {}
@@ -87,7 +149,21 @@ def run_reference_pipeline(*, cfg, run_dir: Path, clock_seed: str, logger, run_i
     for p in bt_paths:
         exports_fps[p] = sha256_file(run_dir / p)
 
-    pkt_paths = write_evidence_packets(run_dir, entity_scores, trade_norm, matches, review_queue, run_id, clock_seed)
+    pkt_paths = write_evidence_packets(
+        run_dir,
+        entity_scores,
+        trade_norm,
+        matches,
+        review_queue,
+        payments_norm,
+        procurement_norm,
+        services_norm,
+        intangibles_norm,
+        research_norm,
+        maritime_norm,
+        run_id,
+        clock_seed,
+    )
     exports_paths["packets"].extend(pkt_paths)
     for p in pkt_paths:
         exports_fps[p] = sha256_file(run_dir / p)

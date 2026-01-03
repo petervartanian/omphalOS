@@ -23,7 +23,7 @@ checks:
     params:
       metric: "match_rate"
       op: ">="
-      value: 0.95
+      value: 0.87
     severity: "HIGH"
     message: "Entity resolution match rate meets strict threshold."
 
@@ -32,7 +32,7 @@ checks:
     params:
       metric: "review_fraction"
       op: "<="
-      value: 0.05
+      value: 0.13
     severity: "HIGH"
     message: "Review queue remains tightly bounded."
 

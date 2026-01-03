@@ -1,0 +1,139 @@
+{
+  "annexes": {
+    "intangibles": [],
+    "maritime_legs": [
+      {
+        "arrive_date": "2024-10-31",
+        "carrier": "GULLSTREAM CARRIERS",
+        "depart_date": "2024-10-31",
+        "from_port": "PORT JUNIPER",
+        "leg_id": "L000049",
+        "shipment_id": "S000049",
+        "to_port": "PORT ASTER",
+        "transshipment": 1,
+        "vessel_type": "RO-RO"
+      }
+    ],
+    "payments": [
+      {
+        "amount_usd": 49903.09,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "WIRE",
+        "payee_name": "TIDEMARK HOLDINGS",
+        "payer_name": "MARINER VENTURES HOLDING",
+        "payment_date": "2024-10-31",
+        "payment_id": "P000049",
+        "shipment_id": "S000049"
+      },
+      {
+        "amount_usd": 53858.6,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "WIRE",
+        "payee_name": "TIDEMARK HOLDINGS LLC",
+        "payer_name": "AURELINE VENTURES DISTRIBUTION",
+        "payment_date": "2024-11-01",
+        "payment_id": "P000147",
+        "shipment_id": "S000147"
+      },
+      {
+        "amount_usd": 29901.1,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "RIVERMARK FINANCE",
+        "method": "CARD",
+        "payee_name": "TIDEMARK HOLDINGS",
+        "payer_name": "EQUINOX CO TRADING",
+        "payment_date": "2024-09-06",
+        "payment_id": "P000165",
+        "shipment_id": "S000165"
+      }
+    ],
+    "procurement": [],
+    "research_links": [
+      {
+        "entity_name": "TIDEMARK HOLDINGS LLC",
+        "lab_name": "JUNIPER LAB",
+        "link_date": "2024-03-12",
+        "link_id": "R00001",
+        "publication_title": "INVENTED STUDY 1: GUIDANCE",
+        "similarity": 0.679
+      }
+    ],
+    "services": [
+      {
+        "counterparty_name": "IRONLEAF HOUSE IMPORTS",
+        "description": "TRAINING SERVICE (INVENTED)",
+        "end_date": "2024-01-29",
+        "provider_name": "TIDEMARK HOLDINGS LLC",
+        "service_id": "SV00021",
+        "service_type": "TRAINING",
+        "start_date": "2024-01-03",
+        "value_usd": 15156.12
+      }
+    ]
+  },
+  "claim": "Entity exhibits elevated chokepoint exposure under the reference scoring model.",
+  "created_at": "2007-08-13T13:52:43Z",
+  "entity": {
+    "chokepoint_score": 0.0,
+    "country": "PL",
+    "entity_id": "E0004",
+    "entity_name": "TIDEMARK HOLDINGS LLC",
+    "shipment_count": 3,
+    "total_value_usd": 149287.1
+  },
+  "evidence": [
+    {
+      "domain": "intangibles",
+      "hs_code": "998130",
+      "incoterm": "FCA",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-10-31",
+      "shipment_id": "S000049",
+      "transport_mode": "SEA",
+      "value_usd": 62093.96
+    },
+    {
+      "domain": "luxury_dual_use_consumer",
+      "hs_code": "910211",
+      "incoterm": "FCA",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-11-01",
+      "shipment_id": "S000147",
+      "transport_mode": "RAIL",
+      "value_usd": 45942.2
+    },
+    {
+      "domain": "finance_signals",
+      "hs_code": "997010",
+      "incoterm": "CIF",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-09-06",
+      "shipment_id": "S000165",
+      "transport_mode": "ROAD",
+      "value_usd": 41250.94
+    }
+  ],
+  "hashes": {
+    "packet": "eb30024976a256ff5b56efe3ae9cb4bad12bf26c677e14555679481d792fa56f"
+  },
+  "lineage": [
+    "RESOLVE",
+    "ANALYZE",
+    "EXPORT"
+  ],
+  "packet_id": "packet-E0004",
+  "review": {
+    "reason": "sufficient_confidence",
+    "status": "CLEAR"
+  },
+  "run_id": "run-781327b7-a7a5",
+  "schema_version": "1.0"
+}

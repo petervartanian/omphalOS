@@ -1,0 +1,159 @@
+{
+  "annexes": {
+    "intangibles": [
+      {
+        "description": "SOFTWARE_MODULE TRANSFER (INVENTED)",
+        "intangible_id": "I00018",
+        "intangible_type": "SOFTWARE_MODULE",
+        "owner_name": "SABLE MARITIME",
+        "transfer_date": "2024-04-16",
+        "transfer_mode": "REMOVABLE_MEDIA"
+      }
+    ],
+    "maritime_legs": [
+      {
+        "arrive_date": "2024-01-07",
+        "carrier": "BLUE QUAY SHIPPING",
+        "depart_date": "2024-01-07",
+        "from_port": "PORT KESTREL",
+        "leg_id": "L000133",
+        "shipment_id": "S000133",
+        "to_port": "PORT MARINER",
+        "transshipment": 0,
+        "vessel_type": "TANKER"
+      }
+    ],
+    "payments": [
+      {
+        "amount_usd": 117920.25,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "STONEBRIDGE BANK",
+        "method": "LC",
+        "payee_name": "SABLE MARITIME",
+        "payer_name": "IRONLEAF CO PROJECTS",
+        "payment_date": "2024-10-19",
+        "payment_id": "P000100",
+        "shipment_id": "S000100"
+      },
+      {
+        "amount_usd": 77341.2,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "WIRE",
+        "payee_name": "SABLE MARITIME",
+        "payer_name": "IRONLEAF PARTNERS HOLDING",
+        "payment_date": "2024-11-13",
+        "payment_id": "P000121",
+        "shipment_id": "S000121"
+      },
+      {
+        "amount_usd": 90505.99,
+        "currency": "USD",
+        "insurer": "ANCHOR MUTUAL",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "LC",
+        "payee_name": "SABLE MARITIME",
+        "payer_name": "DORIAN CO HOLDING",
+        "payment_date": "2024-01-07",
+        "payment_id": "P000133",
+        "shipment_id": "S000133"
+      }
+    ],
+    "procurement": [
+      {
+        "award_date": "2024-08-31",
+        "buyer_name": "ORCHID PARTNERS TRADING",
+        "description": "SERVICES PROCUREMENT (INVENTED)",
+        "domain": "services",
+        "notice_date": "2024-03-12",
+        "supplier_name": "SABLE MARITIME",
+        "tender_id": "T00011",
+        "value_usd": 131661.68
+      }
+    ],
+    "research_links": [
+      {
+        "entity_name": "SABLE MARITIME",
+        "lab_name": "TIDEMARK LAB",
+        "link_date": "2024-03-27",
+        "link_id": "R00006",
+        "publication_title": "INVENTED STUDY 6: SENSING",
+        "similarity": 0.882
+      }
+    ],
+    "services": [
+      {
+        "counterparty_name": "KESTREL VENTURES PROJECTS",
+        "description": "CONTRACT_MFG SERVICE (INVENTED)",
+        "end_date": "2024-07-19",
+        "provider_name": "SABLE MARITIME",
+        "service_id": "SV00009",
+        "service_type": "CONTRACT_MFG",
+        "start_date": "2024-09-04",
+        "value_usd": 84639.43
+      }
+    ]
+  },
+  "claim": "Entity exhibits elevated chokepoint exposure under the reference scoring model.",
+  "created_at": "2011-08-13T04:08:01Z",
+  "entity": {
+    "chokepoint_score": 0.0,
+    "country": "KR",
+    "entity_id": "E0003",
+    "entity_name": "SABLE MARITIME",
+    "shipment_count": 3,
+    "total_value_usd": 307530.49
+  },
+  "evidence": [
+    {
+      "domain": "machine_tools",
+      "hs_code": "845811",
+      "incoterm": "EXW",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-10-19",
+      "shipment_id": "S000100",
+      "transport_mode": "ROAD",
+      "value_usd": 134689.1
+    },
+    {
+      "domain": "services",
+      "hs_code": "999700",
+      "incoterm": "FCA",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-11-13",
+      "shipment_id": "S000121",
+      "transport_mode": "AIR",
+      "value_usd": 99011.54
+    },
+    {
+      "domain": "medical_bio_lab",
+      "hs_code": "901890",
+      "incoterm": "FCA",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-01-07",
+      "shipment_id": "S000133",
+      "transport_mode": "SEA",
+      "value_usd": 73829.85
+    }
+  ],
+  "hashes": {
+    "packet": "4e3b1255ced1fea41caa86d63afe47172e2b975e118a467f6a0d233d56bb8458"
+  },
+  "lineage": [
+    "RESOLVE",
+    "ANALYZE",
+    "EXPORT"
+  ],
+  "packet_id": "packet-E0003",
+  "review": {
+    "reason": "sufficient_confidence",
+    "status": "CLEAR"
+  },
+  "run_id": "run-781327b7-a7a5",
+  "schema_version": "1.0"
+}

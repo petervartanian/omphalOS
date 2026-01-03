@@ -1,0 +1,176 @@
+{
+  "annexes": {
+    "intangibles": [],
+    "maritime_legs": [],
+    "payments": [
+      {
+        "amount_usd": 296565.43,
+        "currency": "USD",
+        "insurer": "CIRRUS INSURANCE",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "NETTING",
+        "payee_name": "TIDEMARK ENGINEERING SYSTEMS GMBH",
+        "payer_name": "IRONLEAF CO PROJECTS",
+        "payment_date": "2024-01-23",
+        "payment_id": "P000065",
+        "shipment_id": "S000065"
+      },
+      {
+        "amount_usd": 183733.72,
+        "currency": "USD",
+        "insurer": "EMBER UNDERWRITERS",
+        "intermediary_bank": "STONEBRIDGE BANK",
+        "method": "NETTING",
+        "payee_name": "TIDEMARK-ENGINEERING-SYSTEMS-GMBH",
+        "payer_name": "LANTERN CO HOLDING",
+        "payment_date": "2024-01-24",
+        "payment_id": "P000117",
+        "shipment_id": "S000117"
+      },
+      {
+        "amount_usd": 64231.06,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "CARD",
+        "payee_name": "TIDEMARK-ENGINEERING-SYSTEMS-GMBH.",
+        "payer_name": "BASALT CO PROJECTS",
+        "payment_date": "2024-02-09",
+        "payment_id": "P000148",
+        "shipment_id": "S000148"
+      },
+      {
+        "amount_usd": 19540.25,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "SABLE CLEARING",
+        "method": "NETTING",
+        "payee_name": "TIDEMARK-ENGINEERING-SYSTEMS-GMBH.",
+        "payer_name": "BASALT CO PROJECTS",
+        "payment_date": "2024-02-09",
+        "payment_id": "P000148B",
+        "shipment_id": "S000148"
+      },
+      {
+        "amount_usd": 63245.43,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "STONEBRIDGE BANK",
+        "method": "WIRE",
+        "payee_name": "TIDEMARK ENGINEERING SYSTEMS GMBH",
+        "payer_name": "EQUINOX VENTURES PROJECTS",
+        "payment_date": "2024-04-23",
+        "payment_id": "P000155",
+        "shipment_id": "S000155"
+      },
+      {
+        "amount_usd": 39510.08,
+        "currency": "USD",
+        "insurer": "ANCHOR MUTUAL",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "TIDEMARK-ENGINEERING-SYSTEMS-GMBH",
+        "payer_name": "PENDULUM VENTURES PROJECTS",
+        "payment_date": "2024-03-04",
+        "payment_id": "P000168",
+        "shipment_id": "S000168"
+      }
+    ],
+    "procurement": [
+      {
+        "award_date": "2024-02-05",
+        "buyer_name": "NEBULA GLOBAL IMPORTS",
+        "description": "INTANGIBLES PROCUREMENT (INVENTED)",
+        "domain": "intangibles",
+        "notice_date": "2024-12-05",
+        "supplier_name": "TIDEMARK ENGINEERING SYSTEMS GMBH",
+        "tender_id": "T00020",
+        "value_usd": 197249.88
+      }
+    ],
+    "research_links": [],
+    "services": []
+  },
+  "claim": "Entity exhibits elevated chokepoint exposure under the reference scoring model.",
+  "created_at": "2015-09-27T07:40:59Z",
+  "entity": {
+    "chokepoint_score": 0.0,
+    "country": "VN",
+    "entity_id": "E0011",
+    "entity_name": "TIDEMARK ENGINEERING SYSTEMS GMBH",
+    "shipment_count": 6,
+    "total_value_usd": 698644.59
+  },
+  "evidence": [
+    {
+      "domain": "aerospace_uas_avionics",
+      "hs_code": "880240",
+      "incoterm": "CIF",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-01-23",
+      "shipment_id": "S000065",
+      "transport_mode": "AIR",
+      "value_usd": 252035.2
+    },
+    {
+      "domain": "energy_equipment",
+      "hs_code": "841011",
+      "incoterm": "EXW",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-01-24",
+      "shipment_id": "S000117",
+      "transport_mode": "AIR",
+      "value_usd": 168795.75
+    },
+    {
+      "domain": "services",
+      "hs_code": "999730",
+      "incoterm": "FOB",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-02-09",
+      "shipment_id": "S000148",
+      "transport_mode": "ROAD",
+      "value_usd": 60442.04
+    },
+    {
+      "domain": "machine_tools",
+      "hs_code": "846693",
+      "incoterm": "EXW",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-04-23",
+      "shipment_id": "S000155",
+      "transport_mode": "AIR",
+      "value_usd": 68339.14
+    },
+    {
+      "domain": "intangibles",
+      "hs_code": "998110",
+      "incoterm": "CFR",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-03-04",
+      "shipment_id": "S000168",
+      "transport_mode": "ROAD",
+      "value_usd": 45171.7
+    }
+  ],
+  "hashes": {
+    "packet": "74583d2bb27a667c39adad02fd8394af3250522dcf8ad0d2b8f4080cb2e61261"
+  },
+  "lineage": [
+    "RESOLVE",
+    "ANALYZE",
+    "EXPORT"
+  ],
+  "packet_id": "packet-E0011",
+  "review": {
+    "reason": "sufficient_confidence",
+    "status": "CLEAR"
+  },
+  "run_id": "run-781327b7-a7a5",
+  "schema_version": "1.0"
+}

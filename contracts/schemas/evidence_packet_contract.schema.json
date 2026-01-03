@@ -20,6 +20,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "annexes": {
+      "additionalProperties": true,
+      "type": "object"
+    },
     "claim": {
       "type": "string"
     },

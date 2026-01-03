@@ -2,19 +2,24 @@
   "artifacts": {
     "control_files": [
       {
-        "bytes": 924,
+        "bytes": 1043,
         "path": "logs/run.jsonl",
-        "sha256": "e13c47220cdc1278b2b816c1d24b8027ee92bf126a23d6193aed3ddf20a63377"
+        "sha256": "9da00b3cf006ba415e78bca861c741a3081ceaec0b096ef849524f8423c970c2"
       },
       {
-        "bytes": 1207,
+        "bytes": 3516,
         "path": "reports/determinism_report.json",
-        "sha256": "71c787def468a13bc8b38c0044fed28b073b9251b0a42513c6789a2c5444fb14"
+        "sha256": "7cf96b7afd63245463dd740415c58c1873ebd6e6bae5fcd9933da39e80112482"
       },
       {
         "bytes": 141,
         "path": "reports/publishability_report.json",
-        "sha256": "5b76109da8e736b196972dddcca52b5f4ec6d6292fba0e25731d3434d02ffeaf"
+        "sha256": "6df3304eb00a4848eb7ba931c3907b7f74c8b5ee935878a7c3d825efed8d4620"
+      },
+      {
+        "bytes": 1007,
+        "path": "reports/quality_report.json",
+        "sha256": "6d901f28e52310b5775b50ec326d06ea8512991becd64512777717026f5bfc08"
       },
       {
         "bytes": 28015,
@@ -24,81 +29,158 @@
     ],
     "files": [
       {
-        "bytes": 268,
+        "bytes": 2221,
         "path": "exports/briefing_tables/briefing_table_entities.csv",
-        "sha256": "db0bdd6ac85f6f0ac59929e3994009b24b9df774d77eef8d03b3e221299eec97"
+        "sha256": "b6b013cc5c70957e2381a9ca0fe2ce1969886ab6e50cd46a996dcdd0ad53a663"
       },
       {
-        "bytes": 355,
+        "bytes": 359,
         "path": "exports/narratives/deltas.md",
-        "sha256": "fb5310dedb879dd345871e433059c5fa76ea5c77bdb0ba8b2c47f68f2fc55801"
+        "sha256": "f93d2c2b36697d9055b04ee7ee14c1ef737b8395f826a5e302f04eecbbee24c2"
       },
       {
-        "bytes": 1719,
+        "bytes": 6871,
         "path": "exports/packets/packet_E0001.json",
-        "sha256": "11181c4cc192314d7c68a3339e565f039724a9ebba9b6cc3b9b68be2b429ba25"
+        "sha256": "1061232a7a0f48b11309fbfc00b637702f35966551d5d8e821ca4e78535956c6"
       },
       {
-        "bytes": 1719,
+        "bytes": 5484,
         "path": "exports/packets/packet_E0002.json",
-        "sha256": "64b30c48c78d7453c1a116f061e14f2584aca0969a9738895d1ae57571a3aa2f"
+        "sha256": "c148d47efb1d0fbc6afbde9f6c2be6011d882c78ff5fbf345323b54f431f8fef"
       },
       {
-        "bytes": 1642,
+        "bytes": 4332,
+        "path": "exports/packets/packet_E0003.json",
+        "sha256": "5083c851448c695ccb7e5abd1fbee26f9f7572259c32a63ed4bf07f1817f5028"
+      },
+      {
+        "bytes": 3741,
+        "path": "exports/packets/packet_E0004.json",
+        "sha256": "17e9032e0fb1f8ff31c8443b31f61bf9b45ca6f7fb9604118456e885c17aa81f"
+      },
+      {
+        "bytes": 6045,
+        "path": "exports/packets/packet_E0005.json",
+        "sha256": "418bbf7ce58881bf09c747b0c136c82f881ebf27b45943ee8e3f481b0654778c"
+      },
+      {
+        "bytes": 4148,
+        "path": "exports/packets/packet_E0006.json",
+        "sha256": "9dd2a6d58811d3c20df12e05a36570ae451cd0b0b1813be1ab5744404417e8b7"
+      },
+      {
+        "bytes": 3837,
+        "path": "exports/packets/packet_E0007.json",
+        "sha256": "13e901da9a3b2be8a689f48e3f530b5ec5d011c9d735a6b695e52727d12d48d2"
+      },
+      {
+        "bytes": 4517,
         "path": "exports/packets/packet_E0008.json",
-        "sha256": "d9689582559413b392e7f2b35cf89bb72c0190bb2e86c605567b26508f24000e"
+        "sha256": "37d5e188ce63f355dade9e345558f44fc569c997b7626db32a146e74f4ebf59d"
       },
       {
-        "bytes": 1626,
+        "bytes": 4259,
+        "path": "exports/packets/packet_E0009.json",
+        "sha256": "c07c8aea389ff390b44d620028bfb384837e0516045b2a0981f05d5e49606172"
+      },
+      {
+        "bytes": 3218,
+        "path": "exports/packets/packet_E0010.json",
+        "sha256": "a932939169add7b51a6bd5e866142e3a2a57449024931b1792ee218d36c2d04a"
+      },
+      {
+        "bytes": 4986,
+        "path": "exports/packets/packet_E0011.json",
+        "sha256": "a9d8d2ae676b417a96dec2a91cc371028365505927c2a5bcd930663c522ab13d"
+      },
+      {
+        "bytes": 5585,
+        "path": "exports/packets/packet_E0012.json",
+        "sha256": "6e50cf8ee3274f483b049f68ef7f844c062ac1275c584ce9b937dba04370c7e9"
+      },
+      {
+        "bytes": 4805,
+        "path": "exports/packets/packet_E0013.json",
+        "sha256": "f4f2e3083719663c754b1aeaefb1befcd57660a9ef997130591ee7a6889e8d42"
+      },
+      {
+        "bytes": 5872,
+        "path": "exports/packets/packet_E0014.json",
+        "sha256": "f5e7d926b4ecec44d1b157b86a24f0e936c00ecd229caccdf6770388114af123"
+      },
+      {
+        "bytes": 6079,
         "path": "exports/packets/packet_E0015.json",
-        "sha256": "43158a4300f1926a1820c5fc84a95979194b59a9bd370e6f116cf2cdc33ae1d7"
+        "sha256": "67989ef110fc2bd427bed10aa6ec7b9ddb15263903fbec4aa136c27b52a80321"
       },
       {
-        "bytes": 1985,
+        "bytes": 4539,
+        "path": "exports/packets/packet_E0016.json",
+        "sha256": "ee64d95515805e9ee49a59c438ab0fe67e8fd96ac906838f89ffb160adbcd092"
+      },
+      {
+        "bytes": 4012,
+        "path": "exports/packets/packet_E0017.json",
+        "sha256": "414203d765c77eed092977ca080ed6a7c8b6c33fad58b04db1aa3eb2f25a3851"
+      },
+      {
+        "bytes": 4925,
+        "path": "exports/packets/packet_E0018.json",
+        "sha256": "d8291746dc4d2d9c69363fbec1f46392f6fa234fb897e0485ffaefa9cdf021b9"
+      },
+      {
+        "bytes": 3447,
+        "path": "exports/packets/packet_E0019.json",
+        "sha256": "467a016a5a1a5e0c79975fb7efb5e4c8fc11a401cc55f9672be3a51fd30e6776"
+      },
+      {
+        "bytes": 3591,
+        "path": "exports/packets/packet_E0020.json",
+        "sha256": "5c1233c4334506940ae3aec843543b1dab8efcf6456c06553b0d24edb38cf5c1"
+      },
+      {
+        "bytes": 2891,
         "path": "lineage/lineage.jsonl",
-        "sha256": "b5b575969c3c3f3437bc8f7980d04b54e9cab5e19927c594a67ea8d5fdc02f55"
+        "sha256": "c92c5b08f878b21c200761c5b57471b2ca0d088cb89ebfc9dbf1f3113cf8a2f0"
       },
       {
-        "bytes": 139,
-        "path": "reports/quality_report.json",
-        "sha256": "5c2fdca8c4631074dbccacc416d0d5d91cd64e11d1ac41e9b5a2206bbddf5ca6"
-      },
-      {
-        "bytes": 45056,
+        "bytes": 225280,
         "path": "warehouse/warehouse.sqlite",
-        "sha256": "452b93e8b6663beea916347b7f5e2fd1133e2dd2eb356bbc361f7eca0439e754"
+        "sha256": "a623d6232d6d63f815e6f2b251e220c2e49c0a85e1289424ff066a43849ede7c"
       }
     ],
-    "root_hash": "10eb38a88a7842af372d1af6d0edffcad4ff8d3744b48c1a23aaf139afa1dbbd"
+    "root_hash": "fffb9c79bff5756fed288114ae8542b54ef43fa802b6a2fd87f54d57dd04b900"
   },
   "config": {
-    "fingerprint": "7ce26d580cf28a95199ebdb63e73d1972a65ae6d4594f5337bd6043fbeccc431",
+    "fingerprint": "781327b7a7a5be7c07694baa2a0d061b87b89d319933df8269ec4dd67abed7b0",
     "payload": {
       "inputs": {
         "registry": {
-          "entities": 20
+          "entities": 40
         },
         "trade_feed": {
-          "records": 60
+          "records": 200
         }
       },
       "rules": {
-        "pack": "smoke",
-        "paths": []
+        "pack": "baseline",
+        "paths": [
+          "contracts/quality_rules/quality_rules.yaml"
+        ]
       },
       "run": {
         "hermetic": true,
-        "run_name": "smoke4",
-        "seed": 7
+        "run_name": "example",
+        "seed": 1337
       },
       "schema_version": "1.0"
     },
     "source": {
-      "name": "omphalos_smoke4.yaml",
-      "sha256": "cb191d157bee87fa5a2d3ce4c69e152b6037b58b72142f29197123aa67372b9a"
+      "name": "example_run.yaml",
+      "sha256": "902c38d8d76a2db5346dc30baeea735741c198761578ac1e1b6e7b83b2dd088f"
     }
   },
-  "created_at": "2019-08-24T14:35:54Z",
+  "created_at": "2002-02-14T10:32:15Z",
   "exports": {
     "briefing_tables": [
       "exports/briefing_tables/briefing_table_entities.csv"
@@ -107,22 +189,68 @@
       "exports/narratives/deltas.md"
     ],
     "packets": [
+      "exports/packets/packet_E0001.json",
       "exports/packets/packet_E0002.json",
+      "exports/packets/packet_E0003.json",
+      "exports/packets/packet_E0004.json",
+      "exports/packets/packet_E0005.json",
+      "exports/packets/packet_E0006.json",
+      "exports/packets/packet_E0007.json",
       "exports/packets/packet_E0008.json",
+      "exports/packets/packet_E0009.json",
+      "exports/packets/packet_E0010.json",
+      "exports/packets/packet_E0011.json",
+      "exports/packets/packet_E0012.json",
+      "exports/packets/packet_E0013.json",
+      "exports/packets/packet_E0014.json",
       "exports/packets/packet_E0015.json",
-      "exports/packets/packet_E0001.json"
+      "exports/packets/packet_E0016.json",
+      "exports/packets/packet_E0017.json",
+      "exports/packets/packet_E0018.json",
+      "exports/packets/packet_E0019.json",
+      "exports/packets/packet_E0020.json"
     ]
   },
   "inputs": [
     {
-      "fingerprint": "a5bcc87b23d5d4ce218914787819f7ee2fe8d67675e4f96d3fff5d01cbc9f571",
+      "fingerprint": "cdd5dc94d886c48e4f9677dbc83bd71a8386d7016e5773f059089474a5fcf43e",
       "name": "trade_feed",
-      "row_count": 60
+      "row_count": 200
     },
     {
-      "fingerprint": "5000cec7a57f7ea74d4e99930a2199a50f51259569433c8ba80c34560eb02a4a",
+      "fingerprint": "89ace68074bf0369d84deb76fdf46f70e263eabc12d5a22d84423bd0020497e9",
       "name": "registry",
+      "row_count": 40
+    },
+    {
+      "fingerprint": "bf1c96d85e1cde01b2e2a437f1b4acd3d7291c412845e679775931e4e8250aff",
+      "name": "payments",
+      "row_count": 222
+    },
+    {
+      "fingerprint": "1b4cb6e3058a7735caf7086f3e30ef6cd69cebd9ffa2aac03e7e70d297c653a8",
+      "name": "procurement",
       "row_count": 20
+    },
+    {
+      "fingerprint": "fffcafd4b4573d9026251f52579b246e5f3ee2b692326e47ddbd3f96d5ebe8c0",
+      "name": "services",
+      "row_count": 40
+    },
+    {
+      "fingerprint": "39f18986dee2a28c1626f015fc44d8da4d27cba9251e1ff6cc153d8e182ea428",
+      "name": "intangibles",
+      "row_count": 20
+    },
+    {
+      "fingerprint": "d3c163ba201f01e8a78c418bd60afdee93440dfda0d4cc10c329eaddd71d8231",
+      "name": "research_links",
+      "row_count": 13
+    },
+    {
+      "fingerprint": "c72b3afd29e598cc6b295d237712524aaef1cbf1afce858819f2ec3385271858",
+      "name": "maritime_legs",
+      "row_count": 49
     }
   ],
   "lineage": "lineage/lineage.jsonl",
@@ -132,7 +260,7 @@
     "quality": "reports/quality_report.json",
     "sbom": "reports/sbom_manifest.json"
   },
-  "run_id": "run-7ce26d58-0cf2",
+  "run_id": "run-781327b7-a7a5",
   "schema_version": "1.0",
   "warehouse": "warehouse/warehouse.sqlite"
 }

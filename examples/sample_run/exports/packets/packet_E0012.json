@@ -1,0 +1,198 @@
+{
+  "annexes": {
+    "intangibles": [],
+    "maritime_legs": [
+      {
+        "arrive_date": "2024-10-29",
+        "carrier": "BLUE QUAY SHIPPING",
+        "depart_date": "2024-10-29",
+        "from_port": "PORT HALCYON",
+        "leg_id": "L000029",
+        "shipment_id": "S000029",
+        "to_port": "PORT MARINER",
+        "transshipment": 1,
+        "vessel_type": "RO-RO"
+      }
+    ],
+    "payments": [
+      {
+        "amount_usd": 23668.72,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "WIRE",
+        "payee_name": "LANTERN ENGINEERING WORKS",
+        "payer_name": "JUNIPER HOUSE HOLDING",
+        "payment_date": "2024-08-01",
+        "payment_id": "P000005",
+        "shipment_id": "S000005"
+      },
+      {
+        "amount_usd": 110428.96,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "RIVERMARK FINANCE",
+        "method": "CARD",
+        "payee_name": "LANTERN ENGINEERING WORKS",
+        "payer_name": "TIDEMARK PARTNERS HOLDING",
+        "payment_date": "2024-10-29",
+        "payment_id": "P000029",
+        "shipment_id": "S000029"
+      },
+      {
+        "amount_usd": 27537.63,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "RIVERMARK FINANCE",
+        "method": "LC",
+        "payee_name": "LANTERN ENGINEERING WORKS",
+        "payer_name": "KESTREL CO IMPORTS",
+        "payment_date": "2024-07-10",
+        "payment_id": "P000102",
+        "shipment_id": "S000102"
+      },
+      {
+        "amount_usd": 8260.66,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "LANTERN-ENGINEERING-WORKS",
+        "payer_name": "BASALT HOUSE IMPORTS",
+        "payment_date": "2024-03-31",
+        "payment_id": "P000132",
+        "shipment_id": "S000132"
+      },
+      {
+        "amount_usd": 3623.95,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "HARBORLIGHT TRUST",
+        "method": "NETTING",
+        "payee_name": "LANTERN-ENGINEERING-WORKS",
+        "payer_name": "BASALT HOUSE IMPORTS",
+        "payment_date": "2024-03-31",
+        "payment_id": "P000132B",
+        "shipment_id": "S000132"
+      },
+      {
+        "amount_usd": 178927.97,
+        "currency": "USD",
+        "insurer": "",
+        "intermediary_bank": "RIVERMARK FINANCE",
+        "method": "WIRE",
+        "payee_name": "LANTERN ENGINEERING WORKS",
+        "payer_name": "FATHOM GLOBAL HOLDING",
+        "payment_date": "2024-11-08",
+        "payment_id": "P000160",
+        "shipment_id": "S000160"
+      }
+    ],
+    "procurement": [],
+    "research_links": [],
+    "services": [
+      {
+        "counterparty_name": "IRONLEAF VENTURES HOLDING",
+        "description": "MAINTENANCE SERVICE (INVENTED)",
+        "end_date": "2024-08-22",
+        "provider_name": "LANTERN ENGINEERING WORKS",
+        "service_id": "SV00026",
+        "service_type": "MAINTENANCE",
+        "start_date": "2024-06-18",
+        "value_usd": 38763.72
+      },
+      {
+        "counterparty_name": "GOSSAMER PARTNERS SUPPLY",
+        "description": "CALIBRATION SERVICE (INVENTED)",
+        "end_date": "2024-09-09",
+        "provider_name": "LANTERN ENGINEERING WORKS",
+        "service_id": "SV00031",
+        "service_type": "CALIBRATION",
+        "start_date": "2024-03-30",
+        "value_usd": 110968.93
+      }
+    ]
+  },
+  "claim": "Entity exhibits elevated chokepoint exposure under the reference scoring model.",
+  "created_at": "2005-02-22T17:02:18Z",
+  "entity": {
+    "chokepoint_score": 0.0,
+    "country": "US",
+    "entity_id": "E0012",
+    "entity_name": "LANTERN ENGINEERING WORKS",
+    "shipment_count": 6,
+    "total_value_usd": 374435.55
+  },
+  "evidence": [
+    {
+      "domain": "research_links",
+      "hs_code": "995020",
+      "incoterm": "DAP",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-08-01",
+      "shipment_id": "S000005",
+      "transport_mode": "ROAD",
+      "value_usd": 21518.81
+    },
+    {
+      "domain": "maritime_shipbuilding_ports",
+      "hs_code": "731449",
+      "incoterm": "EXW",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-10-29",
+      "shipment_id": "S000029",
+      "transport_mode": "SEA",
+      "value_usd": 118408.06
+    },
+    {
+      "domain": "finance_signals",
+      "hs_code": "997030",
+      "incoterm": "FOB",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-07-10",
+      "shipment_id": "S000102",
+      "transport_mode": "ROAD",
+      "value_usd": 27908.14
+    },
+    {
+      "domain": "chem_precursors",
+      "hs_code": "290410",
+      "incoterm": "EXW",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-03-31",
+      "shipment_id": "S000132",
+      "transport_mode": "ROAD",
+      "value_usd": 10705.38
+    },
+    {
+      "domain": "intangibles",
+      "hs_code": "998110",
+      "incoterm": "FCA",
+      "match_score": 1.0,
+      "match_status": "MATCH",
+      "ship_date": "2024-11-08",
+      "shipment_id": "S000160",
+      "transport_mode": "AIR",
+      "value_usd": 139243.99
+    }
+  ],
+  "hashes": {
+    "packet": "f8e4157db0646d40b110dcd8fca9bd6aed6232065d41f0340bf07b31414e4a7f"
+  },
+  "lineage": [
+    "RESOLVE",
+    "ANALYZE",
+    "EXPORT"
+  ],
+  "packet_id": "packet-E0012",
+  "review": {
+    "reason": "sufficient_confidence",
+    "status": "CLEAR"
+  },
+  "run_id": "run-781327b7-a7a5",
+  "schema_version": "1.0"
+}
