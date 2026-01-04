@@ -1,8 +1,0 @@
-{"level": "INFO", "msg": "run_start", "run_id": "run-781327b7-a7a5", "ts": "2014-08-19T04:12:45Z"}
-{"intangibles": 20, "level": "INFO", "maritime_legs": 49, "msg": "ingest_complete", "payments": 222, "procurement": 20, "registry": 40, "research_links": 13, "services": 40, "trade_feed": 200, "ts": "2016-10-07T12:47:45Z"}
-{"level": "INFO", "msg": "normalize_complete", "ts": "2018-01-04T15:32:24Z"}
-{"level": "INFO", "matched": 176, "msg": "resolve_complete", "review": 24, "total": 200, "ts": "2000-12-31T13:53:05Z"}
-{"entities": 39, "level": "INFO", "msg": "analyze_complete", "ts": "2004-06-05T16:03:26Z"}
-{"level": "INFO", "msg": "warehouse_complete", "path": "warehouse/warehouse.sqlite", "ts": "2002-07-14T11:14:42Z"}
-{"briefing_tables": 1, "level": "INFO", "msg": "export_complete", "narratives": 1, "packets": 20, "ts": "2009-08-15T10:57:14Z"}
-{"level": "INFO", "msg": "run_complete", "payload_root_hash": "fffb9c79bff5756fed288114ae8542b54ef43fa802b6a2fd87f54d57dd04b900", "run_id": "run-781327b7-a7a5", "ts": "2007-05-16T21:00:43Z"}

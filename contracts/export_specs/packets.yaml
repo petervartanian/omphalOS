@@ -1,5 +1,0 @@
-version: "1.0"
-products:
-  - name: "evidence_packets"
-    format: "json"
-    schema: "contracts/schemas/evidence_packet_contract.schema.json"

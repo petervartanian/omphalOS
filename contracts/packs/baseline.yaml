@@ -1,6 +1,0 @@
-version: "1.0"
-name: "baseline"
-quality_rules:
-  - "contracts/quality_rules/quality_rules.yaml"
-publishability_rules:
-  - "contracts/quality_rules/publishability_gates.yaml"
