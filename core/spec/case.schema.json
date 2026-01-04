@@ -1,0 +1,11 @@
+{
+  "title": "Case",
+  "type": "object",
+  "required": [
+    "case_id",
+    "question",
+    "scope",
+    "investigations",
+    "profiles"
+  ]
+}
