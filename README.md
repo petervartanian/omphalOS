@@ -16,7 +16,7 @@ What omphalOS constitutes is neither risk-scoring, nor classification, but a hyp
 
 ## Who Uses This
 
-Intelligence analysts, export control investigators, sanctions compliance officers, trade finance investigators—anyone working in adversarial legal contexts where "the-algorithm-flagged-it" is insufficient and analytical reasoning must survive scrutiny.
+omphalOS enjoys usage by intelligence analysts, export-control investigators, sanctions-compliance officers, trade-finance investigators — in other words, anyone working in adversarial contexts of legality wherein "the-algorithm-flagged-it" is insufficient and analytical reasoning must survive scrutiny.
 
 Application domains include — and are not limited to — export control casework (e.g., EAR, ITAR), sanctions enforcement (e.g., OFAC and multilateral régimes), trade-based money laundering, supply-chain risk, proliferation finance, detection of illicit and/or luxury goods... and, much, much more.
 
