@@ -1,0 +1,51 @@
+{
+  "comment": "Sample ECCN entries for demonstration. Production deployment requires full Commerce Control List.",
+  "eccns": [
+    {
+      "code": "3B001",
+      "description": "Equipment for the production or inspection of semiconductor devices",
+      "control_reason": ["NS", "AT"],
+      "hs_codes": ["8479.89", "8486.10"],
+      "de_minimis": {
+        "default": 25,
+        "country_d": 10
+      },
+      "license_exceptions": ["CIV", "TSR"],
+      "notes": "Includes equipment for etching, deposition, lithography"
+    },
+    {
+      "code": "1C350",
+      "description": "Chemicals that may be used as precursors for toxic chemical agents",
+      "control_reason": ["CW", "AT"],
+      "hs_codes": ["2920.90", "2931.90"],
+      "de_minimis": 0,
+      "license_exceptions": [],
+      "notes": "CW1 Schedule 1 precursors - no de minimis, no exceptions"
+    },
+    {
+      "code": "9A991",
+      "description": "Aircraft, spacecraft not controlled by 9A004 or 9A991.a",
+      "control_reason": ["AT"],
+      "hs_codes": ["8802.11", "8802.12"],
+      "de_minimis": 25,
+      "license_exceptions": ["BAG", "CIV"],
+      "notes": "Most civil aircraft - low control level"
+    }
+  ],
+  "catchalls": [
+    {
+      "section": "744.17",
+      "name": "Entity List",
+      "description": "Entities subject to license requirements for items subject to EAR",
+      "trigger": "Transaction involves entity on Entity List",
+      "override_de_minimis": true
+    },
+    {
+      "section": "744.21",
+      "name": "Military End-Use/End-User",
+      "description": "License requirement for items to military end-use or end-user in China, Russia, Venezuela",
+      "trigger": "Item destined for military end-use in specified countries",
+      "override_de_minimis": true
+    }
+  ]
+}

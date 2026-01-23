@@ -1,0 +1,25 @@
+{
+  "profile": "hydrate",
+  "created_utc": "2026-01-04T02:56:22.374817Z",
+  "domains": [
+    "chemicals_precursors",
+    "machine_tools",
+    "aerospace_uas_avionics",
+    "maritime_port_equipment",
+    "energy_equipment",
+    "medical_bio_lab",
+    "luxury_dual_use_consumer",
+    "services",
+    "intangibles",
+    "finance_signals",
+    "procurement",
+    "research_links"
+  ],
+  "recipe": {
+    "entities_base": 250000,
+    "shipments_base": 600000,
+    "multiplier_hint": 100,
+    "shards": 64
+  },
+  "note": "Invented, internally consistent world. Non-identifiable."
+}

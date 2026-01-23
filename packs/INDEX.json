@@ -1,0 +1,29 @@
+{
+  "packs": [
+    {
+      "name": "sql.catalog.v1.tar",
+      "file": "sql.catalog.v1.tar.gz",
+      "sha256": "c94730b847e78e3f9c5d99ca3c7cbecf9bd583cedf5378322a475e52b4cb4514"
+    },
+    {
+      "name": "world.national.v1.tar",
+      "file": "world.national.v1.tar.gz",
+      "sha256": "57575785b8d8298bbede96efd61a0020cdd80a01631b7bdb364ffbd30edda0d4"
+    },
+    {
+      "name": "golden.cases.national.v1.tar",
+      "file": "golden.cases.national.v1.tar.gz",
+      "sha256": "5c568538d2592846747f65b8d04ffad700b5937ab0a194fa5e853182977dc256"
+    },
+    {
+      "name": "sql.dialects.v1.tar",
+      "file": "sql.dialects.v1.tar.gz",
+      "sha256": "b0d2761997f3705194ae7d8d16ab1f496ea7d7a74658d8a40efcefd432c915d8"
+    },
+    {
+      "name": "toolchain.offline.v1.tar",
+      "file": "toolchain.offline.v1.tar.gz",
+      "sha256": "08114ff05011ac6ec0b7c1db06fc579543b9b30640a42a355538436ccbb124b2"
+    }
+  ]
+}

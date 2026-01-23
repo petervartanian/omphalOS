@@ -1,0 +1,68 @@
+{
+  "case_id": "case_chemicals",
+  "run_id": "20260104T025622Z",
+  "memo": "Case case_chemicals: Signals in precursors?\n\nObservations:\n- Loaded 5000 shipments and 4000 payments from hydrated world slice.\n- Most frequent domains in this slice: maritime_port_equipment(739), machine_tools(732), aerospace_uas_avionics(731), luxury_dual_use_consumer(719), energy_equipment(702), chemicals_precursors(695), medical_bio_lab(682)\n\nUnknowns:\n- National-scale world materialization not executed in this run profile; see world build recipe and pack installation.",
+  "annexes": {
+    "top_domains": [
+      {
+        "domain": "maritime_port_equipment",
+        "count": 739
+      },
+      {
+        "domain": "machine_tools",
+        "count": 732
+      },
+      {
+        "domain": "aerospace_uas_avionics",
+        "count": 731
+      },
+      {
+        "domain": "luxury_dual_use_consumer",
+        "count": 719
+      },
+      {
+        "domain": "energy_equipment",
+        "count": 702
+      },
+      {
+        "domain": "chemicals_precursors",
+        "count": 695
+      },
+      {
+        "domain": "medical_bio_lab",
+        "count": 682
+      }
+    ],
+    "payment_methods": [
+      {
+        "method": "wire",
+        "count": 1361
+      },
+      {
+        "method": "letter_of_credit",
+        "count": 1333
+      },
+      {
+        "method": "cashlike",
+        "count": 1306
+      }
+    ]
+  },
+  "tables": [
+    {
+      "name": "v_shipment_payments",
+      "note": "Joined shipments and payments (view)"
+    }
+  ],
+  "figures": [],
+  "claims": [
+    {
+      "type": "observation",
+      "text": "Hydrated slice is internally consistent and cross-referenced by IDs."
+    },
+    {
+      "type": "unknown",
+      "text": "Full national-scale materialization is recipe-driven and performed offline at install-time."
+    }
+  ]
+}

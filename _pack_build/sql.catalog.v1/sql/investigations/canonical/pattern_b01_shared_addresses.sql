@@ -1,0 +1,120 @@
+-- Investigation: pattern_b01_shared_addresses
+-- Pattern Family: B (Entity Clustering)
+-- Domain: all
+-- Intent: Detect entities sharing physical addresses (shell company networks)
+-- Method: Group entities by address, flag addresses with ≥3 entities
+-- False Positives: Industrial parks, co-working spaces, virtual offices
+-- Canon 01: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 02: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 03: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 04: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 05: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 06: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 07: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 08: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 09: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 10: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 11: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 12: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 13: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 14: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 15: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 16: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 17: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 18: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 19: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 20: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 21: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 22: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 23: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 24: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 25: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 26: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 27: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 28: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 29: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 30: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 31: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 32: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 33: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 34: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 35: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 36: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 37: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 38: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 39: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 40: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 41: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 42: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 43: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 44: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 45: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 46: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 47: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 48: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 49: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 50: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 51: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 52: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 53: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 54: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 55: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 56: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 57: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 58: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 59: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Canon 60: interpret with restraint; prefer simpler explanations; record unknowns.
+-- Margin 001: context matters; do not overfit.
+-- Margin 002: context matters; do not overfit.
+-- Margin 003: context matters; do not overfit.
+-- Margin 004: context matters; do not overfit.
+-- Margin 005: context matters; do not overfit.
+-- Margin 006: context matters; do not overfit.
+-- Margin 007: context matters; do not overfit.
+-- Margin 008: context matters; do not overfit.
+-- Margin 009: context matters; do not overfit.
+-- Margin 010: context matters; do not overfit.
+-- Margin 011: context matters; do not overfit.
+-- Margin 012: context matters; do not overfit.
+-- Margin 013: context matters; do not overfit.
+-- Margin 014: context matters; do not overfit.
+-- Margin 015: context matters; do not overfit.
+-- Margin 016: context matters; do not overfit.
+-- Margin 017: context matters; do not overfit.
+-- Margin 018: context matters; do not overfit.
+-- Margin 019: context matters; do not overfit.
+-- Margin 020: context matters; do not overfit.
+-- Margin 021: context matters; do not overfit.
+-- Margin 022: context matters; do not overfit.
+-- Margin 023: context matters; do not overfit.
+-- Margin 024: context matters; do not overfit.
+-- Margin 025: context matters; do not overfit.
+-- Margin 026: context matters; do not overfit.
+-- Margin 027: context matters; do not overfit.
+-- Margin 028: context matters; do not overfit.
+-- Margin 029: context matters; do not overfit.
+-- Margin 030: context matters; do not overfit.
+-- Margin 031: context matters; do not overfit.
+-- Margin 032: context matters; do not overfit.
+-- Margin 033: context matters; do not overfit.
+-- Margin 034: context matters; do not overfit.
+-- Margin 035: context matters; do not overfit.
+-- Margin 036: context matters; do not overfit.
+-- Margin 037: context matters; do not overfit.
+-- Margin 038: context matters; do not overfit.
+-- Margin 039: context matters; do not overfit.
+-- Margin 040: context matters; do not overfit.
+-- Margin 041: context matters; do not overfit.
+-- Margin 042: context matters; do not overfit.
+-- Margin 043: context matters; do not overfit.
+-- Margin 044: context matters; do not overfit.
+-- Margin 045: context matters; do not overfit.
+
+
+WITH address_groups AS (
+  SELECT address, COUNT(DISTINCT entity_id) AS entity_count,
+         GROUP_CONCAT(entity_id) AS entities, GROUP_CONCAT(name) AS names
+  FROM entities GROUP BY address HAVING entity_count >= 3
+)
+SELECT * FROM address_groups ORDER BY entity_count DESC LIMIT 200;
+
