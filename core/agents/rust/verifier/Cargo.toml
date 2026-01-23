@@ -2,16 +2,7 @@
 name = "omphalos-verifier"
 version = "1.0.0"
 edition = "2021"
-authors = ["omphalOS Contributors"]
-description = "Cryptographic verifier for omphalOS run artifacts"
-
-[dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-sha2 = "0.10"
-ed25519-dalek = "2.0"
-anyhow = "1.0"
-clap = { version = "4.0", features = ["derive"] }
+description = "Dependency-free integrity and admissibility verifier for omphalOS v1.0"
 
 [profile.release]
 opt-level = 3

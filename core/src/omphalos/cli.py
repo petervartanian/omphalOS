@@ -1,8 +1,11 @@
-import argparse, sys
-from .packs import pack_verify, pack_install
-from .world import world_build
+import argparse
+import sys
+
+from .packs import pack_install, pack_verify
 from .runner import run_case, verify_run
 from .policy.gates import export_gate
+from .world import world_build
+
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="omphalos")
@@ -24,6 +27,8 @@ def main(argv=None):
 
     ep = sub.add_parser("export", help="apply export gate to a packet")
     ep.add_argument("packet_json")
+
+    sub.add_parser("conformance", help="run the v1.0 conformance suite")
 
     a = p.parse_args(argv)
 
@@ -58,6 +63,12 @@ def main(argv=None):
         if report:
             print(report)
         sys.exit(0 if ok else 2)
+
+    if a.cmd == "conformance":
+        from .tests.conformance import main as conformance_main
+        conformance_main()
+        return
+
 
 if __name__ == "__main__":
     main()

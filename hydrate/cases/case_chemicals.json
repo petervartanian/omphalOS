@@ -2,12 +2,18 @@
   "case_id": "case_chemicals",
   "question": "Signals in precursors?",
   "scope": {
-    "time_window_days": 180
+    "time_window_days": 180,
+    "domains": [
+      "chemicals_precursors"
+    ]
   },
   "investigations": [
     "cat_00001"
   ],
+  "packs": {
+    "index": "packs/INDEX.json"
+  },
   "profiles": {
-    "default": "hydrate"
+    "default": "packs"
   }
 }

@@ -1,455 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>omphalOS Analyst Workbench</title>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
-            line-height: 1.6;
-        }
-        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
-        header {
-            background: #1e293b;
-            border-bottom: 2px solid #334155;
-            padding: 1.5rem 0;
-            margin-bottom: 2rem;
-        }
-        h1 {
-            font-size: 1.75rem;
-            font-weight: 600;
-            color: #f1f5f9;
-            margin-bottom: 0.5rem;
-        }
-        .subtitle { color: #94a3b8; font-size: 0.875rem; }
-        .tabs {
-            display: flex;
-            gap: 0.5rem;
-            border-bottom: 1px solid #334155;
-            margin-bottom: 2rem;
-        }
-        .tab {
-            padding: 0.75rem 1.5rem;
-            background: transparent;
-            border: none;
-            color: #94a3b8;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-        .tab:hover { color: #e2e8f0; }
-        .tab.active {
-            color: #60a5fa;
-            border-bottom-color: #60a5fa;
-        }
-        .card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        .card h2 {
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
-            color: #f1f5f9;
-        }
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: #cbd5e1;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-        input, select, textarea {
-            width: 100%;
-            padding: 0.75rem;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 0.375rem;
-            color: #e2e8f0;
-            font-size: 0.875rem;
-        }
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: #60a5fa;
-        }
-        textarea { min-height: 100px; font-family: monospace; }
-        button {
-            padding: 0.75rem 1.5rem;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 0.375rem;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
-        button:hover { background: #2563eb; }
-        button:disabled {
-            background: #475569;
-            cursor: not-allowed;
-        }
-        .btn-secondary {
-            background: #475569;
-        }
-        .btn-secondary:hover { background: #334155; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.875rem;
-        }
-        th {
-            background: #0f172a;
-            padding: 0.75rem;
-            text-align: left;
-            font-weight: 500;
-            border-bottom: 2px solid #334155;
-        }
-        td {
-            padding: 0.75rem;
-            border-bottom: 1px solid #334155;
-        }
-        tr:hover { background: #0f172a; }
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            background: #334155;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-        .badge.observation { background: #065f46; color: #d1fae5; }
-        .badge.unknown { background: #78350f; color: #fef3c7; }
-        .code-block {
-            background: #0f172a;
-            padding: 1rem;
-            border-radius: 0.375rem;
-            font-family: monospace;
-            font-size: 0.8rem;
-            overflow-x: auto;
-            white-space: pre;
-        }
-        .alert {
-            padding: 1rem;
-            border-radius: 0.375rem;
-            margin-bottom: 1rem;
-        }
-        .alert-info {
-            background: #1e3a8a;
-            border-left: 4px solid #3b82f6;
-        }
-        .checkbox-group {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 0.5rem;
-        }
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem;
-            background: #0f172a;
-            border-radius: 0.375rem;
-            cursor: pointer;
-        }
-        .checkbox-label:hover { background: #1e293b; }
-        .checkbox-label input { width: auto; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>omphalOS Analyst Workbench (v1.0)</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6}
+    header{background:#1e293b;border-bottom:2px solid #334155;padding:1.25rem 0}
+    .container{max-width:1200px;margin:0 auto;padding:1.5rem}
+    h1{margin:0 0 .25rem 0;font-size:1.75rem;font-weight:600;color:#f1f5f9}
+    .subtitle{color:#94a3b8;font-size:.9rem}
+    .tabs{display:flex;gap:.5rem;border-bottom:1px solid #334155;margin:1.25rem 0}
+    .tab{padding:.65rem 1rem;background:transparent;border:none;color:#94a3b8;cursor:pointer;border-bottom:2px solid transparent}
+    .tab.active{color:#60a5fa;border-bottom-color:#60a5fa}
+    .card{background:#1e293b;border:1px solid #334155;border-radius:.5rem;padding:1.25rem;margin:1rem 0}
+    label{display:block;margin:.75rem 0 .35rem 0;color:#cbd5e1;font-size:.9rem;font-weight:500}
+    input,select,textarea{width:100%;padding:.75rem;background:#0f172a;border:1px solid #334155;border-radius:.375rem;color:#e2e8f0;font-size:.9rem}
+    textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    button{padding:.75rem 1.2rem;background:#3b82f6;color:#fff;border:none;border-radius:.375rem;cursor:pointer;font-weight:600}
+    button.secondary{background:#475569}
+    button:hover{filter:brightness(1.05)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    .hint{color:#94a3b8;font-size:.85rem;margin-top:.25rem}
+    .code{background:#0f172a;border:1px solid #334155;border-radius:.375rem;padding:1rem;white-space:pre;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.85rem}
+    .pill{display:inline-block;padding:.2rem .65rem;border-radius:9999px;background:#334155;color:#cbd5e1;font-size:.75rem;margin-left:.5rem}
+  </style>
 </head>
-<body x-data="workbench()">
-    <header>
-        <div class="container">
-            <h1>omphalOS Analyst Workbench</h1>
-            <div class="subtitle">Polycentric, offline-first export control casework suite</div>
-        </div>
-    </header>
-
+<body>
+  <header>
     <div class="container">
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab" :class="{ active: currentTab === 'builder' }" @click="currentTab = 'builder'">
-                Case Builder
-            </button>
-            <button class="tab" :class="{ active: currentTab === 'runs' }" @click="currentTab = 'runs'">
-                Runs Dashboard
-            </button>
-            <button class="tab" :class="{ active: currentTab === 'viewer' }" @click="currentTab = 'viewer'">
-                Packet Viewer
-            </button>
-            <button class="tab" :class="{ active: currentTab === 'studio' }" @click="currentTab = 'studio'">
-                Investigation Studio
-            </button>
-        </div>
+      <h1>omphalOS Analyst Workbench <span class="pill">v1.0</span></h1>
+      <div class="subtitle">Offline-capable, provenance-first casework builder and packet viewer</div>
+    </div>
+  </header>
 
-        <!-- Case Builder Tab -->
-        <div x-show="currentTab === 'builder'">
-            <div class="card">
-                <h2>Define New Case</h2>
-                <form @submit.prevent="generateCase">
-                    <div class="form-group">
-                        <label>Case ID</label>
-                        <input type="text" x-model="newCase.case_id" placeholder="case_chemicals_q1_2026" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Investigative Question</label>
-                        <textarea x-model="newCase.question" placeholder="Are there unusual payment patterns in recent precursor exports?" required></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Time Window (days)</label>
-                        <input type="number" x-model.number="newCase.scope.time_window_days" value="180">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Domains (optional filter)</label>
-                        <div class="checkbox-group">
-                            <template x-for="domain in availableDomains" :key="domain">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" :value="domain" x-model="newCase.scope.domains">
-                                    <span x-text="domain.replace(/_/g, ' ')"></span>
-                                </label>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Select Investigations</label>
-                        <div class="alert alert-info">
-                            Tip: Start with 3-5 investigations from different pattern families for comprehensive coverage.
-                        </div>
-                        <div class="checkbox-group">
-                            <template x-for="inv in availableInvestigations" :key="inv">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" :value="inv" x-model="newCase.investigations">
-                                    <span x-text="inv"></span>
-                                </label>
-                            </template>
-                        </div>
-                    </div>
-
-                    <button type="submit">Generate Case JSON</button>
-                </form>
-            </div>
-
-            <div class="card" x-show="generatedCaseJson">
-                <h2>Generated Case Definition</h2>
-                <div class="code-block" x-text="generatedCaseJson"></div>
-                <button @click="downloadCase" class="btn-secondary" style="margin-top: 1rem;">
-                    Download case.json
-                </button>
-            </div>
-        </div>
-
-        <!-- Runs Dashboard Tab -->
-        <div x-show="currentTab === 'runs'">
-            <div class="card">
-                <h2>Recent Runs</h2>
-                <div class="alert alert-info">
-                    This is a demonstration UI. In production, runs would be loaded from the filesystem.
-                    Use CLI: <code>python -m omphalos.cli case run &lt;case.json&gt;</code>
-                </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Run ID</th>
-                            <th>Case ID</th>
-                            <th>Created</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <template x-for="run in sampleRuns" :key="run.run_id">
-                            <tr>
-                                <td><code x-text="run.run_id"></code></td>
-                                <td x-text="run.case_id"></td>
-                                <td x-text="run.created_utc"></td>
-                                <td><span class="badge" x-text="run.status"></span></td>
-                                <td>
-                                    <button @click="viewPacket(run)" style="padding: 0.5rem 1rem; font-size: 0.75rem;">
-                                        View Packet
-                                    </button>
-                                </td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Packet Viewer Tab -->
-        <div x-show="currentTab === 'viewer'">
-            <div class="card">
-                <h2>Packet Viewer</h2>
-                <template x-if="!selectedPacket">
-                    <div class="alert alert-info">
-                        No packet selected. Load a packet from the Runs Dashboard or paste JSON below.
-                    </div>
-                </template>
-
-                <template x-if="selectedPacket">
-                    <div>
-                        <div style="margin-bottom: 1.5rem;">
-                            <strong>Case:</strong> <span x-text="selectedPacket.case_id"></span> &nbsp;|&nbsp;
-                            <strong>Run:</strong> <code x-text="selectedPacket.run_id"></code>
-                        </div>
-
-                        <h3 style="margin-bottom: 0.5rem; color: #f1f5f9;">Memo</h3>
-                        <div style="background: #0f172a; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1.5rem; white-space: pre-wrap;" x-text="selectedPacket.memo"></div>
-
-                        <h3 style="margin-bottom: 0.5rem; color: #f1f5f9;">Claims</h3>
-                        <div style="margin-bottom: 1.5rem;">
-                            <template x-for="(claim, idx) in selectedPacket.claims" :key="idx">
-                                <div style="margin-bottom: 0.75rem; display: flex; gap: 1rem;">
-                                    <span class="badge" :class="claim.type" x-text="claim.type"></span>
-                                    <span x-text="claim.text"></span>
-                                </div>
-                            </template>
-                        </div>
-
-                        <h3 style="margin-bottom: 0.5rem; color: #f1f5f9;">Annexes</h3>
-                        <div class="code-block" x-text="JSON.stringify(selectedPacket.annexes, null, 2)"></div>
-                    </div>
-                </template>
-            </div>
-        </div>
-
-        <!-- Investigation Studio Tab -->
-        <div x-show="currentTab === 'studio'">
-            <div class="card">
-                <h2>Investigation Studio</h2>
-                <div class="alert alert-info">
-                    Write and test custom SQL investigations. Remember to include Canon/Margin headers and LIMIT clauses.
-                </div>
-
-                <div class="form-group">
-                    <label>Investigation ID</label>
-                    <input type="text" x-model="customInvestigation.id" placeholder="custom_jd_20260123_description">
-                </div>
-
-                <div class="form-group">
-                    <label>SQL Query</label>
-                    <textarea x-model="customInvestigation.sql" placeholder="SELECT ... FROM shipments ..." style="min-height: 300px; font-family: monospace;"></textarea>
-                </div>
-
-                <button @click="saveInvestigation">Save Investigation</button>
-                <button @click="testInvestigation" class="btn-secondary">Test Against Sample Data</button>
-            </div>
-        </div>
+  <div class="container">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="builder" role="tab">Case Builder</button>
+      <button class="tab" data-tab="viewer" role="tab">Packet Viewer</button>
     </div>
 
-    <script>
-        function workbench() {
-            return {
-                currentTab: 'builder',
-                availableDomains: [
-                    'chemicals_precursors',
-                    'machine_tools',
-                    'aerospace_uas_avionics',
-                    'maritime_port_equipment',
-                    'energy_equipment',
-                    'medical_bio_lab',
-                    'luxury_dual_use_consumer'
-                ],
-                availableInvestigations: [
-                    'pattern_a01_payment_fragmentation_basic',
-                    'pattern_a02_payment_method_mixing',
-                    'pattern_a03_cashlike_fragmentation',
-                    'pattern_b01_shared_addresses',
-                    'pattern_c01_sudden_volume_spike',
-                    'pattern_d01_multi_domain_exporter',
-                    'pattern_e01_extreme_unit_prices',
-                    'cat_00001',
-                    'cat_00023',
-                    'cat_00156'
-                ],
-                newCase: {
-                    case_id: '',
-                    question: '',
-                    scope: {
-                        time_window_days: 180,
-                        domains: []
-                    },
-                    investigations: [],
-                    profiles: {
-                        default: 'hydrate'
-                    }
-                },
-                generatedCaseJson: '',
-                sampleRuns: [
-                    {
-                        run_id: '20260123T143052Z',
-                        case_id: 'case_chemicals',
-                        created_utc: '2026-01-23T14:30:52Z',
-                        status: 'completed'
-                    },
-                    {
-                        run_id: '20260122T091523Z',
-                        case_id: 'case_aerospace',
-                        created_utc: '2026-01-22T09:15:23Z',
-                        status: 'completed'
-                    }
-                ],
-                selectedPacket: null,
-                customInvestigation: {
-                    id: '',
-                    sql: ''
-                },
+    <section id="tab-builder" class="tabpane">
+      <div class="card">
+        <h2 style="margin:0 0 .75rem 0;color:#f1f5f9">Define a Case (schema 1.0)</h2>
 
-                generateCase() {
-                    this.generatedCaseJson = JSON.stringify(this.newCase, null, 2);
-                },
+        <div class="row">
+          <div>
+            <label>Case ID</label>
+            <input id="case_id" value="case_chemicals" />
+            <div class="hint">Stable identifier. Avoid spaces.</div>
+          </div>
+          <div>
+            <label>Packs Index</label>
+            <input id="packs_index" value="packs/INDEX.json" />
+            <div class="hint">Relative to repo root. v1.0 requires this.</div>
+          </div>
+        </div>
 
-                downloadCase() {
-                    const blob = new Blob([this.generatedCaseJson], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${this.newCase.case_id}.json`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                },
+        <label>Investigative Question</label>
+        <textarea id="question">Signals in precursors?</textarea>
 
-                viewPacket(run) {
-                    // Demo packet
-                    this.selectedPacket = {
-                        case_id: run.case_id,
-                        run_id: run.run_id,
-                        memo: `Case ${run.case_id}: Analysis complete.\n\nObservations:\n- Loaded 5000 shipments and 4000 payments\n- Detected 23 high-fragmentation patterns\n- Cross-domain linkage found in 7 entities`,
-                        claims: [
-                            { type: 'observation', text: 'Payment fragmentation score ≥2 detected in 23 shipments' },
-                            { type: 'observation', text: 'Cross-domain activity (chemicals + aerospace) in 7 entities' },
-                            { type: 'unknown', text: 'Entity beneficial ownership data unavailable for 15 flagged entities' }
-                        ],
-                        annexes: {
-                            top_domains: [
-                                { domain: 'machine_tools', count: 732 },
-                                { domain: 'chemicals_precursors', count: 695 }
-                            ]
-                        }
-                    };
-                    this.currentTab = 'viewer';
-                },
+        <div class="row">
+          <div>
+            <label>Investigations (comma-separated IDs)</label>
+            <input id="investigations" value="cat_00001" />
+            <div class="hint">Each must be admissible (Canon, Margin, LIMIT).</div>
+          </div>
+          <div>
+            <label>Domains (comma-separated; use ALL for no filter)</label>
+            <input id="domains" value="chemicals_precursors" />
+            <div class="hint">v1.0 requires at least one entry.</div>
+          </div>
+        </div>
 
-                saveInvestigation() {
-                    alert('Investigation saved! In production, this would write to sql/investigations/custom/');
-                },
+        <label>Time Window (days)</label>
+        <input id="window" type="number" value="180" />
 
-                testInvestigation() {
-                    alert('Testing against sample data... In production, this would execute the SQL against a test warehouse.');
-                }
-            };
-        }
-    </script>
+        <div style="display:flex;gap:.75rem;margin-top:1rem;align-items:center">
+          <button id="btn_generate">Generate case.json</button>
+          <button class="secondary" id="btn_copy">Copy JSON</button>
+          <span id="status" class="hint"></span>
+        </div>
+
+        <label>Generated JSON</label>
+        <div id="out" class="code"></div>
+      </div>
+    </section>
+
+    <section id="tab-viewer" class="tabpane" style="display:none">
+      <div class="card">
+        <h2 style="margin:0 0 .75rem 0;color:#f1f5f9">Packet Viewer (schema 1.0)</h2>
+        <label>Select packet.json</label>
+        <input id="packet_file" type="file" accept=".json,application/json" />
+        <div class="hint">Shows claims and their mandatory doubt scaffolding.</div>
+
+        <label>Rendered</label>
+        <div id="packet_render" class="code">No packet loaded.</div>
+      </div>
+    </section>
+  </div>
+
+<script>
+(function(){
+  const tabs = document.querySelectorAll('.tab');
+  function setTab(name){
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.getElementById('tab-builder').style.display = name === 'builder' ? '' : 'none';
+    document.getElementById('tab-viewer').style.display = name === 'viewer' ? '' : 'none';
+  }
+  tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+  function buildCase(){
+    const case_id = document.getElementById('case_id').value.trim();
+    const question = document.getElementById('question').value.trim();
+    const packs_index = document.getElementById('packs_index').value.trim();
+    const invs = document.getElementById('investigations').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const domains = document.getElementById('domains').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const windowDays = parseInt(document.getElementById('window').value, 10) || 180;
+
+    const obj = {
+      case_id: case_id,
+      question: question,
+      scope: { time_window_days: windowDays, domains: domains.length ? domains : ["ALL"] },
+      investigations: invs,
+      packs: { index: packs_index },
+      profiles: { default: "packs" }
+    };
+    return JSON.stringify(obj, null, 2);
+  }
+
+  function download(filename, text){
+    const a = document.createElement('a');
+    a.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(text));
+    a.setAttribute('download', filename);
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  const out = document.getElementById('out');
+  function refresh(){
+    const txt = buildCase();
+    out.textContent = txt;
+    return txt;
+  }
+  refresh();
+
+  document.getElementById('btn_generate').addEventListener('click', () => {
+    try{
+      const txt = refresh();
+      const id = document.getElementById('case_id').value.trim() || 'case';
+      download(id + '.json', txt);
+      document.getElementById('status').textContent = 'Downloaded.';
+    }catch(e){
+      document.getElementById('status').textContent = 'Error: ' + e.message;
+    }
+  });
+
+  document.getElementById('btn_copy').addEventListener('click', async () => {
+    const txt = refresh();
+    try{
+      await navigator.clipboard.writeText(txt);
+      document.getElementById('status').textContent = 'Copied.';
+    }catch(e){
+      document.getElementById('status').textContent = 'Copy failed (browser policy).';
+    }
+  });
+
+  // Live refresh on edits
+  ['case_id','question','packs_index','investigations','domains','window'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', refresh);
+  });
+
+  document.getElementById('packet_file').addEventListener('change', (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const obj = JSON.parse(String(reader.result || ''));
+        document.getElementById('packet_render').textContent = JSON.stringify(obj, null, 2);
+      }catch(e){
+        document.getElementById('packet_render').textContent = 'Invalid JSON.';
+      }
+    };
+    reader.readAsText(f);
+  });
+})();
+</script>
 </body>
 </html>
