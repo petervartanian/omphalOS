@@ -4,7 +4,7 @@
 
 [![License: CC0](https://img.shields.io/badge/License-CC0-lightgrey.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18344930.svg)](https://doi.org/10.5281/zenodo.18344930)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18345558.svg)](https://doi.org/10.5281/zenodo.18345558)
 
 ## What, Precisely, Is This?
 
