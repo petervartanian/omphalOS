@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omphalos.org/schemas/case.json",
+  "title": "omphalOS Case Schema",
+  "description": "Case definition for investigative question, scope, and investigation selection",
+  "type": "object",
+  "required": ["case_id", "question", "investigations"],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "description": "Unique case identifier (alphanumeric, underscore, hyphen only)",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "question": {
+      "type": "string",
+      "description": "Investigative question this case addresses",
+      "minLength": 10
+    },
+    "scope": {
+      "type": "object",
+      "description": "Temporal and domain scope constraints",
+      "properties": {
+        "time_window_days": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Lookback period in days"
+        },
+        "domains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "chemicals_precursors",
+              "machine_tools",
+              "aerospace_uas_avionics",
+              "maritime_port_equipment",
+              "energy_equipment",
+              "medical_bio_lab",
+              "luxury_dual_use_consumer",
+              "services",
+              "intangibles",
+              "finance_signals",
+              "procurement",
+              "research_links"
+            ]
+          },
+          "description": "Restrict to specific export control domains"
+        }
+      }
+    },
+    "investigations": {
+      "type": "array",
+      "description": "Selected investigation IDs to execute",
+      "items": {
+        "type": "string",
+        "pattern": "^(cat_\\d{5}|canonical_[a-z0-9_]+|custom_[a-z]+_\\d{8}_[a-z0-9_]+)$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Additional parameters (experimental)",
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Case metadata (analyst, created timestamp, etc.)",
+      "properties": {
+        "analyst": {
+          "type": "string"
+        },
+        "created_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "classification": {
+          "type": "string",
+          "enum": ["UNCLASSIFIED", "CUI", "CONFIDENTIAL", "SECRET"]
+        }
+      }
+    }
+  }
+}

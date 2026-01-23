@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omphalos.org/schemas/run.json",
+  "title": "omphalOS Run Manifest Schema ",
+  "description": "Portable run manifest with checksummed artifacts enabling bit-identical verification",
+  "type": "object",
+  "required": ["run_id", "case_id", "case_snapshot", "packs_snapshot", "artifacts", "checksums"],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Unique run identifier (ISO8601 timestamp)"
+    },
+    "case_id": {
+      "type": "string",
+      "description": "Associated case identifier"
+    },
+    "case_snapshot": {
+      "type": "object",
+      "description": "Complete case definition as of run time (ensures portability)"
+    },
+    "packs_snapshot": {
+      "type": "object",
+      "description": "Pack versions and checksums used in this run",
+      "properties": {
+        "world": {
+          "type": "object",
+          "required": ["version", "sha256"],
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "catalog": {
+          "type": "object",
+          "required": ["version", "sha256", "commit"],
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "commit": {
+              "type": "string",
+              "description": "Git commit SHA of catalog at run time"
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "description": "All artifacts produced during run",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "size_bytes"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Relative path within run directory"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "checksums": {
+      "type": "object",
+      "description": "Critical artifact checksums for quick verification",
+      "required": ["warehouse", "packet"],
+      "properties": {
+        "warehouse": {
+          "type": "string",
+          "description": "SHA-256 of warehouse.sqlite",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "packet": {
+          "type": "string",
+          "description": "SHA-256 of packet.json",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "started_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "runtime_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "python_version": {
+          "type": "string"
+        },
+        "omphalos_version": {
+          "type": "string",
+        }
+      }
+    }
+  }
+}

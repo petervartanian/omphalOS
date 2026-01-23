@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omphalos.org/schemas/packet.json",
+  "title": "omphalOS Packet Schema ",
+  "description": "Analytical product with mandatory epistemic scaffolding per STANDARDS_OF_REVIEW.md",
+  "type": "object",
+  "required": ["case_id", "run_id", "observations", "unknowns", "alternatives", "falsifiers", "annexes"],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "description": "Associated case identifier"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique run identifier (timestamp-based)"
+    },
+    "observations": {
+      "type": "array",
+      "description": "Claims derived from investigation results",
+      "items": {
+        "type": "object",
+        "required": ["claim", "evidence"],
+        "properties": {
+          "claim": {
+            "type": "string",
+            "description": "Observational claim (must avoid prohibited certainty language)"
+          },
+          "evidence": {
+            "type": "array",
+            "description": "Supporting evidence with artifact pointers",
+            "items": {
+              "type": "object",
+              "required": ["investigation_id", "result_count"],
+              "properties": {
+                "investigation_id": {
+                  "type": "string"
+                },
+                "result_count": {
+                  "type": "integer"
+                },
+                "summary": {
+                  "type": "string"
+                }
+              }
+            },
+            "minItems": 1
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "unknowns": {
+      "type": "array",
+      "description": "What observations do NOT establish (mandatory per export gate)",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "alternatives": {
+      "type": "array",
+      "description": "Rival explanations consistent with evidence (mandatory per export gate)",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "falsifiers": {
+      "type": "array",
+      "description": "What would overturn or weaken observations (mandatory per export gate)",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "annexes": {
+      "type": "array",
+      "description": "Attached artifacts with cryptographic hashes",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Relative path to artifact within run directory"
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 hash of artifact",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Packet metadata",
+      "properties": {
+        "created_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "analyst": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+        }
+      }
+    }
+  }
+}
