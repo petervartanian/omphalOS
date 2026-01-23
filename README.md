@@ -1,24 +1,24 @@
 # omphalOS
 
-**Computational infrastructure for institutionalized doubt.**
+**This is... computational infrastructure for institutionalized doubt.**
 
 [![License: CC0](https://img.shields.io/badge/License-CC0-lightgrey.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18344930.svg)](https://doi.org/10.5281/zenodo.18344930)
 
-## What This Is
+## What, Precisely, Is This?
 
 omphalOS surfaces patterns for review, then forces the record to carry uncertainty, rival explanations, and falsifiers as first-class structure.
 
-You cannot export a packet without documenting what you don't know. Every SQL query scrolls you past epistemic warnings before you reach the data. Three years later when someone challenges your analysis, every step is reproducible bit-for-bit.
+One cannot export a packet without documenting what one does not know; _e.g._, every SQL query scrolls past epistemic warnings before one reaches the data; and, years later — when someone challenges one's analysis — every step is reproducible bit-for-bit.
 
-This is not risk scoring. This is not classification. This is hypothesis-generating pattern detection where the system makes doubt structurally unavoidable.
+What omphalOS constitutes is neither risk-scoring, nor classification, but a hypothesis-generating pattern detection where the system makes doubt structurally unavoidable.
 
 ## Who Uses This
 
-Intelligence analysts, export control investigators, sanctions compliance officers, trade finance investigators—anyone working in adversarial legal contexts where "the algorithm flagged it" is insufficient and analytical reasoning must survive scrutiny.
+Intelligence analysts, export control investigators, sanctions compliance officers, trade finance investigators—anyone working in adversarial legal contexts where "the-algorithm-flagged-it" is insufficient and analytical reasoning must survive scrutiny.
 
-Application domains: export control casework (EAR, ITAR), sanctions enforcement (OFAC, multilateral regimes), trade-based money laundering, supply chain risk, proliferation finance.
+Application domains include — and are not limited to — export control casework (e.g., EAR, ITAR), sanctions enforcement (e.g., OFAC and multilateral régimes), trade-based money laundering, supply-chain risk, proliferation finance, detection of illicit and/or luxury goods... and, much, much more.
 
 ## Quick Start
 
@@ -175,6 +175,6 @@ See [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-Influenced by Richards Heuer's *Psychology of Intelligence Analysis*, Elinor Ostrom's polycentric governance theory, the CompCert verified software project.
+omphalOS is influenced by (i) Richards Heuer's *Psychology of Intelligence Analysis*, (ii) Elinor Ostrom's polycentric governance theory, and (iii) the CompCert verified software project, as well as (iv) personal inputs from (fellow) key U.S.-governmental builders and stakeholders.
 
-The system is transparent not because it has nothing to hide, but because transparency is what makes it defensible.
+The system is, ultimately, transparent because transparency is renders makes it defensible (not merely because it has nothing to hide).
