@@ -1,0 +1,10 @@
+[package]
+name = "omphalos-verifier"
+version = "1.0.0"
+edition = "2021"
+description = "Dependency-free integrity and admissibility verifier for omphalOS v1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

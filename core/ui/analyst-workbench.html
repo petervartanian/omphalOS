@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>omphalOS Analyst Workbench (v1.0)</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6}
+    header{background:#1e293b;border-bottom:2px solid #334155;padding:1.25rem 0}
+    .container{max-width:1200px;margin:0 auto;padding:1.5rem}
+    h1{margin:0 0 .25rem 0;font-size:1.75rem;font-weight:600;color:#f1f5f9}
+    .subtitle{color:#94a3b8;font-size:.9rem}
+    .tabs{display:flex;gap:.5rem;border-bottom:1px solid #334155;margin:1.25rem 0}
+    .tab{padding:.65rem 1rem;background:transparent;border:none;color:#94a3b8;cursor:pointer;border-bottom:2px solid transparent}
+    .tab.active{color:#60a5fa;border-bottom-color:#60a5fa}
+    .card{background:#1e293b;border:1px solid #334155;border-radius:.5rem;padding:1.25rem;margin:1rem 0}
+    label{display:block;margin:.75rem 0 .35rem 0;color:#cbd5e1;font-size:.9rem;font-weight:500}
+    input,select,textarea{width:100%;padding:.75rem;background:#0f172a;border:1px solid #334155;border-radius:.375rem;color:#e2e8f0;font-size:.9rem}
+    textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    button{padding:.75rem 1.2rem;background:#3b82f6;color:#fff;border:none;border-radius:.375rem;cursor:pointer;font-weight:600}
+    button.secondary{background:#475569}
+    button:hover{filter:brightness(1.05)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    .hint{color:#94a3b8;font-size:.85rem;margin-top:.25rem}
+    .code{background:#0f172a;border:1px solid #334155;border-radius:.375rem;padding:1rem;white-space:pre;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.85rem}
+    .pill{display:inline-block;padding:.2rem .65rem;border-radius:9999px;background:#334155;color:#cbd5e1;font-size:.75rem;margin-left:.5rem}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>omphalOS Analyst Workbench <span class="pill">v1.0</span></h1>
+      <div class="subtitle">Offline-capable, provenance-first casework builder and packet viewer</div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="builder" role="tab">Case Builder</button>
+      <button class="tab" data-tab="viewer" role="tab">Packet Viewer</button>
+    </div>
+
+    <section id="tab-builder" class="tabpane">
+      <div class="card">
+        <h2 style="margin:0 0 .75rem 0;color:#f1f5f9">Define a Case (schema 1.0)</h2>
+
+        <div class="row">
+          <div>
+            <label>Case ID</label>
+            <input id="case_id" value="case_chemicals" />
+            <div class="hint">Stable identifier. Avoid spaces.</div>
+          </div>
+          <div>
+            <label>Packs Index</label>
+            <input id="packs_index" value="packs/INDEX.json" />
+            <div class="hint">Relative to repo root. v1.0 requires this.</div>
+          </div>
+        </div>
+
+        <label>Investigative Question</label>
+        <textarea id="question">Signals in precursors?</textarea>
+
+        <div class="row">
+          <div>
+            <label>Investigations (comma-separated IDs)</label>
+            <input id="investigations" value="cat_00001" />
+            <div class="hint">Each must be admissible (Canon, Margin, LIMIT).</div>
+          </div>
+          <div>
+            <label>Domains (comma-separated; use ALL for no filter)</label>
+            <input id="domains" value="chemicals_precursors" />
+            <div class="hint">v1.0 requires at least one entry.</div>
+          </div>
+        </div>
+
+        <label>Time Window (days)</label>
+        <input id="window" type="number" value="180" />
+
+        <div style="display:flex;gap:.75rem;margin-top:1rem;align-items:center">
+          <button id="btn_generate">Generate case.json</button>
+          <button class="secondary" id="btn_copy">Copy JSON</button>
+          <span id="status" class="hint"></span>
+        </div>
+
+        <label>Generated JSON</label>
+        <div id="out" class="code"></div>
+      </div>
+    </section>
+
+    <section id="tab-viewer" class="tabpane" style="display:none">
+      <div class="card">
+        <h2 style="margin:0 0 .75rem 0;color:#f1f5f9">Packet Viewer (schema 1.0)</h2>
+        <label>Select packet.json</label>
+        <input id="packet_file" type="file" accept=".json,application/json" />
+        <div class="hint">Shows claims and their mandatory doubt scaffolding.</div>
+
+        <label>Rendered</label>
+        <div id="packet_render" class="code">No packet loaded.</div>
+      </div>
+    </section>
+  </div>
+
+<script>
+(function(){
+  const tabs = document.querySelectorAll('.tab');
+  function setTab(name){
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.getElementById('tab-builder').style.display = name === 'builder' ? '' : 'none';
+    document.getElementById('tab-viewer').style.display = name === 'viewer' ? '' : 'none';
+  }
+  tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+  function buildCase(){
+    const case_id = document.getElementById('case_id').value.trim();
+    const question = document.getElementById('question').value.trim();
+    const packs_index = document.getElementById('packs_index').value.trim();
+    const invs = document.getElementById('investigations').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const domains = document.getElementById('domains').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const windowDays = parseInt(document.getElementById('window').value, 10) || 180;
+
+    const obj = {
+      case_id: case_id,
+      question: question,
+      scope: { time_window_days: windowDays, domains: domains.length ? domains : ["ALL"] },
+      investigations: invs,
+      packs: { index: packs_index },
+      profiles: { default: "packs" }
+    };
+    return JSON.stringify(obj, null, 2);
+  }
+
+  function download(filename, text){
+    const a = document.createElement('a');
+    a.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(text));
+    a.setAttribute('download', filename);
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  const out = document.getElementById('out');
+  function refresh(){
+    const txt = buildCase();
+    out.textContent = txt;
+    return txt;
+  }
+  refresh();
+
+  document.getElementById('btn_generate').addEventListener('click', () => {
+    try{
+      const txt = refresh();
+      const id = document.getElementById('case_id').value.trim() || 'case';
+      download(id + '.json', txt);
+      document.getElementById('status').textContent = 'Downloaded.';
+    }catch(e){
+      document.getElementById('status').textContent = 'Error: ' + e.message;
+    }
+  });
+
+  document.getElementById('btn_copy').addEventListener('click', async () => {
+    const txt = refresh();
+    try{
+      await navigator.clipboard.writeText(txt);
+      document.getElementById('status').textContent = 'Copied.';
+    }catch(e){
+      document.getElementById('status').textContent = 'Copy failed (browser policy).';
+    }
+  });
+
+  // Live refresh on edits
+  ['case_id','question','packs_index','investigations','domains','window'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', refresh);
+  });
+
+  document.getElementById('packet_file').addEventListener('change', (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const obj = JSON.parse(String(reader.result || ''));
+        document.getElementById('packet_render').textContent = JSON.stringify(obj, null, 2);
+      }catch(e){
+        document.getElementById('packet_render').textContent = 'Invalid JSON.';
+      }
+    };
+    reader.readAsText(f);
+  });
+})();
+</script>
+</body>
+</html>
