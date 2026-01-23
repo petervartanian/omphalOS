@@ -1,6 +1,6 @@
 # omphalOS
 
-**This is... computational infrastructure for institutionalized doubt.**
+**This is computational infrastructure for institutionalized doubt.**
 
 [![License: CC0](https://img.shields.io/badge/License-CC0-lightgrey.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
