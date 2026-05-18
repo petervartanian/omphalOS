@@ -1,6 +1,6 @@
-# omphalOS
+# omphalOS...
 
-**This is computational infrastructure for institutionalized doubt.**
+**... is an investigation platform for high-stakes analytical work.**
 
 [![License: CC0](https://img.shields.io/badge/License-CC0-lightgrey.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -10,15 +10,15 @@
 
 omphalOS surfaces patterns for review, then forces the record to carry uncertainty, rival explanations, and falsifiers as first-class structure.
 
-One cannot export a packet without documenting what one does not know; _e.g._, every SQL query scrolls past epistemic warnings before one reaches the data; and, years later — when someone challenges one's analysis — every step is reproducible bit-for-bit.
+One cannot export a packet without documenting what one does not know; _e.g._, every SQL query scrolls past epistemic warnings before one reaches the data; and, years later — namely, when someone challenges one's analysis — every step is reproducible bit-for-bit.
 
 What omphalOS constitutes is neither risk-scoring, nor classification, but a hypothesis-generating pattern detection where the system makes doubt structurally unavoidable.
 
 ## Who Uses This
 
-omphalOS enjoys usage by intelligence analysts, export-control investigators, sanctions-compliance officers, trade-finance investigators — in other words, anyone working in adversarial contexts of legality wherein "the-algorithm-flagged-it" is insufficient and analytical reasoning must survive scrutiny.
+omphalOS enjoys usage by intelligence analysts, export-control investigators, sanctions-compliance officers, trade-finance investigators, _etc._ — in other words, anyone working in adversarial contexts of legality wherein "the-algorithm-flagged-it" is insufficient and analytical reasoning must survive scrutiny.
 
-Application domains include — and are not limited to — export control casework (e.g., EAR, ITAR), sanctions enforcement (e.g., OFAC and multilateral régimes), trade-based money laundering, supply-chain risk, proliferation finance, detection of illicit and/or luxury goods... and, much, much more.
+Application domains include (and are not limited to) export control casework (e.g., EAR, ITAR), sanctions enforcement (e.g., OFAC and multilateral régimes), trade-based money laundering, supply-chain risk, proliferation finance, detection of illicit and/or luxury goods... and, much, much, much more.
 
 ## Quick Start
 
@@ -105,11 +105,11 @@ See [STANDARDS_OF_REVIEW.md](docs/STANDARDS_OF_REVIEW.md) for normative requirem
 
 The conformance suite gates integrity:
 
-(i) Pack checksum verification
-(ii) Case execution producing checksummed run
-(iii) Manifest integrity validation
-(iv) Export gate evaluation (packet admissibility)
-(v) Polycentric verification (Rust, Go)
+1. Pack checksum verification;
+2. Case execution producing checksummed run;
+3. Manifest integrity validation;
+4. Export gate evaluation (packet admissibility);
+5. Polycentric verification (Rust + Go).
 
 ```bash
 PYTHONPATH=core/src python -m omphalos.cli conformance
@@ -133,15 +133,15 @@ See [CONFORMANCE.md](docs/CONFORMANCE.md) for release contract.
 
 ## Design Philosophy
 
-Traditional algorithmic systems optimize for precision and recall, treating detection as classification. This fails when (i) base rates are exceptionally low (<0.01% of transactions), (ii) adversaries adapt through FOIA and litigation disclosure, (iii) conclusions must survive adversarial legal scrutiny.
+Traditional algorithmic systems optimize for precision and recall, treating detection as classification. This fails when (a) base rates are exceptionally low (<0.01% of transactions), (b) adversaries adapt through FOIA and litigation disclosure, and/or (c) conclusions must survive adversarial legal scrutiny.
 
-omphalOS inverts this: hypothesis-generating pattern detection (not classification), transparency by design (assumes disclosure), systematic documentation of unknowns (not confident predictions).
+omphalOS inverts this through a hypothesis-generating pattern detection (not classification), transparency by design (assumes disclosure), and the systematic documentation of unknowns (not confident predictions).
 
-Epistemic humility is architectural, not aspirational.
+Epistemic humility, here, is architectural.
 
 ## Security and Privacy
 
-**Export Control Notice**: Publicly released, not subject to EAR controls. Contains no controlled technical data. Datasets are synthetic and non-identifiable.
+**Export-Control Notice**: Publicly released, not subject to EAR controls. Contains no controlled technical data. Datasets are synthetic and non-identifiable.
 
 **Privacy by Design**: Packets contain aggregates, not individual transactions. Export gates block credentials and secrets. Demonstration world-states are synthetic; production deployments apply redaction protocols.
 
@@ -151,13 +151,13 @@ See [THREAT_MODEL.md](docs/THREAT_MODEL.md) and [SECURITY.md](SECURITY.md).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
-Requirements: (i) synthetic data only, (ii) SQL investigations follow Canon/Margin conventions, (iii) code passes verification, (iv) no credentials or classified material.
+Requirements are that only synthetic data is apposite, SQL investigations follow Canon/Margin conventions, code passes verification, and no credentials or classified material are used.
 
 ## License
 
 CC0 1.0 Universal (Public Domain)
 
-U.S. Government work not subject to copyright protection domestically. Foreign copyrights may apply. To the extent possible under law, all copyright and related rights dedicated to the public domain worldwide.
+Work from the U.S. Government is not subject to copyright protection domestically. Foreign copyrights may appl. To the extent possible under law, all copyright and related rights dedicated to the public domain worldwide.
 
 See [LICENSE](LICENSE).
 
@@ -165,16 +165,16 @@ See [LICENSE](LICENSE).
 
 ```bibtex
 @software{omphalos2026,
-  author = {{U.S. Government}},
-  title = {omphalOS: Computational Infrastructure for Institutionalized Doubt},
+  author = {{Peter H. Vartanian}},
+  title = {omphalOS},
   year = {2026},
   doi = {10.5281/zenodo.18344930},
-  url = {https://github.com/your-org/omphalOS}
+  url = {https://github.com/petervartanian/omphalOS}
 }
 ```
 
 ## Acknowledgments
 
-omphalOS is influenced by (i) Richards Heuer's *Psychology of Intelligence Analysis*, (ii) Elinor Ostrom's polycentric governance theory, and (iii) the CompCert verified software project, as well as (iv) personal inputs from (fellow) key U.S.-governmental builders and stakeholders.
+omphalOS is influenced by (1) Richards Heuer's *Psychology of Intelligence Analysis*, (2) Elinor Ostrom's polycentric governance theory, and (3) the CompCert verified software project, as well as (4) personal inputs from fellow builders and stakeholders in the Government of the United States.
 
-The system is, ultimately, transparent because transparency is renders makes it defensible (not merely because it has nothing to hide).
+Ultimately, this system is transparent _precisely_ because transparency is renders makes it defensible.. and not merely because it has nothing to hide.
