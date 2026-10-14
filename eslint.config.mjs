@@ -1,0 +1,49 @@
+import js from '@eslint/js';
+
+export default [
+  js.configs.recommended,
+  {
+    files: ['src/omphalos/ui/*.js'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'script',
+      globals: Object.fromEntries(
+        [
+          'document',
+          'window',
+          'location',
+          'history',
+          'navigator',
+          'fetch',
+          'FormData',
+          'File',
+          'FileReader',
+          'Blob',
+          'URL',
+          'URLSearchParams',
+          'HTMLElement',
+          'HTMLInputElement',
+          'TextEncoder',
+          'TextDecoder',
+          'atob',
+          'btoa',
+          'setTimeout',
+          'clearTimeout',
+          'structuredClone',
+        ].map((name) => [name, 'readonly']),
+      ),
+    },
+    rules: {
+      'no-var': 'error',
+      'prefer-const': 'error',
+      eqeqeq: ['error', 'always'],
+      'object-shorthand': ['error', 'always'],
+      'prefer-template': 'error',
+      'prefer-arrow-callback': 'error',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+      'no-throw-literal': 'error',
+    },
+  },
+];

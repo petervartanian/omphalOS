@@ -21,9 +21,9 @@ With a prepared local `.venv`, double-click **Start omphalOS.command** on macOS 
 .venv/bin/python -m omphalos --workspace ./workspace serve --open
 ```
 
-Open the address printed by the server. The server binds only to your computer. It loads no external scripts, fonts, or analytics. All analysis, review, verification, and replay work offline once dependencies and inputs are present. Only **Fetch snapshot** contacts the listed official publisher; it sends no case records or search names.
+Open the address printed by the server. The server binds only to your computer. It loads no external scripts, fonts, or analytics. All analysis, review, verification, and replay work offline once dependencies and inputs are present. Only **Fetch official snapshot** contacts the listed official publisher; it sends no case records or search names.
 
-Use **Create synthetic demo** for a clearly labeled demonstration. It contains planted patterns, same-name entities that must remain distinct, different currencies/units, and benign installment payments. It does not stand in for private transaction data.
+Use **Create synthetic dataset** for a clearly labeled demonstration. It contains planted patterns, same-name entities that must remain distinct, different currencies/units, and benign installment payments. It does not stand in for private transaction data.
 
 ## The complete workflow
 
@@ -94,6 +94,8 @@ poetry run ruff check src tests
 poetry run black --check src tests tools
 poetry build
 ```
+
+For interface development, use Node.js 24 or newer and run `npm ci --ignore-scripts`, then `npm run check`. ESLint checks browser code and Prettier checks the HTML, JavaScript, and CSS. `npm run format` applies the shared formatting rules. These are development tools only; running the workbench requires no Node.js or frontend build. The Python suite also runs the browser-state regression harness when Node.js is available, and CI explicitly installs it.
 
 [Security boundaries](SECURITY.md), [contribution guide](CONTRIBUTING.md), [data schema](docs/DATA.md), and [independent verifiers](native/README.md).
 

@@ -1,0 +1,20 @@
+{
+  "name": "omphalos-ui-checks",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Development checks for the packaged, offline omphalOS interface",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint": "eslint src/omphalos/ui/app.js",
+    "format:check": "prettier --check src/omphalos/ui package.json eslint.config.mjs .prettierrc.json",
+    "format": "prettier --write src/omphalos/ui package.json eslint.config.mjs .prettierrc.json",
+    "check": "npm run lint && npm run format:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "prettier": "3.9.10"
+  }
+}

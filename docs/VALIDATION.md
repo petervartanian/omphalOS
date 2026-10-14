@@ -6,20 +6,27 @@ Executed October 13, 2026 (America/New_York), on an Apple Silicon Mac. These res
 
 | Check | Result |
 |---|---|
-| Python 3.11.14, source installation | 133 tests passed; 37 subtests passed |
-| Python 3.13.7, source installation | 133 tests passed; 37 subtests passed |
-| Python 3.14.3, source installation | 133 tests passed; 37 subtests passed |
-| Fresh wheel installation, Python 3.13.7 | 133 tests passed; 37 subtests passed |
+| Python 3.11.14, source installation | 146 tests passed; 37 subtests passed |
+| Python 3.13.7, source installation | 146 tests passed; 37 subtests passed |
+| Python 3.14.3, source installation | 146 tests passed; 37 subtests passed |
+| Fresh wheel installation, Python 3.13.7 | 146 tests passed; 37 subtests passed |
 | Wheel UI resources | HTML, JavaScript, and CSS present and byte-identical to the validated source |
+| Source distribution | Includes lockfiles, frontend check configuration, docs, examples, tests, native verifiers, launchers, and CI |
 | Black and Ruff | Formatting and lint checks passed |
-| JavaScript syntax and frontend regression | Passed; draft retention exercised across 42 observations and three pages |
+| ESLint and Prettier | Browser lint and shared HTML/JavaScript/CSS formatting checks passed |
+| Frontend regression | Draft retention across 42 observations and three pages, plus 13 navigation, delayed-response, pending-save, cancellation, and numeric-input guards passed |
 | Dependency vulnerability scan | No known vulnerabilities reported by pip-audit after dependency updates; this is a point-in-time database check |
+| Frontend development dependency scan | npm audit reported zero known vulnerabilities; no npm package is a product runtime dependency |
 | Go and Rust verifier builds | Both built and executed on macOS ARM64 |
 | Independent verifier agreement | Both accepted the actual final 22-file run; shared fixtures reject changed, missing, extra, empty, omitted, malformed, duplicate-key, and wrong-digest cases |
 | Browser acceptance | Synthetic import, official CSL fetch, case load/run, original-record drilldown, coverage inspection, explicit synthetic review, export, and replay exercised |
 | Official reference data | CSL 26,128, OFAC SDN 19,431, and non-SDN 481 records parsed with retained raw snapshots; fresh verified-HTTPS downloads exercised |
 
 One expected warning is emitted when a negative test deliberately constructs a ZIP with a duplicate member. The verifier rejects that ZIP; the warning is not a runtime failure.
+
+The redesigned interface was inspected in the actual in-app browser at its normal 1280px desktop width and at a temporary 390px narrow breakpoint. The data page had no document-width overflow; tables scroll within their containers. Browser checks confirmed the import action opens and focuses its form, incomplete case edits survive navigation and Refresh, saving retains the case, the skip link focuses content without changing routes, run tabs work from the keyboard, and a cited record exposes its retained provenance. These checks complement the automated state harness; they are not a claim of comprehensive accessibility certification.
+
+The redesigned export control created a real ZIP from the retained synthetic review. Its replay control reproduced analysis digest `aa3a439e7651cd5533b199545416c0c8b74a603b2b145ede56e1ddda3c55ff40` with matching engine code and no reported issues. The browser reported no console warnings or errors during this acceptance pass. Test-only case edits and exports were made in a separate copy of the workspace.
 
 The Python suite covers actual CSV/JSON imports, row provenance, duplicate/broken records, finite exact amounts, date and entity/domain scope, true medians, distinct currency/unit cohorts, rolling baselines, invoice identifiers, expired listings, Unicode names, typed identity conflicts, and source parsing/download failures. It also covers incomplete reviews, zero-findings review, modified review anchors, retained revisions, concurrent run isolation, replay mismatches, source changes in a long-running process, host/origin/token checks, path containment, symlinks, and archive limits.
 

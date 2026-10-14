@@ -16,7 +16,7 @@ The four navigation pages follow the investigation: **Overview**, **Data & sourc
 
 ## 1. Import the records
 
-On **Data & sources**, choose a dataset ID and label, select files, then choose **Validate & import**. IDs use letters, digits, underscores, and hyphens. A blank ID generates a unique one. Importing cannot replace an existing dataset.
+On **Data & sources**, choose **Import records** to open the dataset form. Enter a label and optional dataset ID, select files, then choose **Validate & import**. IDs use letters, digits, underscores, and hyphens. A blank ID generates a unique one. Importing cannot replace an existing dataset.
 
 Use one of these formats:
 
@@ -24,7 +24,7 @@ Use one of these formats:
 - Named JSON files, such as `entities.json`, each containing an array of records.
 - A single `dataset.json` containing `{"tables": {"entities": [...], "shipments": [...]}}`.
 
-An entities table is required. Other tables are optional, but an investigation cannot run without its prerequisites. Exact required and optional fields appear under **File names, fields, and import rules**, generated from the same schemas that validate the import. The examples directory also contains importable files.
+An entities table is required. Other tables are optional, but an investigation cannot run without its prerequisites. Exact required and optional fields appear under **Import format and field reference**, generated from the same schemas that validate the import. The examples directory also contains importable files.
 
 For example, a minimal entities file is:
 
@@ -42,29 +42,31 @@ The importer rejects duplicate IDs, unexpected fields, broken references, malfor
 
 ## 2. Add a screening snapshot when needed
 
-Select the Consolidated Screening List, OFAC SDN, or OFAC non-SDN source. **Fetch official snapshot** retrieves the allowlisted official HTTPS endpoint with download limits. Alternatively, import a downloaded file using the format displayed for the selected source. CSL uses bulk JSON; the two OFAC adapters use standard XML.
+Choose **Add snapshot**, then select the Consolidated Screening List, OFAC SDN, or OFAC non-SDN source. **Fetch official snapshot** retrieves the allowlisted official HTTPS endpoint with download limits. Alternatively, import a downloaded file using the format displayed for the selected source. CSL uses bulk JSON; the two OFAC adapters use standard XML.
 
-A saved snapshot retains the original download, its SHA-256, retrieval/import time, normalized records, original record content, list category, and available source dates. It remains fixed until a new snapshot is explicitly acquired. The interface shows publisher timing as unknown when the source did not provide it. Fetch failures are errors; there is no fallback to a fabricated list.
+A saved snapshot retains the original download, its SHA-256, retrieval/import time, normalized records, original record content, list category, and available source dates. It remains fixed until a new snapshot is explicitly acquired. The interface labels available timing as **Source timestamp**. For CSL this is aggregation time, not necessarily the update time of each underlying list; the retained source metadata explains the distinction. Missing timing is shown as not supplied. Manual uploads are visibly labeled and their origin is not independently authenticated. Official HTTPS downloads are identified separately. Fetch failures are errors; there is no fallback to a fabricated list.
 
-Choose the snapshot in the case. Selecting the screening investigation without a usable snapshot produces **not evaluable** coverage. A candidate’s name-similarity value is a string comparison, not a calibrated identity probability or a likelihood of wrongdoing. Dates, category-specific restrictions, identifiers, and independent corroboration require review. Current snapshots do not necessarily establish historical list membership, and unlisted ownership relationships are not comprehensively screened.
+Choose the snapshot in the case. Selecting the screening investigation without a usable snapshot produces **Not evaluated** coverage (stored as `not_evaluable`). A candidate’s name-similarity value is a string comparison, not a calibrated identity probability or a likelihood of wrongdoing. Dates, category-specific restrictions, identifiers, and independent corroboration require review. Current snapshots do not necessarily establish historical list membership, and unlisted ownership relationships are not comprehensively screened.
 
 ## 3. Define a bounded case
 
-On **Cases**, enter a stable case ID, investigative question, dataset, and analysis-as-of date. Add an optional date range, exact domain labels, or explicit entity IDs. The as-of date and scope control which records are considered; they do not silently make a newly fetched source historically valid.
+On **Cases**, saved cases appear first. Choose **Open case** for an existing definition or **New case** to open the editor, then enter a stable case ID, investigative question, dataset, and analysis-as-of date. Add an optional date range, exact domain labels, or explicit entity IDs. The as-of date and scope control which records are considered; they do not silently make a newly fetched source historically valid.
 
-Select the investigations relevant to the question. Each card describes the algorithm, required tables, parameters, and limitations. Numeric comparison thresholds are analyst choices. **Payments below a chosen threshold**, for example, requires the chosen threshold and currency and does not assume a statutory reporting threshold.
+Select the investigations relevant to the question. Each investigation row shows its purpose and required tables. Open **Settings and limitations** to inspect parameters and interpretation limits. Numeric comparison thresholds are analyst choices. **Payments below a chosen threshold**, for example, requires the chosen threshold and currency and does not assume a statutory reporting threshold.
 
-Choose **Save case** to retain the definition, or **Save & run investigation** to execute it. Saved cases can be reopened. Changing a case does not change an existing run: each run retains the case, data, selected source, catalog, engine files, environment record, and analysis used at that time.
+Choose **Save case** to retain the definition, or **Save & run investigation** to execute it. Saved cases can be reopened. Unsaved case edits are retained while navigating among pages or using **Refresh**, and the header indicates unsaved changes. They remain in the current page session until explicitly saved; leaving the page prompts when changes remain. Explicitly starting a new case or opening another case asks before replacing unsaved case edits; ordinary navigation and refresh retain them without a prompt. Changing a case does not change an existing run: each run retains the case, data, selected source, catalog, engine files, environment record, and analysis used at that time.
 
 ## 4. Inspect coverage and evidence
 
-On **Findings & review**, select a run. The integrity indicator concerns the retained file inventory and analysis digest. It is separate from the quality or truth of the underlying evidence.
+On **Findings & review**, select a run. The run header separates review status, observation count, completed checks, checks that need attention, and file verification. The file verification indicator concerns the retained file inventory and analysis digest. It is separate from the quality or truth of the underlying evidence.
 
 - **Observations** shows neutral computed statements, metrics, source references, unknowns, alternative explanations, and potential falsifiers. Record buttons open the exact normalized record frozen in this run with its original filename, source row, and file hash. Official-source buttons expose the matched normalized listing and original source record/XML, with snapshot provenance.
-- **Coverage & limits** distinguishes **executed** from **not evaluable**, shows the evaluated record count and finding count, and retains detector-specific limits and missing-data warnings. Zero observations are not a clearance.
-- **Run context** exposes the frozen case, analysis digest, manifest, and verification record.
+- **Coverage** distinguishes **Completed** (stored as `executed`) from **Not evaluated** (stored as `not_evaluable`), shows the evaluated record count and finding count, and retains detector-specific limits and missing-data warnings. Zero observations are not a clearance.
+- **Details** exposes the frozen case, analysis digest, manifest, and verification record.
 
 Observations and review forms are paged in groups of 20, with the displayed range and full count shown. All observations must still be assessed before saving. Findings with many supporting records initially show 40 record buttons, with an explicit control to reveal the next records; no count is presented as though the partial display were complete. Run-detail tabs support Left/Right arrows, Home, and End from the keyboard.
+
+Identity candidates show the compared names, underlying list, country and entity-type comparisons, identifier comparisons, and available source timing before the raw details. The name similarity is omphalOS’s own string comparison, not an official OFAC search score.
 
 The interface refuses evidence drilldowns from a run that fails integrity verification. It can still display the failed verification and run context so the analyst can identify the problem. A file hash shows whether content changed relative to the inventory; it does not prove authenticity, accuracy, completeness, or legal admissibility.
 
@@ -83,13 +85,15 @@ Complete the coverage acknowledgment and choose **Save complete review**. Every 
 
 ## 6. Verify, replay, and export
 
-**Verify files** checks the complete archived inventory, including modified, missing, unexpected, and unsafe paths. **Replay analysis** recomputes the case using retained inputs and compares the normalized result digest. It reports a mismatch when installed engine files or dependency versions differ; it does not execute arbitrary archived code. Results are shown in full.
+Under **Evidence integrity**, **Verify files** checks the complete archived inventory, including modified, missing, unexpected, and unsafe paths. **Replay analysis** recomputes the case using retained inputs and compares the normalized result digest. It reports a mismatch when installed engine files or dependency versions differ; it does not execute arbitrary archived code. Results are shown in full.
 
-**Create evidence package** is disabled until a review exists and integrity verification passes. The server independently rechecks the run and review before export; enabling a browser button cannot bypass the gate. The resulting download is a ZIP with the run snapshot, review, generated HTML/Markdown report, and verification material. The UI shows its SHA-256 and links to the actual generated file. See `EVIDENCE.md` for the package format, independent verification, and limits.
+A run awaiting review offers **Review observations** as its primary action. **Create evidence package** is disabled until a review exists and integrity verification passes. The server independently rechecks the run and review before export; enabling a browser button cannot bypass the gate. The resulting download is a ZIP with the run snapshot, review, generated HTML/Markdown report, and verification material. The UI shows its SHA-256 and links to the actual generated file. See `EVIDENCE.md` for the package format, independent verification, and limits.
 
 An exported package can record unresolved concerns and specialist escalation. Export does not certify a conclusion, prove reviewer identity, or confer court admissibility. Keep the original package and separately document the trust and handling requirements applicable to your organization.
 
 ## Local-service boundaries
+
+Long-running operations identify the actual stage in a status message. Delayed responses do not replace a page or open a record dialog after the analyst navigates elsewhere. Submission fields are temporarily locked after their payload is captured, and newer drafts are not cleared by an earlier save.
 
 The server rejects unexpected Host headers and cross-origin requests, requires a random session token plus an exact same-origin Origin header for modifications, bounds JSON bodies and uploads, contains filesystem paths, rejects symlink exports, escapes displayed data, and permits no arbitrary network-URL fetch API. Assets have a restrictive content security policy and are served without third-party dependencies. Request bodies and tokens are not written to HTTP access logs.
 
