@@ -19,3 +19,14 @@ artifacts/**
 
 # OS
 .DS_Store
+
+# Local successor workspaces and validation outputs
+workspace/
+validation-workspace/
+.hypothesis/
+.ruff_cache/
+native/rust/target/
+native/go/omphalos-verify*
+*.zip
+native/omphalos-verify-go
+native/omphalos-verify-go.exe

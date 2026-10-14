@@ -1,0 +1,1 @@
+{"as_of":"2026-10-13","case_id":"example_case","dataset_id":"example_data","investigations":["payment_fragmentation","data_quality"],"parameters":{},"question":"Do the synthetic supplied payments require contract and ledger reconciliation?","schema_version":"2.0","scope":{},"watchlist_snapshot_id":null}

@@ -1,180 +1,100 @@
-# omphalOS...
+# omphalOS 2
 
-**... is an investigation platform for high-stakes analytical work.**
+**Investigate a transaction. Trace each observation. Record the review.**
 
-[![License: CC0](https://img.shields.io/badge/License-CC0-lightgrey.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18345558.svg)](https://doi.org/10.5281/zenodo.18345558)
+omphalOS is a local workbench for export-compliance analysts reviewing counterparty records, shipments, and payments. Import your records, select a dated screening snapshot and investigation scope, examine the actual evidence, then record a named review and export a verifiable case packet.
 
-## What, Precisely, Is This?
+The successor replaces the old generated-query/demo system with a small implemented investigation library and one shared workflow for the browser and command line. The original code and its audit remain recoverable in Git history. See [what changed](docs/RECONSTRUCTION.md), the [research basis](docs/RESEARCH.md), and [validation results](docs/VALIDATION.md).
 
-omphalOS surfaces patterns for review, then forces the record to carry uncertainty, rival explanations, and falsifiers as first-class structure.
+## Start
 
-One cannot export a packet without documenting what one does not know; _e.g._, every SQL query scrolls past epistemic warnings before one reaches the data; and, years later — namely, when someone challenges one's analysis — every step is reproducible bit-for-bit.
+Requires Python 3.11 or newer. Dependencies are pinned in `poetry.lock`.
 
-What omphalOS constitutes is neither risk-scoring, nor classification, but a hypothesis-generating pattern detection where the system makes doubt structurally unavoidable.
-
-## Who Uses This
-
-omphalOS enjoys usage by intelligence analysts, export-control investigators, sanctions-compliance officers, trade-finance investigators, _etc._ — in other words, anyone working in adversarial contexts of legality wherein "the-algorithm-flagged-it" is insufficient and analytical reasoning must survive scrutiny.
-
-Application domains include (and are not limited to) export control casework (e.g., EAR, ITAR), sanctions enforcement (e.g., OFAC and multilateral régimes), trade-based money laundering, supply-chain risk, proliferation finance, detection of illicit and/or luxury goods... and, much, much, much more.
-
-## Quick Start
-
-```bash
-# Clone and verify
-git clone https://github.com/your-org/omphalOS
-cd omphalOS
-PYTHONPATH=core/src python -m omphalos.cli pack verify packs/INDEX.json
-
-# Build synthetic world and execute case
-PYTHONPATH=core/src python -m omphalos.cli world build --profile hydrate --out hydrate/world
-PYTHONPATH=core/src python -m omphalos.cli case run hydrate/cases/case_chemicals.json --out hydrate/runs
-
-# Verify integrity and apply export gate
-PYTHONPATH=core/src python -m omphalos.cli case verify hydrate/runs/case_chemicals/<run_id>/
-PYTHONPATH=core/src python -m omphalos.cli export hydrate/runs/case_chemicals/<run_id>/packet.json
-
-# Run conformance suite
-PYTHONPATH=core/src python -m omphalos.cli conformance
+```sh
+poetry install
+poetry run omphalos --workspace ./workspace serve --open
 ```
 
-Workbench UI: `core/ui/analyst-workbench.html` (single offline HTML file)
+With a prepared local `.venv`, double-click **Start omphalOS.command** on macOS or **Start omphalOS.cmd** on Windows. Or run:
 
-See [TUTORIAL.md](docs/TUTORIAL.md) for walkthrough.
-
-## Architecture
-
-Three object types:
-
-- **Cases**: investigative questions, scope, selected investigations
-- **Runs**: portable executions producing checksummed artifacts
-- **Packets**: claims with mandatory doubt structure (unknowns, alternatives, falsifiers)
-
-Trust is distributed across independent implementations (Python reference runtime, Rust cryptographic attestation, Go independent SQL execution). No single implementation is authoritative.
-
-Offline-first: operates in air-gapped environments. All dependencies pre-packaged in cryptographically signed packs.
-
-```
-┌───────────────────────────────────────────┐
-│              omphalOS                      │
-├───────────────────────────────────────────┤
-│  Cases → Python Runtime → SQL Warehouse   │
-│              ↓                             │
-│         Run Artifacts (Packets)           │
-│              ↓                             │
-│    ┌────────┬────────┬────────┐          │
-│    │  Rust  │   Go   │ Export │          │
-│    │ Verify │ Verify │  Gate  │          │
-│    └────────┴────────┴────────┘          │
-└───────────────────────────────────────────┘
+```sh
+.venv/bin/python -m omphalos --workspace ./workspace serve --open
 ```
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for complete design.
+Open the address printed by the server. The server binds only to your computer. It loads no external scripts, fonts, or analytics. All analysis, review, verification, and replay work offline once dependencies and inputs are present. Only **Fetch snapshot** contacts the listed official publisher; it sends no case records or search names.
 
-## The Canon
+Use **Create synthetic demo** for a clearly labeled demonstration. It contains planted patterns, same-name entities that must remain distinct, different currencies/units, and benign installment payments. It does not stand in for private transaction data.
 
-Every SQL investigation contains 60+ repetitions of "interpret with restraint; prefer simpler explanations; record unknowns" before you reach the query. This is not documentation—it is infrastructure that makes epistemic humility structurally unavoidable.
+## The complete workflow
 
-Research shows single warnings are psychologically distant. Repeated environmental cues durably shift judgment patterns. The Canon exploits this.
+1. **Import evidence.** Upload `entities.csv` plus optional `shipments.csv`, `payments.csv`, `ownership.csv`, and `diligence.csv`, or a single `dataset.json`. Invalid rows, duplicates, unknown fields, and broken references reject the import with explanations. Original files and row locations are retained.
+2. **Choose a reference snapshot.** Fetch or manually import an official ITA Consolidated Screening List, OFAC SDN, or OFAC non-SDN snapshot. Import date, publisher metadata, raw bytes, and source category remain visible. A source refresh creates a new snapshot.
+3. **Define the question.** Select the actual investigations, date/domain/entity scope, parameters, assessment date, and optional screening snapshot. Missing information produces an explicit coverage limitation.
+4. **Investigate.** Read neutral observations and exact contributing records. A name candidate remains an unresolved candidate. Amounts remain in their original currency; HS codes and ECCNs remain separate.
+5. **Review.** A named analyst assesses every finding, explaining the disposition, uncertainties, alternative explanations, and evidence that would disconfirm it. Zero findings still require a review of coverage. Review revisions preserve earlier versions.
+6. **Export and reproduce.** Completed review unlocks a ZIP containing a readable report, original and normalized inputs, code snapshot, settings, output, review, and complete checksums. Verify it independently, and replay a run using its retained inputs and matching installed code/dependencies.
 
-See [CANON.md](docs/CANON.md) for philosophical foundation.
+See the [workbench guide](docs/WORKBENCH.md) and [evidence format](docs/EVIDENCE.md).
 
-## Investigation Catalog
+## Command-line example
 
-20,000 parametric SQL queries detecting patterns: payment fragmentation, entity clustering, temporal anomalies, cross-domain procurement, price outliers, network topology.
-
-Each investigation includes Canon and Margin headers (epistemic safeguards), metadata (domain, intent, method), CTE-based SQL (reviewable), limited result sets (bounded).
-
-See [INVESTIGATIONS.md](docs/INVESTIGATIONS.md) for taxonomy.
-
-## Export Gate
-
-Packets must contain:
-- Evidence (artifact pointers with cryptographic hashes)
-- Unknowns (what claims do not establish)
-- Alternatives (rival explanations)
-- Falsifiers (what would overturn claims)
-
-No exceptions. The export gate rejects packets lacking any of these. It scans for prohibited certainty language ("proves", "must be", "conclusively"). This is enforced programmatically.
-
-See [STANDARDS_OF_REVIEW.md](docs/STANDARDS_OF_REVIEW.md) for normative requirements.
-
-## Conformance
-
-The conformance suite gates integrity:
-
-1. Pack checksum verification;
-2. Case execution producing checksummed run;
-3. Manifest integrity validation;
-4. Export gate evaluation (packet admissibility);
-5. Polycentric verification (Rust + Go).
-
-```bash
-PYTHONPATH=core/src python -m omphalos.cli conformance
+```sh
+poetry run omphalos --workspace ./workspace demo --id demo --case-id demo-case
+poetry run omphalos --workspace ./workspace run demo-case
+poetry run omphalos --workspace ./workspace status
+# Use the run_id returned above:
+poetry run omphalos --workspace ./workspace show RUN_ID
+poetry run omphalos --workspace ./workspace verify RUN_ID
+poetry run omphalos --workspace ./workspace replay RUN_ID
+poetry run omphalos --workspace ./workspace review-template RUN_ID --output review.json
+# Read the evidence, then complete review.json yourself.
+poetry run omphalos --workspace ./workspace review review.json
+poetry run omphalos --workspace ./workspace export RUN_ID
+poetry run omphalos verify /path/to/export.zip
 ```
 
-See [CONFORMANCE.md](docs/CONFORMANCE.md) for release contract.
+The template intentionally fails validation until completed. Its acknowledgment starts false. No command silently completes a human review.
 
-## Documentation
+Import your own data and save a case:
 
-| Document | Coverage |
-|----------|----------|
-| [CONFORMANCE.md](docs/CONFORMANCE.md) | Conformance suite and release contract |
-| [STANDARDS_OF_REVIEW.md](docs/STANDARDS_OF_REVIEW.md) | Export gate requirements (normative) |
-| [CANON.md](docs/CANON.md) | Epistemic humility as infrastructure |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design and polycentric verification |
-| [INVESTIGATIONS.md](docs/INVESTIGATIONS.md) | SQL catalog and pattern taxonomy |
-| [TUTORIAL.md](docs/TUTORIAL.md) | First case walkthrough |
-| [THREAT_MODEL.md](docs/THREAT_MODEL.md) | Security assumptions and mitigations |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment |
-| [RESEARCH.md](docs/RESEARCH.md) | Academic positioning |
-
-## Design Philosophy
-
-Traditional algorithmic systems optimize for precision and recall, treating detection as classification. This fails when (a) base rates are exceptionally low (<0.01% of transactions), (b) adversaries adapt through FOIA and litigation disclosure, and/or (c) conclusions must survive adversarial legal scrutiny.
-
-omphalOS inverts this through a hypothesis-generating pattern detection (not classification), transparency by design (assumes disclosure), and the systematic documentation of unknowns (not confident predictions).
-
-Epistemic humility, here, is architectural.
-
-## Security and Privacy
-
-**Export-Control Notice**: Publicly released, not subject to EAR controls. Contains no controlled technical data. Datasets are synthetic and non-identifiable.
-
-**Privacy by Design**: Packets contain aggregates, not individual transactions. Export gates block credentials and secrets. Demonstration world-states are synthetic; production deployments apply redaction protocols.
-
-See [THREAT_MODEL.md](docs/THREAT_MODEL.md) and [SECURITY.md](SECURITY.md).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
-
-Requirements are that only synthetic data is apposite, SQL investigations follow Canon/Margin conventions, code passes verification, and no credentials or classified material are used.
-
-## License
-
-CC0 1.0 Universal (Public Domain)
-
-Work from the U.S. Government is not subject to copyright protection domestically. Foreign copyrights may appl. To the extent possible under law, all copyright and related rights dedicated to the public domain worldwide.
-
-See [LICENSE](LICENSE).
-
-## Citation
-
-```bibtex
-@software{omphalos2026,
-  author = {{Peter H. Vartanian}},
-  title = {omphalOS},
-  year = {2026},
-  doi = {10.5281/zenodo.18344930},
-  url = {https://github.com/petervartanian/omphalOS}
-}
+```sh
+poetry run omphalos --workspace ./workspace import ./my-records --id my-records --label 'October review'
+poetry run omphalos schema data
+poetry run omphalos schema case
+poetry run omphalos catalog
+poetry run omphalos --workspace ./workspace case ./my-case.json
+poetry run omphalos --workspace ./workspace sources fetch csl --id csl-october
 ```
 
-## Acknowledgments
+All commands return JSON. Verification failure exits 1; invalid input exits 2. `--debug` includes diagnostic tracebacks. Put the global `--workspace` option before the subcommand.
 
-omphalOS is influenced by (1) Richards Heuer's *Psychology of Intelligence Analysis*, (2) Elinor Ostrom's polycentric governance theory, and (3) the CompCert verified software project, as well as (4) personal inputs from fellow builders and stakeholders in the Government of the United States.
+## What verification means
 
-Ultimately, this system is transparent _precisely_ because transparency is renders makes it defensible.. and not merely because it has nothing to hide.
+- **Integrity:** the complete file inventory and hashes match; required content is present and structurally valid.
+- **Replay:** the same installed engine and dependencies recompute the normalized findings and coverage from archived inputs. Execution timestamps and ZIP bytes need not match.
+- **Review:** the required named assessment is recorded against the exact run manifest. Names are self-asserted; this is a single-user application.
+- **Authenticity:** ordinary hashes do not establish who supplied evidence. Optional detached Ed25519 verification requires a separately trusted public key. A key bundled by an unknown sender is not independently trusted.
+
+A passed check does not establish the truth of source records, the quality of a human explanation, legal clearance, or admissibility. The application never automatically merges identities, blocks funds, submits reports to authorities, or calculates a probability of wrongdoing.
+
+## Scope and operating limits
+
+This release serves one analyst on a local computer. It is not a multi-user case-management service. It does not provide a complete beneficial-ownership graph, automatic jurisdiction/license decisions, document OCR, international rule coverage, institution-specific retention enforcement, or legal conclusions. Ownership and diligence rows preserve supplied evidence; they do not establish completeness or an automatic 50 Percent Rule decision.
+
+Do not interpret an expired listing retained by a publisher as an active restriction, or a later snapshot as a complete historical list. Review source dates and the underlying agency guidance. Public aggregate trade statistics cannot supply the company-level shipment and payment evidence this application needs.
+
+Synthetic regression tests demonstrate implementation behavior; they do not establish operational detection accuracy. Domain-expert review and an authorized, representative held-out case set are still needed to measure useful findings and false-positive burden. Current validation results distinguish checks actually executed from configured future CI.
+
+## Development
+
+```sh
+poetry install
+poetry run pytest
+poetry run ruff check src tests
+poetry run black --check src tests tools
+poetry build
+```
+
+[Security boundaries](SECURITY.md), [contribution guide](CONTRIBUTING.md), [data schema](docs/DATA.md), and [independent verifiers](native/README.md).
+
+Code retains the original **CC0-1.0** license. Imported data and publisher snapshots retain their own terms and provenance.

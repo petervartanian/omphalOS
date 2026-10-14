@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>omphalOS | Investigation workbench</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to workspace</a>
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="omphalOS overview"><span class="brand-mark" aria-hidden="true">o</span><span>omphal<span class="brand-os">OS</span><small>INVESTIGATION WORKBENCH</small></span></a>
+    <div class="local-label"><span class="status-dot" aria-hidden="true"></span> Local workspace</div>
+    <nav aria-label="Main navigation">
+      <a href="#overview" data-nav="overview"><span aria-hidden="true">01</span> Overview</a>
+      <a href="#data" data-nav="data"><span aria-hidden="true">02</span> Data &amp; sources</a>
+      <a href="#cases" data-nav="cases"><span aria-hidden="true">03</span> Cases</a>
+      <a href="#runs" data-nav="runs"><span aria-hidden="true">04</span> Findings &amp; review</a>
+    </nav>
+    <div class="sidebar-bottom"><div class="small-label">ANALYST-LED</div><p>Explainable observations.<br>Traceable evidence.<br>Documented judgment.</p><p class="muted-light">Single-user workstation.<br>Files stay in this workspace.</p></div>
+  </aside>
+  <div class="workspace-shell">
+    <header class="topbar"><span id="breadcrumb">Workspace / Overview</span><div><span class="outline-tag">LOCAL</span><button id="refresh" class="text-button" type="button">Refresh</button></div></header>
+    <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    <main id="main" tabindex="-1"><div class="loading">Loading the local workspace…</div></main>
+    <footer>omphalOS supports investigation and review. Observations and list candidates are not legal determinations or probabilities of wrongdoing.</footer>
+  </div>
+  <dialog id="evidence-dialog" aria-labelledby="dialog-title"><div class="dialog-heading"><h2 id="dialog-title">Evidence record</h2><button id="close-dialog" class="secondary" type="button">Close</button></div><div id="dialog-content"></div></dialog>
+</body>
+</html>
