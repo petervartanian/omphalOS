@@ -15,6 +15,25 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run check
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/omphalos-browser-runtime
+          key: browser-runtime-${{ hashFiles('deploy/browser-runtime.lock.json') }}
+      - name: Build the static browser edition from verified runtime artifacts
+        run: python tools/build_browser.py --cache "$RUNNER_TEMP/omphalos-browser-runtime"
+      - name: Verify the actual WebAssembly workflow with network disabled
+        run: node tools/check_browser_runtime.mjs dist/browser
   python:
     strategy:
       fail-fast: false

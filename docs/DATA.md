@@ -1,14 +1,14 @@
 # Data and analytical behavior
 
-omphalOS analyzes records supplied by an analyst. It does not obtain private bank payments, named customs transactions, beneficial ownership, or export licenses from public trade statistics. The included demonstration is synthetic. Public screening lists provide identity candidates and source-specific listing context; they do not establish that a transaction violates a rule.
+omphalOS analyzes records supplied by an analyst. It does not obtain private bank payments, named customs transactions, beneficial ownership, or export licenses from public trade statistics. Public screening lists provide identity candidates and source-specific listing context; they do not establish that a transaction violates a rule.
 
 ## Import formats
 
-Provide a directory with one file per table, named `entities.csv`, `shipments.csv`, `payments.csv`, `ownership.csv`, or `diligence.csv`. Any table can instead use a same-named JSON file containing an array of objects. A table cannot appear twice. Alternatively, provide one `dataset.json` containing `{"schema_version":"2.0","tables":{"entities":[...]}}`. Do not mix that file with per-table files.
+Provide a directory with one file per table, named `entities.csv`, `shipments.csv`, `payments.csv`, `ownership.csv`, or `diligence.csv`. Any table can instead use a same-named JSON file containing an array of objects. A table cannot appear twice. Alternatively, provide one JSON file (with any filename) containing `{"schema_version":"2.0","tables":{"entities":[...]}}`. Do not mix that file with per-table files.
 
 UTF-8 and UTF-8 with BOM are supported. CSV uses a header and standard quoting. Unknown fields, duplicate headers/IDs/JSON keys, malformed rows, invalid values, and broken references reject the entire import. Errors identify the input file and row where possible. For multiline CSV records, provenance records the ending physical line; JSON provenance uses the one-based row within its table. Optional blank CSV cells become missing values. All dates use `YYYY-MM-DD`.
 
-Each recognized file is limited to 80 MiB; each table to 250,000 rows. Non-CSV/JSON files are not imported. HTTP uploads have an additional, smaller request limit imposed by the workbench. Importing or running analysis makes no network request. Existing nonempty datasets and snapshots cannot be overwritten through these APIs.
+Each recognized file is limited to 80 MiB; each table to 250,000 rows. Non-CSV/JSON files are not imported. HTTP uploads have an additional, smaller request limit imposed by the workbench. Core file normalization and analysis run locally. The browser workflow may fetch a screening snapshot first; name-based identity discovery separately sends the query to its documented public providers. Existing nonempty datasets and snapshots cannot be overwritten through these APIs.
 
 The machine-readable field schemas are available from `omphalos.data.data_schema()` and in `examples/data-schema.json`.
 
@@ -74,7 +74,7 @@ Supported adapters are `csl`, `ofac_sdn`, and `ofac_non_sdn`:
 
 A download is an explicit action and transmits no dataset, case question, entity name, or screening query. Bulk access currently requires no API key. Requests use verified TLS with the operating system trust store, a 30-second socket timeout, and a 100 MiB response cap. Redirects are restricted to the documented application hosts and the exact GovCloud publication bucket observed from OFAC's official endpoint, under its `/Published/` prefix. Transient signed redirect URLs are not saved as provenance. An upstream hosting change may require an adapter update; arbitrary URLs are not accepted.
 
-Manual import supports the same formats for offline work. Manual content is not independently authenticated merely because it parses. Both methods retain exact raw bytes, the normalized source records, SHA-256, retrieval/import time, source publication or aggregation time, update metadata, and parser version. A failure creates no partial snapshot. Loads verify and reparse originals. Refresh is never automatic.
+Manual import supports the same formats for offline work. Manual content is not independently authenticated merely because it parses. Both methods retain exact raw bytes, the normalized source records, SHA-256, retrieval/import time, source publication or aggregation time, update metadata, and parser version. A failure creates no partial snapshot. Loads verify and reparse originals. The guided current-date screening flow obtains or refreshes an official snapshot when needed. Explicitly selected snapshots and historical case dates are preserved.
 
 Parsers accept at most 150,000 entries. CSL must have a complete, unpaginated `results` array whose length matches `total`; each record needs name, ID, and list source. OFAC standard UTF-8 XML must have publication metadata and a matching record count. DTDs, custom entities, alternate-encoding evasion, missing identities, and duplicate source IDs are rejected. Nested OFAC alias/address/identifier UIDs do not replace the top-level listing UID. OFAC weak/strong alias labels, program tags, and available identifiers are retained. Standard XML lacks individual effective dates for many entries; the parser leaves those dates unknown.
 
@@ -90,8 +90,8 @@ Default display is five candidates per entity, maximum 100; omissions are counte
 
 A name match cannot establish a legal restriction. Listing absence cannot establish permissibility. This implementation does not comprehensively screen ownership-based restrictions, embargoes, product controls, licenses, end use, or all jurisdictions. A current list cannot reconstruct historical membership without appropriate effective-date evidence.
 
-## Verified examples and validation
+## Regression fixtures and validation
 
-`examples/import/` contains a small synthetic CSV import. `examples/case.json` targets dataset ID `example_data`. `examples/data-schema.json` exports the current row schema. The application can also create a deterministic planted demo with outliers, fragmented payments, shared invoice/address patterns, a count spike, several currencies, undated records, distinct entities sharing a name, and benign installments.
+`examples/import/` contains a small synthetic CSV import. `examples/case.json` targets dataset ID `example_data`. `examples/data-schema.json` exports the current row schema. The private regression helper creates a deterministic fixture with outliers, fragmented payments, shared invoice/address patterns, a count spike, several currencies, undated records, distinct entities sharing a name, and benign installments.
 
 Local adapter validation on October 13, 2026 parsed full official responses: 26,128 CSL records, 19,431 SDN records, and 481 non-SDN records. A fresh non-SDN HTTPS download and validation succeeded. On this host, the optimized matcher screened five synthetic names against the archived full CSL in approximately 0.76 seconds; timing is illustrative, not a service guarantee. Counts are observations of those snapshots, not permanent source sizes. Tests exercise invalid imports, exact decimals, logical provenance, true versus arithmetic mean behavior, cohort separation, dates/scopes, prefix collisions, expired/future listings, identity conflicts, Unicode, unsafe XML/redirects, failed-fetch atomicity, and synthetic benign cases. These tests do not estimate real-world detection accuracy.

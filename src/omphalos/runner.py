@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import importlib.metadata
+import json
 import logging
 import platform
 import shutil
+import sys
 import tempfile
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .models import Analysis, Case, Review
+from .models import Analysis, Case, parse_review
 from .util import (
     OmphalOSError,
     canonical_json,
@@ -39,7 +42,23 @@ def engine_inventory() -> dict[str, str]:
 
 def runtime_versions() -> dict[str, str]:
     names = ("pydantic", "pydantic_core", "cryptography", "truststore")
-    return {name: importlib.metadata.version(name) for name in names}
+    versions = {}
+    for name in names:
+        try:
+            versions[name] = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            # Browser HTTPS uses the browser's transport. Unsigned evidence
+            # packages do not need the optional native signing dependencies.
+            if sys.platform != "emscripten" or name not in {
+                "cryptography",
+                "truststore",
+            }:
+                raise
+    if sys.platform == "emscripten":
+        import pyodide
+
+        versions["pyodide"] = pyodide.__version__
+    return versions
 
 
 # A long-lived local service may retain imported modules while files are edited.
@@ -110,6 +129,7 @@ class Workspace:
         for name in (
             "datasets",
             "sources",
+            "research",
             "cases",
             "runs",
             "reviews",
@@ -144,12 +164,37 @@ class Workspace:
             try:
                 manifest = read_json(safe_child(path, "dataset-manifest.json"))
                 metadata = manifest.get("metadata", manifest)
+                identity = metadata.get("identity_research")
+                identity_summary = {}
+                if isinstance(identity, dict):
+                    candidate = identity.get("selected_candidate")
+                    identity_summary = {
+                        "parent_dataset_id": identity.get("parent_dataset_id"),
+                        "identity_association": identity.get("association"),
+                        "identity_profile": (
+                            {
+                                "name": candidate.get("name"),
+                                "sources": sorted(
+                                    {
+                                        claim["source_label"]
+                                        for claim in candidate.get("claims", [])
+                                        if isinstance(claim, dict)
+                                        and isinstance(claim.get("source_label"), str)
+                                    }
+                                ),
+                            }
+                            if isinstance(candidate, dict)
+                            else None
+                        ),
+                    }
                 records.append(
                     {
+                        **identity_summary,
                         **{
                             key: metadata[key]
                             for key in (
                                 "label",
+                                "intake_method",
                                 "synthetic",
                                 "counts",
                                 "warnings",
@@ -159,6 +204,9 @@ class Workspace:
                             if key in metadata
                         },
                         "dataset_id": path.name,
+                        "identity_research_retained": bool(
+                            metadata.get("identity_research")
+                        ),
                     }
                 )
             except (ValueError, OSError, TypeError):
@@ -206,7 +254,13 @@ class Workspace:
                 records.append({"case_id": path.stem, "status": "invalid"})
         return records
 
-    def list_runs(self) -> list[dict[str, Any]]:
+    def list_runs(self, *, verify_reviews: bool = True) -> list[dict[str, Any]]:
+        """List retained runs, optionally deferring expensive evidence verification.
+
+        The lightweight path reports only that a structurally valid review is
+        anchored to the current manifest. Its assessment and retained evidence
+        remain unchecked until the run is opened or an explicit check is made.
+        """
         records: list[dict[str, Any]] = []
         for path in sorted(safe_child(self.root, "runs").iterdir(), reverse=True):
             if not path.is_dir() or path.is_symlink() or path.name.startswith("."):
@@ -214,11 +268,15 @@ class Workspace:
             try:
                 manifest = read_json(safe_child(path, "manifest.json"))
                 analysis = read_json(safe_child(path, "analysis.json"))
-                review, review_validation = self._review_state(path.name)
+                retained_case = read_json(safe_child(path, "case.json"))
+                review, review_validation = self._review_state(
+                    path.name, verify_reviews=verify_reviews
+                )
                 records.append(
                     {
                         "run_id": path.name,
                         "case_id": manifest["case_id"],
+                        "dataset_id": retained_case["dataset_id"],
                         "created_at": manifest["created_at"],
                         "analysis_digest": manifest["analysis_digest"],
                         "findings_count": len(analysis["findings"]),
@@ -226,7 +284,11 @@ class Workspace:
                             row["status"] == "not_evaluable"
                             for row in analysis["coverage"]
                         ),
-                        "status": "reviewed" if review else "awaiting_review",
+                        "status": (
+                            ("reviewed" if verify_reviews else "review_recorded")
+                            if review
+                            else "awaiting_review"
+                        ),
                         "review_validation": review_validation,
                         "verification_status": "not_checked",
                     }
@@ -380,7 +442,7 @@ class Workspace:
                 shutil.rmtree(staging)
 
     def _review_state(
-        self, run_id: str
+        self, run_id: str, *, verify_reviews: bool = True
     ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
         from .evidence import _review_wrapper, validate_review
 
@@ -404,12 +466,22 @@ class Workspace:
             latest = max(
                 candidates, key=lambda row: (row["created_at"], row["review_id"])
             )
+            if not verify_reviews:
+                parsed = parse_review(latest["review"])
+                if parsed.run_id != run_id:
+                    raise OmphalOSError("Stored review refers to a different run.")
+                return latest, {
+                    "ok": False,
+                    "issues": [],
+                    "status": "not_checked",
+                }
             assessment = validate_review(self._path("runs", run_id), latest["review"])
             return (latest if assessment["ok"] else None), assessment
         except (ValueError, OSError, KeyError, TypeError) as exc:
             return None, {
                 "ok": False,
                 "issues": ["Stored review could not be validated: " + str(exc)],
+                **({"status": "invalid"} if not verify_reviews else {}),
             }
 
     def _latest_review(self, run_id: str) -> dict[str, Any] | None:
@@ -420,7 +492,59 @@ class Workspace:
         if not path.is_dir():
             raise FileNotFoundError("Run does not exist.")
         latest_review, review_validation = self._review_state(run_id)
+        verification = self.verify_run(run_id)
+        retained_dataset = read_json(safe_child(path, "data/dataset.json"))
+        dataset_metadata = retained_dataset["metadata"]
+        research = None
+        if verification["ok"] and dataset_metadata.get("identity_research"):
+            from .data import load_dataset
+
+            try:
+                retained = load_dataset(path / "data")["metadata"]
+                if (
+                    retained.get("import_transform", {}).get("kind")
+                    != "identity_research_v1"
+                ):
+                    raise ValueError(
+                        "Public identity context has no retained derivation."
+                    )
+                research = retained["identity_research"]
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                verification = {
+                    **verification,
+                    "ok": False,
+                    "issues": [
+                        *verification["issues"],
+                        "Identity research validation failed: " + str(exc),
+                    ],
+                }
+        entity_names = {}
+        screening_source = None
+        if verification["ok"]:
+            entity_names = {
+                entity["entity_id"]: entity["name"]
+                for entity in retained_dataset["tables"]["entities"]
+            }
+            source_path = safe_child(path, "sources/source.json")
+            if source_path.is_file():
+                retained_source = read_json(source_path)
+                screening_source = {
+                    key: value
+                    for key, value in retained_source["metadata"].items()
+                    if key
+                    in {
+                        "snapshot_id",
+                        "source_id",
+                        "record_count",
+                        "fetched_at",
+                        "source_updated_at",
+                        "ingestion_method",
+                        "effective_date_issue_count",
+                    }
+                }
         return {
+            "entity_names": entity_names,
+            "screening_source": screening_source,
             "manifest": read_json(safe_child(path, "manifest.json")),
             "case": read_json(safe_child(path, "case.json")),
             "analysis": read_json(safe_child(path, "analysis.json")),
@@ -428,13 +552,59 @@ class Workspace:
             "review_validation": review_validation,
             "dataset_metadata": {
                 key: value
-                for key, value in read_json(safe_child(path, "data/dataset.json"))[
-                    "metadata"
-                ].items()
+                for key, value in dataset_metadata.items()
                 if key in {"synthetic", "label", "dataset_id", "counts"}
             },
-            "verification": self.verify_run(run_id),
+            "identity_research": research,
+            "latest_export": (
+                self._latest_export(run_id, latest_review)
+                if verification["ok"] and latest_review
+                else None
+            ),
+            "verification": verification,
         }
+
+    def _latest_export(self, run_id: str, review: dict) -> dict | None:
+        """Expose a completed package only while its exact run and review verify."""
+        from .evidence import verify_bundle
+
+        pointer = safe_child(self.root / "exports", f"{safe_id(run_id)}-latest.json")
+        if not pointer.is_file() or pointer.is_symlink():
+            return None
+        try:
+            saved = read_json(pointer)
+            if set(saved) != {"name", "sha256", "review_id", "run_manifest_sha256"}:
+                return None
+            name = saved["name"]
+            if not isinstance(name, str) or not name.endswith(".zip"):
+                return None
+            safe_id(name[:-4])
+            manifest = safe_child(self._path("runs", run_id), "manifest.json")
+            if saved["review_id"] != review["review_id"] or saved[
+                "run_manifest_sha256"
+            ] != sha256_file(manifest):
+                return None
+            archive_path = safe_child(self.root / "exports", name)
+            if (
+                archive_path.is_symlink()
+                or not archive_path.is_file()
+                or sha256_file(archive_path) != saved["sha256"]
+            ):
+                return None
+            if not verify_bundle(archive_path)["ok"]:
+                return None
+            with zipfile.ZipFile(archive_path) as archive:
+                exported = json.loads(archive.read("review.json"))
+                if any(
+                    exported[key] != review[key]
+                    for key in ("review_id", "review", "run_manifest_sha256")
+                ):
+                    return None
+                if archive.read("run/manifest.json") != manifest.read_bytes():
+                    return None
+            return {"name": name, "download_url": f"/api/exports/{name}"}
+        except (ValueError, OSError, KeyError, TypeError, zipfile.BadZipFile):
+            return None
 
     def verify_run(self, run_id: str) -> dict[str, Any]:
         from .evidence import verify_run
@@ -450,7 +620,7 @@ class Workspace:
             raise OmphalOSError(
                 "A damaged or incomplete run cannot be reviewed for export."
             )
-        review = Review.model_validate(review_dict).model_dump(mode="json")
+        review = parse_review(review_dict).model_dump(mode="json")
         if review["run_id"] != run_id:
             raise OmphalOSError("Review refers to a different run.")
         assessment = validate_review(path, review)
@@ -493,6 +663,21 @@ class Workspace:
             self.root, f"exports/{safe_id(run_id)}-{uuid.uuid4().hex[:12]}.zip"
         )
         result = export_bundle(self._path("runs", run_id), review_path, destination)
+        exported_review = read_json(review_path)
+        current_review = self._latest_review(run_id)
+        if (
+            current_review
+            and current_review["review_id"] == exported_review["review_id"]
+        ):
+            write_json(
+                safe_child(self.root / "exports", f"{safe_id(run_id)}-latest.json"),
+                {
+                    "name": destination.name,
+                    "sha256": sha256_file(destination),
+                    "review_id": exported_review["review_id"],
+                    "run_manifest_sha256": exported_review["run_manifest_sha256"],
+                },
+            )
         self._event(
             "bundle_exported",
             run_id,

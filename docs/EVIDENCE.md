@@ -8,7 +8,11 @@ Finalization is write-once through the application. A failed verification does n
 
 ## Review
 
-A named review must cover every finding exactly once, acknowledge coverage limitations, and supply a disposition, rationale, unknowns, alternatives, and falsifiers. A zero-findings result still needs a named reviewer, a substantive summary, and acknowledgment of limitations. Dataset references and source references must resolve to preserved records. Merely copying all generated uncertainty sections does not complete a review.
+A case decision (review schema 2.1) records a named reviewer, a decision to keep the investigation open, escalate it, or conclude it, and an acknowledgment of the coverage limitations. Its scope includes every retained finding exactly once. This scope identifies the observations included in the decision; it does not assert that the reviewer individually assessed each observation. A case note is optional when keeping the investigation open or escalating it and required when concluding it. Supplied notes must be substantive. A zero-findings result still requires an explicit named decision and acknowledgment.
+
+Existing individual reviews (schema 2.0) remain supported. They cover every finding exactly once and supply a disposition, rationale, unknowns, alternatives, and falsifiers. Merely copying all generated uncertainty sections does not complete an individual review. Both formats require dataset and source references to resolve to preserved records.
+
+Case-decision reports retain every original observation and its evidence, unknowns, alternatives, and evidence requests as analytical output. They identify the case decision separately and do not manufacture individual dispositions or attribute generated reasoning to the reviewer. `omphalos schema review` describes both review formats.
 
 The immutable review wrapper records its own ID and timestamp and the SHA-256 of the exact run manifest reviewed. A review against a different manifest cannot authorize export. Review identities are self-asserted; text validation cannot establish the adequacy or truth of the reasoning.
 
@@ -71,3 +75,11 @@ Replay uses the installed compatible engine with the archived case, dataset, and
 The application records its source and dependency versions when its process starts. A source edit or dependency change requires a restart before a new run or replay, preventing a long-lived service from archiving changed files as if its previously imported code executed them. Every copied engine file must also match that process snapshot. A failed replay reports differing output without claiming reproduction.
 
 Source records distinguish acquisition timestamps from publisher update dates. Original bytes and normalization metadata remain available alongside findings. These choices follow the separation of entities, activities, and responsible agents described by [W3C PROV](https://www.w3.org/TR/prov-overview/). [RO-Crate](https://www.researchobject.org/ro-crate/specification/1.3/structure.html) provides an interoperable descriptive model, while [BagIt](https://www.rfc-editor.org/rfc/rfc8493.html) specifies archival inventory conventions. This implementation states its own format precisely rather than implying those standards are already implemented.
+
+## Public identity research
+
+Identity research is a separate acquisition from list screening. Its manifest inventories the query transcript, raw provider replies, and parsed report. Loading research replays the parser over those retained replies and compares the reconstructed report. A selection is bound to the original dataset hashes and entity ID. The derived dataset retains both the original data and the research, then deterministically reconstructs the permitted enrichment. Unsupported fields cannot be submitted by the browser, and existing supplied values are preserved when a source differs. Explicit continuation without a profile retains the attempt without adding facts.
+
+Runs and evidence packages carry the complete derivation, including failed provider coverage and original bytes. Wikidata content is attributed directory data, not independently authenticated company documentation. Byte integrity and reproducible derivation do not establish factual truth.
+
+Package completion is persisted only after the archive verifies. The completion pointer binds its archive hash, run-manifest hash, and review ID. A new review, corrupt archive, or changed run invalidates that completion state.

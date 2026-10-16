@@ -1,6 +1,8 @@
 #!/bin/zsh
 set -eu
 cd "$(dirname "$0")"
+# Resolve this checkout directly, including when macOS hides editable-install .pth files.
+export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 if [ -x .venv/bin/python ]; then
   exec .venv/bin/python -m omphalos --workspace ./workspace serve --open
 fi

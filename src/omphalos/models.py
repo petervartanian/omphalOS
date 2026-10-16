@@ -12,6 +12,7 @@ from pydantic import (
     Field,
     StrictBool,
     StringConstraints,
+    TypeAdapter,
     field_validator,
     model_validator,
 )
@@ -263,3 +264,54 @@ class Review(Contract):
         if len(ids) != len(set(ids)):
             raise ValueError("Every finding may only be reviewed once per revision")
         return self
+
+
+class CaseReview(Contract):
+    """An explicit decision about a case, without inferred finding judgments."""
+
+    schema_version: Literal["2.1"] = "2.1"
+    run_id: Identifier
+    reviewer: Annotated[
+        str,
+        StringConstraints(
+            strict=True, strip_whitespace=True, min_length=2, max_length=200
+        ),
+    ]
+    decision: Literal["keep_open", "escalate", "conclude"]
+    summary: Annotated[
+        str, StringConstraints(strict=True, strip_whitespace=True, max_length=10000)
+    ] = ""
+    scope_finding_ids: list[Identifier]
+    acknowledge_limitations: StrictBool
+
+    @field_validator("summary")
+    @classmethod
+    def substantive_note_when_supplied(cls, value: str) -> str:
+        if value and len(value) < 12:
+            raise ValueError("A case note needs at least 12 characters")
+        return str(_substantive_text(value)) if value else value
+
+    @model_validator(mode="after")
+    def explicit_decision_and_scope(self) -> CaseReview:
+        if not self.acknowledge_limitations:
+            raise ValueError(
+                "A reviewer must acknowledge the coverage and data limitations"
+            )
+        if self.decision == "conclude" and not self.summary:
+            raise ValueError("Concluding a case requires a substantive case note")
+        if len(self.scope_finding_ids) != len(set(self.scope_finding_ids)):
+            raise ValueError("Assessment scope must not repeat finding IDs")
+        return self
+
+
+REVIEW_ADAPTER = TypeAdapter(
+    Annotated[Review | CaseReview, Field(discriminator="schema_version")]
+)
+
+
+def parse_review(value: Any) -> Review | CaseReview:
+    """Read legacy individual reviews and explicit case decisions by version."""
+    if isinstance(value, dict) and "schema_version" not in value:
+        # Review 2.0 historically allowed the version to be omitted.
+        value = {"schema_version": "2.0", **value}
+    return REVIEW_ADAPTER.validate_python(value)

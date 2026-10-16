@@ -1,67 +1,124 @@
-# Workbench design system
+# Investigation interface design
 
-The interface takes inspiration from precise, restrained developer tools such as Vercel’s dashboard. It is an independent omphalOS design, with no copied product assets or implied affiliation. Its purpose is to make investigative work inspectable: what records were considered, what was observed, what remains unresolved, and what an analyst assessed.
+The primary interface treats an investigation as a shallow evidence box assembled through six stages: Records, Sources, Plan, Findings, Assessment, and Package. One panel folds at a time as work completes. Opening a stage puts its working surface beside the box on desktop. Narrow screens show compact stage navigation above the work; **Back to the box** restores the full object. Earlier retained material remains accessible; future stages unlock when their prerequisites are present.
+
+Records is the base. Sources, Plan, Findings, and Assessment form the walls. Package is the lid, which closes after export. Selecting a completed panel inspects its contents without unfolding it or changing the case.
+
+The wordmark is **omphalOS: the center of the investigation**, with the subtitle in small caps. The primary header contains the wordmark and Refresh. The box and its matching named controls provide the main navigation; supporting screens expose record inventories and case settings.
 
 ## Design principles
 
-1. **Current work before explanation.** Returning analysts see recent runs and review state first. Instructions appear when the workspace is empty or within the relevant form.
-2. **A neutral workspace.** White and off-white surfaces, fine gray dividers, compact controls, and system typography establish hierarchy. Panels have no decorative shadows. The dialog alone uses elevation to distinguish an overlay.
-3. **Color means a state.** Amber identifies missing evidence, an unreviewed assessment, or synthetic records. Red identifies an error. File integrity is visually separate from analyst review. A recorded review is not shown as a green clearance.
-4. **Evidence beside judgment.** Review forms retain the observation and direct evidence controls. Screening candidates expose compared names, list category, contradictory identity context, and available source timestamps before raw technical detail. Source acquisition distinguishes manual uploads of unauthenticated origin from official HTTPS downloads, and CSL aggregation time is not presented as a publisher update for every underlying list.
-5. **Details on demand.** Catalog parameters, source formats, inventories, hashes, and raw JSON remain accessible in disclosures. They do not lead the normal workflow.
-6. **No hidden loss or invented progress.** Drafts survive in-page navigation and workspace refresh. Long-running operations report an actual stage, without an estimated percentage. Stale responses do not replace the user’s current view.
+1. **Begin with the material.** Enter a subject or import records. Choosing a purpose first is optional. When no explicit purpose exists, the contents of the dataset suggest screening or transaction review. The application prepares the question, case ID, compatible checks, and defaults for inspection.
+2. **One investigation, sequential stages.** Available panels open the corresponding working surface. The next action follows Records → Sources → Plan → Findings → Assessment → Package. Retained earlier stages can be inspected without restarting work.
+3. **Prepare automatically, decide explicitly.** Confirm a CSV interpretation or choose a public identity. The ordinary intake path then obtains required sources, prepares a plan, and runs supported checks. The application does not insert manual approval steps for each prepared stage or record a human decision automatically.
+4. **Evidence before assessment.** Completed analyses lead to Findings. Observation details expose computed values, grouped cited records, provenance, and analytical limits. Assessment records one case decision, with no required questionnaire for each observation.
+5. **Color identifies a stage.** Each panel keeps a stable identity color before and after completion. Explicit names, checkmarks, and text states carry meaning without requiring hue recognition. Color does not classify severity, legal status, or risk.
+6. **Preserve the work and its limits.** Drafts survive in-page navigation and workspace refresh. A response cannot replace a newer selection. Activity identifies the operation without an invented percentage. Completion tracks retained actions, not judgment quality.
 
-## Tokens and components
+## Visual language and tokens
 
-`src/omphalos/ui/styles.css` defines the tokens and groups rules by component. The CSS is source code, not a generated or minified artifact.
+`src/omphalos/ui/styles.css` contains shared tokens, supporting record-screen components, and the central investigation surface. The overview uses a neutral white background, fine dividers, and a centered object. `src/omphalos/ui/box.js` projects hinged panels into an SVG evidence box. Light identity colors deepen on completion; restrained reflections preserve their hue. Local Geist typography remains consistent throughout.
+
+At widths of 960px and above, an open stage uses two columns: the box and navigation on the left, the working surface on the right. Below that breakpoint, the illustration is hidden while the stage is open and the six named controls form a compact three-column grid. Returning to the overview restores the full box without changing completion or discarding drafts. External stage controls use 12px labels and at least 44px height. Mobile surface inputs use 16px text.
 
 | Layer | Rules |
 | --- | --- |
-| Surfaces | `--color-background`, `--color-surface`, `--color-subtle` |
-| Text | `--color-text`, `--color-secondary`, `--color-muted` |
-| Boundaries | Light `--color-border` for groups and rows; separate `--color-input-border` for recognizable input boundaries |
-| Meaningful states | Positive, warning, and error foreground/background/border tokens |
-| Type | Operating-system sans serif; system monospace for IDs and retained technical detail |
-| Type sizes | 26px page title, 16–21px section/question hierarchy, 14px body and actions, 13px secondary text, 12px labels and compact metadata |
-| Spacing | Named 4–40px spacing scale; 36px standard control height |
-| Shape | 6px controls, 8px panels; no decorative gradients |
-| Motion | Short control feedback; no entrance animation; reduced-motion preference respected |
+| Surfaces | Neutral white background with shared surface, subtle, and hover tokens |
+| Text | Primary, secondary, and muted text tokens; persistent stage names |
+| Boundaries | Light group dividers and separate input borders |
+| Panel identity | Distinct light colors before completion and darker versions of the same hue afterward |
+| Status | Explicit warning and error text with supporting color; integrity and review remain separate concepts |
+| Type | Packaged Geist for text; Geist Mono for identifiers and compact metadata, with system fallbacks |
+| Spacing | Named shared spacing scale, supplemented by the central object layout |
+| Shape | A flat base, four hinged walls, and a lid rendered in SVG |
+| Motion | One completion fold at a time; invalidated panels unfold in reverse order; reduced-motion support |
 
-Buttons have primary, secondary, and text variants. Use one clear primary action in the immediate task context. Disabled and busy states remain distinct. Status badges always include text; color never carries the meaning alone. Numeric counts use tabular numerals.
+### Panel colors
 
-Panels group related content. Table panels have a compact header, a consistent row rhythm, and a horizontally scrollable table area when necessary. Inputs use persistent labels and contextual instructions. Details disclosures provide optional depth without removing access to the underlying information.
+Stages I–V retain their blue, teal, orange, yellow, and pink identities, with explicit light unfinished colors and deeper completed colors. Pigment follows its own hinge, so queued panels stay light until their fold starts. The Records base changes color when valid intake completes. VI uses a distinct pearl and rainbow material. The entire box adopts that material only after verified export completion.
 
-## Page hierarchy
+| Panel | Identity | Unfinished | Complete |
+| --- | --- | --- | --- |
+| I Records | Blue | `#A6C8E8` | `#5A84AF` |
+| II Sources | Teal | `#83C3B8` | `#42978D` |
+| III Plan | Orange | `#FFD4AF` | `#D88B49` |
+| IV Findings | Yellow | `#FFF1A8` | `#CCAE3B` |
+| V Assessment | Pink | `#F5BCD3` | `#CC7FA1` |
+| VI Package | Pearl with rainbow reflection | `#DCE4ED` | `#DCE4ED` |
 
-- **Overview:** recent analysis, operational counts, and saved cases. An empty workspace provides a short path through import, case definition, and review.
-- **Data & sources:** dataset inventory, dataset import disclosure, source inventory, and snapshot acquisition disclosure. Synthetic data is an explicit secondary action, with a persistent synthetic designation in runs and reports.
-- **Cases:** saved definitions first; a new-case editor opens on request or when a draft is active. The editor contains the question, dataset, date, optional scope, investigation selection, and optional screening snapshot. Investigation settings remain in each row’s disclosure. A workspace without a dataset shows the action required to proceed.
-- **Findings & review:** run selection, question, coverage counts, review state, and the next action. Verification and replay live under **Evidence integrity**. The detail tabs organize observations, coverage, assessment, and retained context.
+Package adds a fine interlaced engraving, an embossed border, and a soft rainbow reflection over a cool pearl base. Broad violet, cyan, rose, and gold pools form one continuous reflection field. Before completion, only VI carries that material. Verified export completion transforms every panel to the same pearl base and continuous reflection as the lid folds; no brown or other stage pigment remains underneath. Invalidation restores the I–V stage colors while VI stays pearl. The reflection is uninterrupted beneath the captions. Ink adapts to the reflected color, with a fine glyph outline only when needed for contrast. There is no idle animation or repeated rainbow painted independently on each panel. Changing the assessment removes the completed finish until a new matching package is created.
 
-Observations and review fields are paged in groups of 20. Large evidence-reference groups show the first 40 records and explicitly offer the next group. Counts always distinguish the visible subset from the complete result. Pagination is a display concern; every finding still requires assessment before a complete review can be saved.
+Completion adds a checkmark alongside the permanent Roman numeral. Panel titles start at 14 SVG units and fit down to 11; narrow folded walls retain the smaller circled numeral. Labels are clipped to their own panel. External controls retain every full name and numeral. Ink adapts to the actual reflected surface throughout folding; a fine glyph outline protects exceptional intermediate contrast crossings. Text states and accessible completion descriptions supplement color.
 
-## Frontend organization
+Teal on Sources means Sources. Orange on Plan means Plan. Neither encodes a favorable or unfavorable analytical result.
 
-The product consists of three packaged assets: `index.html`, `styles.css`, and `app.js`. It requires no frontend build or runtime dependency. No font, script, icon, or stylesheet is fetched from a CDN. The navigation icons are small inline SVG shapes.
+### Local font provenance
 
-`app.js` separates:
+The packaged `geist.woff2` and `geist-mono.woff2` assets were sourced from the npm package **`geist@1.7.2`**. They are served by the local application as Geist and Geist Mono; no font request reaches a CDN or third party. CSS uses variable weights from 100 to 900, `font-display: swap`, and system-font fallbacks.
 
-- Shared formatting, escaping, request handling, and state.
-- Pure view components for tables, import forms, catalog rows, evidence details, and review fields.
-- Page renderers that compose those components.
-- Draft capture and view-ownership helpers.
-- Named asynchronous operations and event handlers.
+The fonts retain their **SIL Open Font License, Version 1.1**. The copied copyright notice and complete license are in [`src/omphalos/ui/font-license.txt`](../src/omphalos/ui/font-license.txt), identifying Vercel in collaboration with basement.studio. That license applies to the font assets independently of the application code's CC0 license. The font binaries and license are included with the packaged interface.
 
-All untrusted text is escaped before it enters HTML. Evidence values remain text, not markup. External source links accept HTTPS and open with `noopener` and `noreferrer`. Backend validation and export gates remain authoritative.
+## The central investigation
 
-The navigation generation, selected run, and current page identify which view owns an asynchronous request. Verification, export, run loading, and evidence dialogs check that context before updating the interface. A result can still be retained by the server without taking the user away from the page they chose.
+### Records and prepared work
 
-Explicit New/Open case actions ask before replacing unsaved work. Ordinary navigation and refresh do not prompt. Case drafts may be incomplete: temporarily clearing every investigation does not discard the question. Review drafts merge the current page’s fields into the entire run assessment, preserving other pages. A save captures the submitted values before locking its form and does not clear a newer draft. Drafts are intentionally held in memory, rather than silently persisted to browser storage.
+**Import** opens ordinary CSV intake and explicitly linked transaction files; **Open** lists retained work. The compact import surface contains **Choose records**, the CSV/JSON file input, and **Start with a name**. Its information button, labeled **About record formats and privacy**, opens the format requirements and local-storage explanation. It does not repeat saved dataset rows. After intake, **New** and **Open** remain beside the stage guidance during ordinary navigation. New returns to name entry while retaining earlier runs and captured review drafts.
+
+A new page starts with name entry, and an empty workspace contains no seeded records. All tabs connected to one local server share that server's workspace; browser sessions are not separate user accounts. Selecting an ordinary counterparty CSV triggers a preview, which displays proposed column uses, examples, conversion notes, issues, and a sample of interpreted records. Unknown columns remain explicitly retained in the original file only. Generated local IDs preserve distinct rows; the importer does not merge identities or infer transaction joins.
+
+**Investigate these records** confirms the preview and starts the supported analysis. **Change files** returns to file selection without importing the rejected preview or discarding investigation settings. For an unspecified purpose, shipments or payments suggest transaction review; entity-only records suggest counterparty screening. An explicitly chosen purpose takes precedence. Linked transaction files use the strict schema and proceed through validation and import without the ordinary CSV mapping preview.
+
+**Sources** exposes the retained official-list snapshot and its dates, or explains when no reference list is required. Normal intake obtains an eligible official snapshot automatically when needed. Source failures retain the input and offer a retry. Historical dates and explicitly selected snapshots remain part of the case context.
+
+**Plan** presents the question, record coverage, assessment date, prepared checks, and unavailable checks. Normal intake executes the supported plan automatically. Edited settings invalidate the earlier plan; an updated plan remains inspectable and can be executed with **Run investigation**. Missing prerequisites remain visible in saved coverage.
+
+### Findings and case assessment
+
+A completed run opens **Findings**, an index of its observations. Selecting one opens its computed result, grouped evidence tables, and analytical limits within Findings. Evidence pages contain up to 40 references. Opening a record shows its retained source and provenance. Displayed entity names come from verified retained records; original IDs remain available.
+
+**Assessment** opens directly to one explicit case decision: **Keep open**, **Escalate**, or **Conclude**. **Review findings** and **Checks and sources** keep the supporting material one action away without repeating the report above the form. A reviewer name and coverage acknowledgment are required. A case note is optional except when concluding. The application neither chooses the decision nor invents individual observation judgments.
+
+Analytical uncertainties and evidence requests remain attributed to the checks. Reading them creates no review draft. Existing individual-review records and unfinished legacy drafts retain their original format; new reviews use the case decision.
+
+Zero-observation runs still require an explicit case decision and acknowledgment. Saving a valid decision makes Package available. It does not create the export or close the lid.
+
+### Completion and the evidence box
+
+Panel values come from preview, dataset, plan, run, and review state. Records counts rows; Sources counts retained list entries; Plan distinguishes prepared and executed checks; Findings counts observations; Assessment distinguishes a draft from a recorded decision; Package distinguishes readiness from an actual export.
+
+The Records base stays flat. The Sources wall folds after source requirements are met, including when no list is required. Plan folds after a runnable plan is prepared, Findings after verified analysis, and Assessment after a valid case decision is recorded. Package closes the lid only after export. When several stages complete together, their folds play sequentially in that order. Merely selecting a panel never completes it.
+
+Changed inputs, failed verification, or differing unsaved decision edits invalidate the relevant completion states. Affected panels unfold in reverse order, beginning with the lid when necessary. The renderer keeps its current pose through workflow updates and reverses an interrupted fold from its visible position. Reduced-motion preferences and a hidden document settle the geometry immediately. Named controls remain available independently of the illustration.
+
+**Package** combines the recorded decision, case note, export, verification, and replay. **Verify files** reports whether retained files match their recorded checksums. **Replay analysis** reports whether findings and coverage reproduce. Each result shows a readable outcome, the checked-file count when supplied, and specific issues; the primary surface does not require reading raw JSON. The server independently checks the run and review before export. A matching download remains available after reopening and alongside verification or replay results. Unsaved decision changes prevent the old package from appearing as the current result. **Revise assessment** creates another immutable review revision; starting another investigation preserves earlier runs.
+
+## Supporting record and case screens
+
+**Saved investigations** from Package, or **View all** beside recent investigations, opens retained runs. The existing record-screen navigation exposes these supporting views:
+
+- **Overview:** recent analyses, operational counts, and saved cases.
+- **Data & sources:** dataset and snapshot inventories, strict import forms, acquisition controls, and format references.
+- **Cases:** saved definitions and an explicit editor for the question, dataset, dates, scope, selected investigations, parameters, and snapshot.
+- **Findings & review:** run selection, observations, coverage, case decisions, retained context, verification, and replay.
+
+These views retain table panels and optional technical disclosures. Observations and legacy individual-review forms use pages of 20. Evidence pages show up to 40 references. Counts distinguish each visible subset from the complete retained result.
+
+## Frontend organization and state
+
+The product ships `index.html`, `styles.css`, `app.js`, `box.js`, two local font binaries, and their license. It requires no frontend build, graphics library, or JavaScript runtime dependency. The box and navigation icons use SVG.
+
+`app.js` separates formatting and escaping, requests and state, view components, page composition, draft capture, asynchronous operations, and guided-flow behavior. All untrusted text is escaped before insertion into HTML. Evidence values remain text. External source links accept HTTPS and open with `noopener` and `noreferrer`. Backend validation and export gates remain authoritative.
+
+Navigation generation, selected run, and current page identify which view owns a request. Guided-flow revisions additionally bind previews and plans to the selected purpose, dataset, source, assessment date, and mapping. Changing an input invalidates the relevant prepared work. A stale response can be retained on the server without advancing or replacing the user's current view. The server independently verifies confirmed previews and plans before import or execution.
+
+Explicit New/Open case actions protect unsaved edits. Ordinary navigation and workspace refresh preserve drafts. Case drafts may be incomplete. New review drafts retain the explicit case decision and authored note; legacy drafts preserve their individual fields. A save captures its submitted values before locking the form and does not clear a newer draft. Drafts remain in memory until saved, with a browser-close warning for unsaved work.
 
 ## Accessibility and verification
 
-Semantic landmarks, persistent form labels, a route-preserving skip link, native dialogs, visible focus indicators, and textual statuses support keyboard and assistive-technology use. Run tabs support Left/Right arrows, Home, and End. The live status region sits outside the busy main region so progress announcements are not deferred. Layouts adapt to narrower windows; fixed-width tables scroll inside their container.
+Semantic landmarks, persistent labels, a route-preserving skip link, native dialogs, visible focus indicators, and text statuses support keyboard and assistive-technology use. Each box panel has an equivalent external control with the same name and accessible completion state. Left/Right arrows, Home, and End navigate available stages; future controls are disabled. Run tabs have equivalent keyboard support. A live status region sits outside the busy main region so operation announcements are not deferred. Wide tables scroll within their containers.
 
-Input boundaries use a stronger neutral than decorative panel dividers. Color choices target readable contrast; the design does not claim a completed external WCAG certification. Browser inspection, keyboard checks, and actual workflow tests remain necessary alongside static linting.
+Renderer tests check title, numeral, and checkmark contrast of at least 4.5:1 against every gradient stop throughout folding and reversal. They also check a completion lightness change under normal and modeled red-green color vision. These checks do not establish that every user can distinguish all six hues, or constitute a comprehensive accessibility audit. Browser inspection, keyboard checks, reduced-motion checks, and complete workflow tests remain necessary alongside static checks.
 
-The development checks are reproducible through `npm run lint` and `npm run format:check`. These development tools are not shipped as product dependencies. The Python suite includes actual HTTP workflow tests and offline Node tests of draft retention, pagination, route preservation, and delayed-response handling. Automated checks do not assess whether an analyst’s reasoning is sound.
+Development checks run through `npm run lint` and `npm run format:check`. They are not product dependencies. The Python suite includes HTTP workflow tests and offline Node tests of stage gates, fold order, reversal, reduced motion, draft retention, case decisions, evidence navigation, and delayed responses. Automated checks do not establish that an analyst's reasoning is sound.
+
+At widths of 400px or less, stage navigation uses two columns so the full names remain readable, and name entry places the action below the input. A smaller box keeps the default overview within a short phone viewport.

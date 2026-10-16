@@ -1,12 +1,18 @@
-# omphalOS 2
+# omphalOS: the center of the investigation
 
-**Investigate a transaction. Trace each observation. Record the review.**
+**Start with a name or records. Follow the evidence. Record the decision.**
 
-omphalOS is a local workbench for export-compliance analysts reviewing counterparty records, shipments, and payments. Import your records, select a dated screening snapshot and investigation scope, examine the actual evidence, then record a named review and export a verifiable case packet.
+omphalOS is an investigation system for export-compliance analysts reviewing counterparties, shipments, and payments. Enter a company or person's name to discover public identity records, choose the relevant profile, and screen it against the official U.S. Consolidated Screening List. Import records for transaction analysis. A shallow evidence box folds as six stages of the same case are completed: Records, Sources, Plan, Findings, Assessment, and Package.
 
-The successor replaces the old generated-query/demo system with a small implemented investigation library and one shared workflow for the browser and command line. The original code and its audit remain recoverable in Git history. See [what changed](docs/RECONSTRUCTION.md), the [research basis](docs/RESEARCH.md), and [validation results](docs/VALIDATION.md).
+The successor replaces the old generated-query system with an implemented investigation library shared by the browser and command line. The original code and its audit remain recoverable in Git history. See [what changed](docs/RECONSTRUCTION.md), the [research basis](docs/RESEARCH.md), and [validation results](docs/VALIDATION.md).
 
-## Start
+## Website edition
+
+The website runs the actual Python investigation engine in a dedicated browser worker, using a pinned Pyodide runtime. Static files can be published on GitHub Pages without a paid server or subscription. Case records stay in that browser; the entered name goes to GLEIF and Wikidata, and the official Consolidated Screening List is downloaded separately.
+
+Build with `python tools/build_browser.py --output dist/browser` and publish that directory. See [browser operation and limits](docs/BROWSER.md). The normal desktop installation remains available below.
+
+## Start locally
 
 Requires Python 3.11 or newer. Dependencies are pinned in `poetry.lock`.
 
@@ -18,53 +24,48 @@ poetry run omphalos --workspace ./workspace serve --open
 With a prepared local `.venv`, double-click **Start omphalOS.command** on macOS or **Start omphalOS.cmd** on Windows. Or run:
 
 ```sh
-.venv/bin/python -m omphalos --workspace ./workspace serve --open
+PYTHONPATH=src .venv/bin/python -m omphalos --workspace ./workspace serve --open
 ```
 
-Open the address printed by the server. The server binds only to your computer. It loads no external scripts, fonts, or analytics. All analysis, review, verification, and replay work offline once dependencies and inputs are present. Only **Fetch official snapshot** contacts the listed official publisher; it sends no case records or search names.
+Open the address printed by the server. The server binds only to your computer and loads no external scripts, fonts, or analytics. Identity discovery sends the entered name to GLEIF and Wikidata. Screening downloads the official public list separately when needed; that download sends no case records or search names. Analysis, review, verification, and replay work locally once dependencies and inputs are present.
 
-Use **Create synthetic dataset** for a clearly labeled demonstration. It contains planted patterns, same-name entities that must remain distinct, different currencies/units, and benign installment payments. It does not stand in for private transaction data.
+Enter a company or person's name and choose **Investigate**. omphalOS looks up public identity records. Choose a sourced profile, or continue with the name alone. It then obtains the screening list, prepares the plan, and runs the checks. **Import** accepts counterparty or transaction records. **Open** resumes saved investigations or analyzes retained record sets. Open an available panel or its matching named control to inspect that stage; **Back to the box** returns to the overview. Earlier retained stages remain accessible, and future stages unlock when their prerequisites are present.
+
+Records is the base. Sources, Plan, Findings, and Assessment form the walls, folding one at a time as each stage completes. Package is the lid; it closes only after the matching evidence package is created. Unfinished panels retain a muted version of their own color. Completion strengthens that color and adds a checkmark to the matching control. Editing a saved decision reopens Assessment and Package. Color and folding indicate completed work, not clearance or risk.
 
 ## The complete workflow
 
-1. **Import evidence.** Upload `entities.csv` plus optional `shipments.csv`, `payments.csv`, `ownership.csv`, and `diligence.csv`, or a single `dataset.json`. Invalid rows, duplicates, unknown fields, and broken references reject the import with explanations. Original files and row locations are retained.
-2. **Choose a reference snapshot.** Fetch or manually import an official ITA Consolidated Screening List, OFAC SDN, or OFAC non-SDN snapshot. Import date, publisher metadata, raw bytes, and source category remain visible. A source refresh creates a new snapshot.
-3. **Define the question.** Select the actual investigations, date/domain/entity scope, parameters, assessment date, and optional screening snapshot. Missing information produces an explicit coverage limitation.
-4. **Investigate.** Read neutral observations and exact contributing records. A name candidate remains an unresolved candidate. Amounts remain in their original currency; HS codes and ECCNs remain separate.
-5. **Review.** A named analyst assesses every finding, explaining the disposition, uncertainties, alternative explanations, and evidence that would disconfirm it. Zero findings still require a review of coverage. Review revisions preserve earlier versions.
-6. **Export and reproduce.** Completed review unlocks a ZIP containing a readable report, original and normalized inputs, code snapshot, settings, output, review, and complete checksums. Verify it independently, and replay a run using its retained inputs and matching installed code/dependencies.
+1. **Records.** Start with a name, import files, or select retained records. A counterparty CSV opens a mapping preview; **Investigate these records** confirms it and starts analysis. Linked transaction files preserve their explicit relationships. Original inputs and row provenance are retained. Selected public profiles produce a new dataset with attributed fields; existing records and earlier runs remain unchanged.
+2. **Sources.** Screening obtains or reuses an eligible official-list snapshot automatically. **Sources** shows the retained list and its dates. Shipment and payment checks use the actual records supplied for the case.
+3. **Plan.** The application prepares the question, assessment date, case ID, and supported checks, then runs them. The plan remains inspectable, including missing prerequisites. Explicitly edited inputs require an updated plan.
+4. **Findings.** **Open findings** shows the results. Select an observation for its computed values, cited-record tables, and analytical limits. Evidence pages contain up to 40 references; each record opens with its provenance. Identity candidates remain candidates, and zero findings do not establish clearance.
+5. **Assessment.** Review the findings and coverage, then choose **Keep open**, **Escalate**, or **Conclude**. Record your name and acknowledge the coverage. A case note is optional except when concluding. The decision covers the case; it does not require a questionnaire for each observation or invent individual judgments.
+6. **Package.** A valid recorded decision and verified run enable an evidence ZIP containing the readable report, original and normalized inputs, code snapshot, settings, results, decision, and checksums. The report separates the analyst's decision from generated analytical context. Open questions can remain unresolved in an exported package.
 
-See the [workbench guide](docs/WORKBENCH.md) and [evidence format](docs/EVIDENCE.md).
+The box and its working surface form the main application. **Open** lists saved investigations and records. Supporting record and case screens provide inventory and editing controls within the same application. See the [investigation guide](docs/WORKBENCH.md) and [evidence format](docs/EVIDENCE.md).
 
-## Command-line example
+## Command line
 
-```sh
-poetry run omphalos --workspace ./workspace demo --id demo --case-id demo-case
-poetry run omphalos --workspace ./workspace run demo-case
-poetry run omphalos --workspace ./workspace status
-# Use the run_id returned above:
-poetry run omphalos --workspace ./workspace show RUN_ID
-poetry run omphalos --workspace ./workspace verify RUN_ID
-poetry run omphalos --workspace ./workspace replay RUN_ID
-poetry run omphalos --workspace ./workspace review-template RUN_ID --output review.json
-# Read the evidence, then complete review.json yourself.
-poetry run omphalos --workspace ./workspace review review.json
-poetry run omphalos --workspace ./workspace export RUN_ID
-poetry run omphalos verify /path/to/export.zip
-```
-
-The template intentionally fails validation until completed. Its acknowledgment starts false. No command silently completes a human review.
-
-Import your own data and save a case:
+Import records, inspect the schemas, and save a case definition referring to the imported dataset and any required source snapshot:
 
 ```sh
 poetry run omphalos --workspace ./workspace import ./my-records --id my-records --label 'October review'
 poetry run omphalos schema data
 poetry run omphalos schema case
+poetry run omphalos schema review
 poetry run omphalos catalog
-poetry run omphalos --workspace ./workspace case ./my-case.json
 poetry run omphalos --workspace ./workspace sources fetch csl --id csl-october
+poetry run omphalos --workspace ./workspace case ./my-case.json
+poetry run omphalos --workspace ./workspace run CASE_ID
+poetry run omphalos --workspace ./workspace show RUN_ID
+poetry run omphalos --workspace ./workspace review ./case-decision.json
+poetry run omphalos --workspace ./workspace export RUN_ID
+poetry run omphalos --workspace ./workspace verify RUN_ID
+poetry run omphalos --workspace ./workspace replay RUN_ID
+poetry run omphalos verify /path/to/export.zip
 ```
+
+Use the case and run IDs returned by the commands. Review schema 2.1 records the explicit case decision, reviewer, optional note, complete observation scope, and coverage acknowledgment. Concluding requires a substantive note. Legacy schema 2.0 individual reviews remain supported. No command silently completes a human decision.
 
 All commands return JSON. Verification failure exits 1; invalid input exits 2. `--debug` includes diagnostic tracebacks. Put the global `--workspace` option before the subcommand.
 
@@ -72,14 +73,14 @@ All commands return JSON. Verification failure exits 1; invalid input exits 2. `
 
 - **Integrity:** the complete file inventory and hashes match; required content is present and structurally valid.
 - **Replay:** the same installed engine and dependencies recompute the normalized findings and coverage from archived inputs. Execution timestamps and ZIP bytes need not match.
-- **Review:** the required named assessment is recorded against the exact run manifest. Names are self-asserted; this is a single-user application.
+- **Review:** the required named assessment is recorded against the exact run manifest. Reviewer names are self-asserted, not verified account identities.
 - **Authenticity:** ordinary hashes do not establish who supplied evidence. Optional detached Ed25519 verification requires a separately trusted public key. A key bundled by an unknown sender is not independently trusted.
 
 A passed check does not establish the truth of source records, the quality of a human explanation, legal clearance, or admissibility. The application never automatically merges identities, blocks funds, submits reports to authorities, or calculates a probability of wrongdoing.
 
 ## Scope and operating limits
 
-This release serves one analyst on a local computer. It is not a multi-user case-management service. It does not provide a complete beneficial-ownership graph, automatic jurisdiction/license decisions, document OCR, international rule coverage, institution-specific retention enforcement, or legal conclusions. Ownership and diligence rows preserve supplied evidence; they do not establish completeness or an automatic 50 Percent Rule decision.
+Local mode serves one analyst on their computer. The website edition saves one workspace in each browser and does not provide organization accounts, shared cases, cross-device synchronization, or role-based access. Download evidence packages for durable copies. It is not a collaborative case-management service. It does not provide a complete beneficial-ownership graph, automatic jurisdiction/license decisions, document OCR, international rule coverage, institution-specific retention enforcement, or legal conclusions. Ownership and diligence rows preserve supplied evidence; they do not establish completeness or an automatic 50 Percent Rule decision.
 
 Do not interpret an expired listing retained by a publisher as an active restriction, or a later snapshot as a complete historical list. Review source dates and the underlying agency guidance. Public aggregate trade statistics cannot supply the company-level shipment and payment evidence this application needs.
 
@@ -95,8 +96,10 @@ poetry run black --check src tests tools
 poetry build
 ```
 
-For interface development, use Node.js 24 or newer and run `npm ci --ignore-scripts`, then `npm run check`. ESLint checks browser code and Prettier checks the HTML, JavaScript, and CSS. `npm run format` applies the shared formatting rules. These are development tools only; running the workbench requires no Node.js or frontend build. The Python suite also runs the browser-state regression harness when Node.js is available, and CI explicitly installs it.
+For interface development, use Node.js 24 or newer and run `npm ci --ignore-scripts`, then `npm run check`. ESLint checks browser code and Prettier checks the HTML, JavaScript, and CSS. `npm run format` applies the shared formatting rules. These are development tools only; running the application requires no Node.js or frontend build. The Python suite also runs the browser-state regression harness when Node.js is available, and CI explicitly installs it.
 
 [Security boundaries](SECURITY.md), [contribution guide](CONTRIBUTING.md), [data schema](docs/DATA.md), and [independent verifiers](native/README.md).
 
-Code retains the original **CC0-1.0** license. Imported data and publisher snapshots retain their own terms and provenance.
+Application code retains the original **CC0-1.0** license. Packaged Geist and Geist Mono fonts come from `geist@1.7.2` and retain the **SIL Open Font License 1.1**, copied in [font-license.txt](src/omphalos/ui/font-license.txt). Fonts load from the local application, with no third-party font request. Imported data and publisher snapshots retain their own terms and provenance.
+
+The [usability review](docs/USABILITY.md) records the design research, workflow decisions, and boundaries behind the current interface.

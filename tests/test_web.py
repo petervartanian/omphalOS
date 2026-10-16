@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from omphalos.data import create_demo
 from omphalos.evidence import verify_bundle
 from omphalos.web import MAX_BODY_BYTES, create_server
 
@@ -82,13 +83,22 @@ def case(dataset: str, *, investigations: list[str] | None = None) -> dict:
     }
 
 
+def test_removed_example_endpoint_cannot_create_workspace_records(browser):
+    server, request = browser
+    status, _, _ = request("/api/datasets/demo", {"dataset_id": "unwanted-example"})
+    assert status == 404
+    assert server.workspace.list_datasets() == []
+    assert server.workspace.list_cases() == []
+    assert server.workspace.list_runs() == []
+
+
 def test_complete_real_workflow_and_download(browser):
     server, request = browser
     status, state, headers = request("/api/state")
     assert status == 200 and state["datasets"] == [] and state["token"]
     assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
-    assert request("/api/datasets/demo", {"dataset_id": "demo-http"})[0] == 200
-    assert request("/api/cases", case("demo-http"))[0] == 200
+    create_demo(server.root / "datasets" / "fixture-http")
+    assert request("/api/cases", case("fixture-http"))[0] == 200
     status, summary, _ = request("/api/cases/http-case/run", {})
     assert status == 200, summary
     run_id = summary["run_id"]
@@ -199,11 +209,23 @@ def test_actual_upload_provenance_and_rejected_imports(browser):
         )[0]
         == 400
     )
-    assert request("/api/datasets/demo", {"dataset_id": "uploaded"})[0] == 409
-    assert request("/api/datasets/demo", {"dataset_id": "../../outside"})[0] == 400
+    assert (
+        request(
+            "/api/datasets/import",
+            {"dataset_id": "uploaded", "files": [upload("entities.csv", csv)]},
+        )[0]
+        == 409
+    )
+    assert (
+        request(
+            "/api/datasets/import",
+            {"dataset_id": "../../outside", "files": [upload("entities.csv", csv)]},
+        )[0]
+        == 400
+    )
 
 
-def test_manual_official_source_and_archived_source_drilldown(browser):
+def test_manual_official_source_and_archived_source_drilldown(browser, monkeypatch):
     server, request = browser
     original = {
         "id": "official-fixture-1",
@@ -222,9 +244,9 @@ def test_manual_official_source_and_archived_source_drilldown(browser):
         },
     )
     assert status == 200 and saved["record_count"] == 1, saved
-    assert request("/api/datasets/demo", {"dataset_id": "screening-demo"})[0] == 200
+    create_demo(server.root / "datasets" / "screening-fixture")
     definition = {
-        **case("screening-demo", investigations=["screening_candidates"]),
+        **case("screening-fixture", investigations=["screening_candidates"]),
         "watchlist_snapshot_id": "source-fixture",
     }
     assert request("/api/cases", definition)[0] == 200
@@ -233,15 +255,34 @@ def test_manual_official_source_and_archived_source_drilldown(browser):
     run_id = summary["run_id"]
     run = request(f"/api/runs/{run_id}")[1]
     ref = run["analysis"]["findings"][0]["source_refs"][0]
+    checks = []
+    verify = server.workspace.verify_run
+
+    def checked_verify(value):
+        checks.append(value)
+        return verify(value)
+
+    def unrelated_run_detail(_run_id):
+        raise AssertionError(
+            "Evidence must not revalidate unrelated reviews or exports"
+        )
+
+    monkeypatch.setattr(server.workspace, "verify_run", checked_verify)
+    monkeypatch.setattr(server.workspace, "get_run", unrelated_run_detail)
     status, evidence, _ = request(
         f"/api/runs/{run_id}/source-evidence?id={ref['record_id']}"
     )
     assert status == 200 and evidence["record"]["raw_record"] == original
+    assert checks == [run_id]
     assert (
         evidence["metadata"]["sha256"] and evidence["snapshot_id"] == "source-fixture"
     )
     assert (server.root / "runs" / run_id / "sources" / "raw.json").is_file()
     assert request(f"/api/runs/{run_id}/source-evidence?id=nonexistent")[0] == 404
+    (server.root / "runs" / run_id / "sources" / "raw.json").write_text("{}")
+    assert (
+        request(f"/api/runs/{run_id}/source-evidence?id={ref['record_id']}")[0] == 409
+    )
 
 
 def test_zero_findings_still_requires_review(browser):
@@ -300,23 +341,24 @@ def test_local_host_origin_token_and_path_boundaries(browser, tmp_path):
     )
     assert request("/api/state", headers={"Sec-Fetch-Site": "cross-site"})[0] == 403
     assert (
-        request("/api/datasets/demo", {}, headers={"X-Omphalos-Token": "bad"})[0] == 403
+        request("/api/datasets/import", {}, headers={"X-Omphalos-Token": "bad"})[0]
+        == 403
     )
-    assert request("/api/datasets/demo", {}, headers={"Origin": "null"})[0] == 403
+    assert request("/api/datasets/import", {}, headers={"Origin": "null"})[0] == 403
     assert (
-        request("/api/datasets/demo", {}, headers={"Content-Type": "text/plain"})[0]
+        request("/api/datasets/import", {}, headers={"Content-Type": "text/plain"})[0]
         == 415
     )
     assert (
         request(
-            "/api/datasets/demo",
+            "/api/datasets/import",
             {},
             headers={"Content-Length": str(MAX_BODY_BYTES + 1)},
         )[0]
         == 413
     )
     assert (
-        request("/api/datasets/demo", {}, headers={"Transfer-Encoding": "chunked"})[0]
+        request("/api/datasets/import", {}, headers={"Transfer-Encoding": "chunked"})[0]
         == 400
     )
     assert request("/api/exports/%2e%2e%2fsecret.zip")[0] == 400
@@ -340,15 +382,33 @@ def test_local_host_origin_token_and_path_boundaries(browser, tmp_path):
 
 def test_no_cdn_and_assets_served_with_security_headers(browser):
     _, request = browser
-    for asset in ("/", "/styles.css", "/app.js"):
+    for asset in (
+        "/",
+        "/styles.css",
+        "/app.js",
+        "/box.js",
+        "/geist.woff2",
+        "/geist-mono.woff2",
+        "/font-license.txt",
+    ):
         status, contents, headers = request(asset)
         assert status == 200 and contents
         assert headers["X-Content-Type-Options"] == "nosniff"
         assert headers["Cache-Control"] == "no-store"
+        assert headers["Cross-Origin-Resource-Policy"] == "same-origin"
+        assert "script-src 'self'" in headers["Content-Security-Policy"]
         assert "Access-Control-Allow-Origin" not in headers
+    for script in ("/app.js", "/box.js"):
+        assert request(script)[2]["Content-Type"].split(";", 1)[0] in {
+            "text/javascript",
+            "application/javascript",
+        }
+    assert request("/geist.woff2")[2]["Content-Type"] == "font/woff2"
+    assert request("/geist.woff2")[1][:4] == b"wOF2"
     html = request("/")[1].decode()
     assert 'src="https:' not in html and 'href="https:' not in html
     assert 'src="/app.js"' in html
+    assert 'src="/box.js"' in html
 
 
 def test_duplicate_json_keys_missing_origin_and_duplicate_host(browser):
@@ -357,7 +417,7 @@ def test_duplicate_json_keys_missing_origin_and_duplicate_host(browser):
     raw = b'{"dataset_id":"one","dataset_id":"two"}'
     connection.request(
         "POST",
-        "/api/datasets/demo",
+        "/api/datasets/import",
         body=raw,
         headers={
             "Content-Type": "application/json",
@@ -371,7 +431,7 @@ def test_duplicate_json_keys_missing_origin_and_duplicate_host(browser):
     connection = http.client.HTTPConnection("127.0.0.1", server.port)
     connection.request(
         "POST",
-        "/api/datasets/demo",
+        "/api/datasets/import",
         body=b"{}",
         headers={"Content-Type": "application/json", "X-Omphalos-Token": server.token},
     )

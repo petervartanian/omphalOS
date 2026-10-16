@@ -1,5 +1,6 @@
 @echo off
 cd /d "%~dp0"
+set "PYTHONPATH=%CD%\src;%PYTHONPATH%"
 if exist .venv\Scripts\python.exe (
   .venv\Scripts\python.exe -m omphalos --workspace .\workspace serve --open
   exit /b

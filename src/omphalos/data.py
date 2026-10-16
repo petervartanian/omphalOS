@@ -221,6 +221,23 @@ def _json(raw: bytes) -> Any:
     )
 
 
+def _dataset_tables(value: Any) -> dict:
+    """Recognize the explicit linked-dataset envelope independently of its name."""
+    if (
+        not isinstance(value, dict)
+        or "tables" not in value
+        or set(value) - {"tables", "schema_version"}
+    ):
+        raise ValueError(
+            "a complete dataset JSON must contain tables and optionally schema_version"
+        )
+    if value.get("schema_version", "2.0") != "2.0":
+        raise ValueError("unsupported dataset schema version")
+    if not isinstance(value["tables"], dict):
+        raise ValueError("tables must be an object")
+    return value["tables"]
+
+
 def validate_tables(
     tables: dict, origins: dict | None = None
 ) -> tuple[dict, list[str]]:
@@ -302,9 +319,16 @@ def validate_tables(
 
 
 def import_dataset(
-    source_dir: Path, dest: Path, *, label: str = "", synthetic: bool = False
+    source_dir: Path,
+    dest: Path,
+    *,
+    label: str = "",
+    synthetic: bool = False,
+    intake_method: str = "linked_records",
 ) -> dict:
     source_dir, dest = Path(source_dir), Path(dest)
+    if intake_method not in {"linked_records", "subject_name"}:
+        raise DatasetError(["Unsupported dataset intake method."])
     safe_id(dest.name)
     if not source_dir.is_dir() or source_dir.is_symlink():
         raise DatasetError(["source must be a real directory"])
@@ -320,8 +344,6 @@ def import_dataset(
     if not files:
         raise DatasetError(["no entities.csv/json or dataset.json found"])
     tables, origins, originals = {}, {}, {}
-    if any(p.name == "dataset.json" for p in files) and len(files) != 1:
-        raise DatasetError(["dataset.json cannot be combined with per-table files"])
     for p in files:
         if p.is_symlink() or not p.is_file() or p.stat().st_size > MAX_FILE_BYTES:
             raise DatasetError(
@@ -330,20 +352,15 @@ def import_dataset(
         raw = p.read_bytes()
         originals[p.name] = raw
         try:
-            if p.name == "dataset.json":
-                value = _json(raw)
-                if not isinstance(value, dict) or set(value) - {
-                    "tables",
-                    "schema_version",
-                }:
+            value = _json(raw) if p.suffix.lower() == ".json" else None
+            if p.name == "dataset.json" or (
+                isinstance(value, dict) and "tables" in value
+            ):
+                if len(files) != 1:
                     raise ValueError(
-                        "dataset.json must contain tables and optionally schema_version"
+                        "a complete dataset JSON cannot be combined with per-table files"
                     )
-                if value.get("schema_version", "2.0") != "2.0":
-                    raise ValueError("unsupported dataset schema version")
-                tables = value["tables"]
-                if not isinstance(tables, dict):
-                    raise ValueError("tables must be an object")
+                tables = _dataset_tables(value)
                 origins = {
                     t: [
                         {"source_file": p.name, "source_row": i + 1}
@@ -357,7 +374,7 @@ def import_dataset(
             if table not in TABLES or table in tables:
                 raise ValueError(f"unknown or repeated table filename: {p.name}")
             if p.suffix.lower() == ".json":
-                rows = _json(raw)
+                rows = value
                 if not isinstance(rows, list):
                     raise ValueError("per-table JSON must be an array of objects")
                 locs = [
@@ -409,6 +426,7 @@ def import_dataset(
     }
     metadata = {
         "dataset_id": dest.name,
+        "intake_method": intake_method,
         "label": label or dest.name,
         "synthetic": bool(synthetic),
         "counts": counts,
@@ -446,7 +464,7 @@ def import_dataset(
     return metadata
 
 
-def load_dataset(path: Path) -> dict:
+def load_dataset(path: Path, *, _identity_depth: int = 0) -> dict:
     """Load only intact imports with complete, resolvable row provenance."""
     path = Path(path)
     if path.is_symlink():
@@ -468,11 +486,26 @@ def load_dataset(path: Path) -> dict:
         raise DatasetError(["dataset metadata differs from import manifest"])
     if metadata.get("counts") != {k: len(v) for k, v in normalized.items()}:
         raise DatasetError(["dataset table counts differ from import metadata"])
+    if (
+        isinstance(metadata.get("import_transform"), dict)
+        and metadata["import_transform"].get("kind") == "identity_research_v1"
+    ):
+        from .identity_workflow import validate_identity_dataset
+
+        return validate_identity_dataset(path, data, depth=_identity_depth)
     source_files = metadata.get("source_files", [])
     if not source_files:
         raise DatasetError(["missing original input inventory"])
     originals = set()
     source_records = {}
+    transform = metadata.get("import_transform")
+    if transform is not None and (
+        not isinstance(transform, dict)
+        or transform.get("kind") != "vendor_csv_v1"
+        or len(source_files) != 1
+        or set(normalized) != {"entities"}
+    ):
+        raise DatasetError(["Unsupported or inconsistent import transformation."])
     for item in source_files:
         original = safe_child(path, item["path"])
         if not item["path"].startswith("originals/") or item["path"] in originals:
@@ -485,11 +518,17 @@ def load_dataset(path: Path) -> dict:
             raise DatasetError(
                 [f"original input checksum/size mismatch: {item['path']}"]
             )
-        if original.suffix.lower() == ".json":
+        if transform is not None:
+            from .workflow import vendor_source_records
+
+            source_records.update(vendor_source_records(original, transform))
+        elif original.suffix.lower() == ".json":
             value = _json(original.read_bytes())
             original_tables = (
-                value["tables"]
+                _dataset_tables(value)
                 if original.name == "dataset.json"
+                or isinstance(value, dict)
+                and "tables" in value
                 else {original.stem: value}
             )
             for table, rows in original_tables.items():
@@ -530,6 +569,14 @@ def load_dataset(path: Path) -> dict:
                         f"normalized record differs from original input: {table}/{row[TABLES[table][1]]}"
                     ]
                 )
+    if transform is not None:
+        represented = {
+            (origin["source_file"], table, origin["source_row"])
+            for table, records in provenance.items()
+            for origin in records.values()
+        }
+        if represented != set(source_records):
+            raise DatasetError(["Guided import does not represent every original row."])
     safe_id(metadata["dataset_id"])
     return data
 

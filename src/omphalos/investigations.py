@@ -147,6 +147,7 @@ DEFINITIONS = [
         [
             "Payments per quantity are a proxy, not verified invoice unit prices; freight, taxes, and partial payments can differ.",
             "No FX conversion, unit conversion, broad-domain cohorting, or quality adjustment occurs.",
+            "Unit labels are case-sensitive; label variants are not automatically combined.",
             "Full cohort records are cited so the median and comparison are inspectable.",
         ],
     ),
@@ -387,6 +388,41 @@ def _month_text(month: int) -> str:
     return f"{month // 12:04}-{month % 12 + 1:02}"
 
 
+_CONTEXT_LABEL_FIELDS = frozenset({"address", "method", "unit", "broker", "domain"})
+_CONTEXT_PLACEHOLDERS = frozenset(
+    {
+        "na",
+        "n a",
+        "unknown",
+        "not provided",
+        "not available",
+        "not applicable",
+        "none",
+        "null",
+        "tbd",
+        "unspecified",
+    }
+)
+
+
+def _usable_context(value: Any, field: str) -> bool:
+    if not value:
+        return False
+    if not isinstance(value, str):
+        return True
+    normalized = normalized_name(value)
+    if not normalized:
+        return False
+    # Sentinel handling is deliberately field-specific. NA is a valid country
+    # code; invoice/commodity identifiers and entity names retain their meaning.
+    # The case-sensitive SI unit nA (nanoampere) is also meaningful.
+    return (
+        field not in _CONTEXT_LABEL_FIELDS
+        or (field == "unit" and value.strip() == "nA")
+        or normalized not in _CONTEXT_PLACEHOLDERS
+    )
+
+
 def _execute(
     iid: str, tables: dict, params: dict, case: Case, watchlist: dict | None
 ) -> tuple[list[dict], int, list[str], str]:
@@ -403,7 +439,9 @@ def _execute(
         for shipment in shipments:
             linked = by_shipment[shipment["shipment_id"]]
             if iid == "mixed_payment_methods":
-                linked = [p for p in linked if p.get("method")]
+                linked = [
+                    p for p in linked if _usable_context(p.get("method"), "method")
+                ]
                 methods = sorted({normalized_name(p["method"]) for p in linked})
                 count, threshold = len(methods), params["minimum_methods"]
                 metrics = {"known_methods": methods, "method_count": count}
@@ -460,7 +498,9 @@ def _execute(
     elif iid == "shared_address":
         groups = defaultdict(list)
         for entity in entities:
-            if entity.get("address") and entity.get("country"):
+            if _usable_context(entity.get("address"), "address") and entity.get(
+                "country"
+            ):
                 eligible += 1
                 key = tuple(
                     normalized_name(entity.get(k) or "")
@@ -486,11 +526,11 @@ def _execute(
     elif iid == "multi_domain":
         groups = defaultdict(list)
         for s in shipments:
-            if s.get("domain"):
+            if _usable_context(s.get("domain"), "domain"):
                 eligible += 1
                 groups[s["exporter_id"]].append(s)
         for eid, rows in groups.items():
-            domains = sorted({s["domain"] for s in rows})
+            domains = sorted({normalized_name(s["domain"]) for s in rows})
             if len(domains) >= params["minimum_domains"]:
                 findings.append(
                     _finding(
@@ -559,7 +599,9 @@ def _execute(
     elif iid == "broker_concentration":
         groups = defaultdict(list)
         for p in payments:
-            if p.get("broker") and shipment_map[p["shipment_id"]].get("importer_id"):
+            if _usable_context(p.get("broker"), "broker") and shipment_map[
+                p["shipment_id"]
+            ].get("importer_id"):
                 eligible += 1
                 groups[normalized_name(p["broker"])].append(p)
         for broker, rows in groups.items():
@@ -592,16 +634,23 @@ def _execute(
             currencies = {p["ccy"] for p in linked}
             commodity = (
                 ("commodity", s["commodity_code"])
-                if s.get("commodity_code")
+                if normalized_name(s.get("commodity_code") or "")
                 else ("hs", s.get("hs_code"))
             )
             if len(currencies) > 1:
                 mixed += 1
                 continue
-            if not linked or not s.get("qty") or not s.get("unit") or not commodity[1]:
+            if (
+                not linked
+                or not s.get("qty")
+                or not _usable_context(s.get("unit"), "unit")
+                or not commodity[1]
+            ):
                 missing += 1
                 continue
-            key = (next(iter(currencies)), normalized_name(s["unit"]), *commodity)
+            # SI unit case changes magnitude (for example, mg and Mg). Avoid
+            # conflating units unless a future explicit conversion maps them.
+            key = (next(iter(currencies)), s["unit"].strip(), *commodity)
             price = sum((Decimal(p["amount"]) for p in linked), Decimal(0)) / Decimal(
                 s["qty"]
             )
@@ -740,11 +789,30 @@ def _execute(
                 "Screening exceeds 20 million entity/list comparisons; narrow entity scope and run additional cases.",
             )
         findings, counts = candidate_findings(entities, watchlist, case.as_of, **params)
-        eligible = len(entities)
+        eligible = (
+            counts["entities_considered"] if counts["source_records_considered"] else 0
+        )
         limitations += [
             f"Compared against {counts['source_records_considered']} source records; excluded {counts['source_records_excluded_by_dates']} outside explicit effective dates.",
             f"Omitted {counts['candidates_omitted_by_display_limit']} candidates beyond the per-entity display limit.",
         ]
+        if counts["source_records_with_inconsistent_dates"]:
+            limitations.append(
+                f"{counts['source_records_with_inconsistent_dates']} source records have an end date before their start date. "
+                "Their names and identifiers were compared, but applicability on the case's as-of date cannot be evaluated. "
+                "Matching candidates retain both supplied dates and an explicit inconsistency flag."
+            )
+        if counts["entities_without_usable_identity"]:
+            limitations.append(
+                f"Excluded {counts['entities_without_usable_identity']} entity records without a usable name, alias, or supported identifier."
+            )
+        if not counts["source_records_considered"]:
+            return (
+                findings,
+                0,
+                limitations,
+                "No source records remain within the case's effective-date scope; no identity comparisons were performed.",
+            )
         updated = str(watchlist.get("metadata", {}).get("source_updated_at") or "")[:10]
         try:
             age = (case.as_of - date.fromisoformat(updated)).days
@@ -762,7 +830,7 @@ def _execute(
             )
     elif iid == "data_quality":
         fields = {
-            "entities": ["country", "address"],
+            "entities": ["name", "country", "address"],
             "shipments": [
                 "date",
                 "importer_id",
@@ -777,14 +845,21 @@ def _execute(
             rows = tables.get(table, [])
             eligible += len(rows)
             for field in names:
-                missing = [row for row in rows if not row.get(field)]
+                missing = [
+                    row for row in rows if not _usable_context(row.get(field), field)
+                ]
+                unusable = sum(bool(row.get(field)) for row in missing)
                 if missing:
                     findings.append(
                         _finding(
                             iid,
                             [table, field],
                             "Missing analytical context",
-                            f"{len(missing)} of {len(rows)} in-scope {table} records lack {field}.",
+                            (
+                                f"{len(missing)} of {len(rows)} in-scope {table} records lack {field}."
+                                if not unusable
+                                else f"{len(missing)} of {len(rows)} in-scope {table} records have missing or unusable {field} values."
+                            ),
                             [],
                             _refs(table, rows),
                             {
@@ -792,12 +867,30 @@ def _execute(
                                 "field": field,
                                 "missing_count": len(missing),
                                 "record_count": len(rows),
+                                **({"unusable_count": unusable} if unusable else {}),
                             },
                             "Missing values may reflect unavailable information, incomplete extraction, or a field that does not apply.",
                             "Source systems may store the same context in documents or separate records.",
                             "Inspect the original source and document whether the missing field can be recovered or is legitimately inapplicable.",
                         )
                     )
+    label_fields = {
+        "shared_address": (entities, "address"),
+        "mixed_payment_methods": (payments, "method"),
+        "broker_concentration": (payments, "broker"),
+        "multi_domain": (shipments, "domain"),
+        "unit_price_outlier": (shipments, "unit"),
+    }
+    if iid in label_fields:
+        rows, field = label_fields[iid]
+        unusable = sum(
+            bool(row.get(field)) and not _usable_context(row[field], field)
+            for row in rows
+        )
+        if unusable:
+            limitations.append(
+                f"Excluded {unusable} records with unusable {field} labels: placeholder values or no letters or digits."
+            )
     return (
         findings,
         eligible,

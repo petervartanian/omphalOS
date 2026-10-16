@@ -8,6 +8,7 @@ import ssl
 import tempfile
 import urllib.request
 import xml.etree.ElementTree as ET
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -15,7 +16,6 @@ from urllib.parse import urlparse
 from .data import _json
 from .util import (
     canonical_json,
-    read_json,
     safe_child,
     safe_id,
     sha256_bytes,
@@ -26,6 +26,7 @@ from .util import (
 
 MAX_BYTES = 100 * 1024 * 1024
 MAX_ENTRIES = 150_000
+_VALIDATED_SOURCES: OrderedDict[tuple, None] = OrderedDict()
 SOURCES = {
     "csl": {
         "title": "U.S. Consolidated Screening List",
@@ -108,6 +109,23 @@ def _date(value: object) -> str | None:
     raise ValueError(f"Unsupported source date: {value}")
 
 
+def effective_date_issues(entries: list[dict]) -> list[dict]:
+    """Describe contradictory supplied intervals without altering source records."""
+    return [
+        {
+            "record_id": entry["record_id"],
+            "source_row": entry["source_row"],
+            "start_date": entry["start_date"],
+            "end_date": entry["end_date"],
+            "reason": "Source end_date precedes start_date; date applicability cannot be evaluated.",
+        }
+        for entry in entries
+        if entry.get("start_date")
+        and entry.get("end_date")
+        and entry["end_date"] < entry["start_date"]
+    ]
+
+
 def _parse_csl(raw: bytes) -> tuple[list[dict], dict]:
     payload = _json(raw)
     if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
@@ -131,7 +149,9 @@ def _parse_csl(raw: bytes) -> tuple[list[dict], dict]:
             or not row.get("source")
         ):
             raise ValueError(f"CSL record {i + 1} is missing name, id, or source")
-        addresses = row.get("addresses") or []
+        addresses = row.get("addresses")
+        if addresses is None:
+            addresses = []
         if not isinstance(addresses, list) or any(
             not isinstance(a, dict) for a in addresses
         ):
@@ -140,6 +160,39 @@ def _parse_csl(raw: bytes) -> tuple[list[dict], dict]:
             )
         if not isinstance(row["name"], str) or len(row["name"]) > 5000:
             raise ValueError(f"CSL record {i + 1}: invalid or oversized name")
+        if not row["name"].strip():
+            raise ValueError(f"CSL record {i + 1}: name must not be blank")
+        if (
+            not isinstance(row["source"], str)
+            or not row["source"].strip()
+            or len(row["source"]) > 5000
+        ):
+            raise ValueError(f"CSL record {i + 1}: invalid list source")
+        entity_type = row.get("type")
+        if entity_type is not None and (
+            not isinstance(entity_type, str) or len(entity_type) > 200
+        ):
+            raise ValueError(f"CSL record {i + 1}: type must be text or null")
+        identifiers = row.get("ids")
+        if identifiers is None:
+            identifiers = []
+        if (
+            not isinstance(identifiers, list)
+            or len(identifiers) > 1000
+            or any(not isinstance(item, dict) for item in identifiers)
+        ):
+            raise ValueError(
+                f"CSL record {i + 1}: identifiers must be an array of objects"
+            )
+        for ident in identifiers:
+            if any(
+                ident.get(key) is not None and not isinstance(ident[key], str)
+                for key in ("idNumber", "number", "idType", "type")
+            ):
+                raise ValueError(
+                    f"CSL record {i + 1}: identifier types and numbers must be text"
+                )
+        start_date, end_date = _date(row.get("start_date")), _date(row.get("end_date"))
         listing_key = f"{row['source']}:{row['id']}"
         entries.append(
             {
@@ -160,9 +213,9 @@ def _parse_csl(raw: bytes) -> tuple[list[dict], dict]:
                     }
                 ),
                 "addresses": addresses,
-                "identifiers": row.get("ids") or [],
-                "start_date": _date(row.get("start_date")),
-                "end_date": _date(row.get("end_date")),
+                "identifiers": identifiers,
+                "start_date": start_date,
+                "end_date": end_date,
                 "source_url": row.get("source_list_url")
                 or SOURCES["csl"]["documentation_url"],
                 "source_row": i + 1,
@@ -287,6 +340,7 @@ def _store(
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate source record IDs; snapshot rejected")
     entries.sort(key=lambda e: e["record_id"])
+    date_issues = effective_date_issues(entries)
     raw_name = f"raw.{definition['format']}"
     metadata = {
         "snapshot_id": dest.name,
@@ -298,7 +352,9 @@ def _store(
         "sha256": sha256_bytes(raw),
         "raw_file": raw_name,
         "record_count": len(entries),
-        "parser_version": "2.0",
+        "parser_version": "2.1",
+        "effective_date_issues": date_issues,
+        "effective_date_issue_count": len(date_issues),
         "http_headers": headers or {},
         **source_metadata,
         "warnings": [
@@ -308,6 +364,11 @@ def _store(
     if method == "manual_import":
         metadata["warnings"].append(
             "Manually imported content is parsed in the chosen official format; its origin was not independently authenticated."
+        )
+    if date_issues:
+        metadata["warnings"].append(
+            f"{len(date_issues)} source records have contradictory effective-date intervals. "
+            "Their original dates are retained; date applicability cannot be evaluated."
         )
     snapshot = {
         "schema_version": "2.0",
@@ -420,16 +481,33 @@ def load_source(path: Path) -> dict:
     path = Path(path)
     if path.is_symlink():
         raise ValueError("Source snapshot symlinks are not accepted")
-    manifest = read_json(safe_child(path, "source-manifest.json"))
+    manifest_bytes = safe_child(path, "source-manifest.json").read_bytes()
+    manifest = _json(manifest_bytes)
     normalized = safe_child(path, "source.json")
-    if sha256_file(normalized) != manifest.get("normalized_sha256"):
+    normalized_bytes = normalized.read_bytes()
+    normalized_digest = sha256_bytes(normalized_bytes)
+    if normalized_digest != manifest.get("normalized_sha256"):
         raise ValueError("Normalized source snapshot checksum mismatch")
     raw_path = safe_child(path, manifest.get("raw_file", ""))
-    if raw_path.stat().st_size > MAX_BYTES or sha256_file(raw_path) != manifest.get(
-        "sha256"
-    ):
+    if raw_path.stat().st_size > MAX_BYTES:
         raise ValueError("Original source snapshot checksum mismatch")
-    snapshot = read_json(normalized)
+    raw_digest = sha256_file(raw_path)
+    if raw_digest != manifest.get("sha256"):
+        raise ValueError("Original source snapshot checksum mismatch")
+    validation_key = (
+        sha256_bytes(manifest_bytes),
+        normalized_digest,
+        raw_digest,
+        id(_parse_csl),
+        id(_parse_ofac),
+        id(effective_date_issues),
+    )
+    snapshot = _json(normalized_bytes)
+    del normalized_bytes
+    # Cache only a successful validation of these exact bytes. Every load still
+    # hashes all retained files and returns a freshly decoded, mutable snapshot.
+    if validation_key in _VALIDATED_SOURCES:
+        return snapshot
     if (
         snapshot.get("schema_version") != "2.0"
         or snapshot.get("source_id") not in SOURCES
@@ -447,12 +525,29 @@ def load_source(path: Path) -> dict:
         "source_id"
     ] != metadata.get("source_id"):
         raise ValueError("Source snapshot identity differs from metadata")
-    reparsed, _ = (
-        _parse_csl(raw_path.read_bytes())
+    raw_bytes = raw_path.read_bytes()
+    if sha256_bytes(raw_bytes) != raw_digest:
+        raise ValueError("Original source snapshot changed during validation")
+    reparsed, source_metadata = (
+        _parse_csl(raw_bytes)
         if snapshot["source_id"] == "csl"
-        else _parse_ofac(snapshot["source_id"], raw_path.read_bytes())
+        else _parse_ofac(snapshot["source_id"], raw_bytes)
     )
+    if any(metadata.get(key) != value for key, value in source_metadata.items()):
+        raise ValueError("Normalized source metadata differs from original snapshot")
     reparsed.sort(key=lambda entry: entry["record_id"])
     if canonical_json(reparsed) != canonical_json(snapshot["entries"]):
         raise ValueError("Normalized source entries differ from original snapshot")
+    date_issues = effective_date_issues(reparsed)
+    if metadata.get("parser_version") == "2.1" or any(
+        key in metadata
+        for key in ("effective_date_issues", "effective_date_issue_count")
+    ):
+        if metadata.get("effective_date_issues") != date_issues or metadata.get(
+            "effective_date_issue_count"
+        ) != len(date_issues):
+            raise ValueError("Source date diagnostics differ from original snapshot")
+    _VALIDATED_SOURCES[validation_key] = None
+    while len(_VALIDATED_SOURCES) > 32:
+        _VALIDATED_SOURCES.popitem(last=False)
     return snapshot

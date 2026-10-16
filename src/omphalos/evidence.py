@@ -12,13 +12,15 @@ import math
 import os
 import re
 import stat
+import sys
 import tempfile
 import zipfile
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .models import Analysis, Case, Review
+from .models import Analysis, Case, CaseReview, Review, parse_review
 from .util import (
     OmphalOSError,
     canonical_json,
@@ -52,16 +54,22 @@ TABLE_IDS = {
     "ownership": "relationship_id",
     "diligence": "evidence_id",
 }
+_CREDENTIAL_ASSIGNMENT = re.compile(
+    r"""(?i)["']?\b(?:password|token|api[_-]?key|access[_-]?token|secret[_-]?key)["']?\s*[:=]\s*["']?[^\s"',;}{]{8,}"""
+)
+_CREDENTIAL_KEYS = re.compile(
+    r"password|token|api[_-]?key|access[_-]?token|secret[_-]?key", re.IGNORECASE
+)
 _SECRET_PATTERNS = (
     ("aws_access_key", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
     ("private_key", re.compile(r"-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----")),
     (
         "credential_assignment",
-        re.compile(
-            r"""(?i)["']?\b(?:password|token|api[_-]?key|access[_-]?token|secret[_-]?key)["']?\s*[:=]\s*["']?[^\s"',;}{]{8,}"""
-        ),
+        _CREDENTIAL_ASSIGNMENT,
     ),
 )
+_SOURCE_REFERENCES: OrderedDict[str, frozenset[tuple[str, str, str]]] = OrderedDict()
+_SCAN_RESULTS: OrderedDict[tuple, tuple[str, ...]] = OrderedDict()
 
 
 def _json_bytes(data: bytes, *, limit: int = MAX_JSON_BYTES) -> Any:
@@ -349,20 +357,35 @@ def verify_run(run_dir: Path) -> dict:
 
 
 def _review_issues(contents: dict[str, bytes], review: dict, run_id: str) -> list[str]:
-    parsed = Review.model_validate(review)
+    parsed = parse_review(review)
     issues: list[str] = []
     if parsed.run_id != run_id:
         issues.append("Review refers to a different run.")
     analysis = Analysis.model_validate(_json_bytes(contents["analysis.json"]))
     finding_ids = {finding.finding_id for finding in analysis.findings}
-    review_ids = {finding.finding_id for finding in parsed.findings}
+    case_review = isinstance(parsed, CaseReview)
+    review_ids = (
+        set(parsed.scope_finding_ids)
+        if case_review
+        else {finding.finding_id for finding in parsed.findings}
+    )
     if finding_ids - review_ids:
         issues.append(
-            "Unreviewed findings: " + ", ".join(sorted(finding_ids - review_ids))
+            (
+                "Findings omitted from assessment scope: "
+                if case_review
+                else "Unreviewed findings: "
+            )
+            + ", ".join(sorted(finding_ids - review_ids))
         )
     if review_ids - finding_ids:
         issues.append(
-            "Unknown reviewed findings: " + ", ".join(sorted(review_ids - finding_ids))
+            (
+                "Unknown findings in assessment scope: "
+                if case_review
+                else "Unknown reviewed findings: "
+            )
+            + ", ".join(sorted(review_ids - finding_ids))
         )
     dataset = _json_bytes(contents["data/dataset.json"])
     tables = dataset.get("tables", {})
@@ -374,11 +397,18 @@ def _review_issues(contents: dict[str, bytes], review: dict, run_id: str) -> lis
     source_references: set[tuple[str, str, str]] = set()
     for path, content in contents.items():
         if path.startswith("sources/") and path.endswith("source.json"):
-            source = _json_bytes(content)
-            for entry in source.get("entries", []):
-                source_references.add(
+            digest = sha256_bytes(content)
+            references_for_source = _SOURCE_REFERENCES.get(digest)
+            if references_for_source is None:
+                source = _json_bytes(content)
+                references_for_source = frozenset(
                     (source["snapshot_id"], source["source_id"], entry["record_id"])
+                    for entry in source.get("entries", [])
                 )
+                _SOURCE_REFERENCES[digest] = references_for_source
+                while len(_SOURCE_REFERENCES) > 4:
+                    _SOURCE_REFERENCES.popitem(last=False)
+            source_references.update(references_for_source)
     for finding in analysis.findings:
         for reference in finding.record_refs:
             if reference.record_id not in references.get(reference.table, set()):
@@ -402,7 +432,7 @@ def _review_issues(contents: dict[str, bytes], review: dict, run_id: str) -> lis
             ):
                 issues.append(f"Unresolved source evidence: {finding.finding_id}")
     by_id = {finding.finding_id: finding for finding in analysis.findings}
-    for reviewed in parsed.findings:
+    for reviewed in parsed.findings if isinstance(parsed, Review) else []:
         original = by_id.get(reviewed.finding_id)
         if original and all(
             getattr(reviewed, field) == getattr(original, field)
@@ -440,9 +470,45 @@ def _reports(
     case: dict, analysis: dict, wrapper: dict, verification: dict
 ) -> tuple[bytes, bytes]:
     review = wrapper["review"]
+    case_review = review.get("schema_version") == "2.1"
 
     def escape(value: Any) -> str:
         return html.escape(str(value), quote=True)
+
+    if case_review:
+        decision = {
+            "keep_open": "Keep investigation open",
+            "escalate": "Escalate investigation",
+            "conclude": "Conclude investigation",
+        }[review["decision"]]
+        assessment_blocks = [
+            f"<h2>Case decision</h2><p>{escape(decision)}</p>",
+            "<p>This decision covers the retained investigation. The scope includes "
+            f"{len(review['scope_finding_ids'])} observations; no individual "
+            "dispositions are recorded by this case decision.</p>",
+        ]
+        assessment_lines = [
+            "## Case decision",
+            "",
+            escape(decision),
+            "",
+            "This decision covers the retained investigation. The scope includes "
+            f"{len(review['scope_finding_ids'])} observations; no individual "
+            "dispositions are recorded by this case decision.",
+            "",
+        ]
+        if review.get("summary"):
+            assessment_blocks.append(
+                f"<h3>Case note</h3><p>{escape(review['summary'])}</p>"
+            )
+            assessment_lines.extend(
+                ["### Case note", "", escape(review["summary"]), ""]
+            )
+    else:
+        assessment_blocks = [
+            f"<h2>Review summary</h2><p>{escape(review['summary'])}</p>"
+        ]
+        assessment_lines = ["## Review summary", "", escape(review["summary"]), ""]
 
     blocks = [
         "<!doctype html><html lang='en'><meta charset='utf-8'>",
@@ -451,7 +517,7 @@ def _reports(
         f"<h1>Evidence record: {escape(case['case_id'])}</h1><p>{escape(case['question'])}</p>",
         f"<p>Run: {escape(review['run_id'])}<br>Review: {escape(wrapper['review_id'])}<br>Reviewer: {escape(review['reviewer'])} (self-asserted identity)</p>",
         f"<p>File integrity checked at export: {verification['files_checked']} files. Publisher identity was not assessed. Analytical conclusions remain subject to review.</p>",
-        f"<h2>Review summary</h2><p>{escape(review['summary'])}</p>",
+        *assessment_blocks,
         "<h2>Coverage and limitations</h2><pre>"
         + escape(json.dumps(analysis["coverage"], indent=2, ensure_ascii=False))
         + "</pre>",
@@ -470,19 +536,36 @@ def _reports(
         "",
         f"File integrity checked at export: {verification['files_checked']} files. Publisher identity was not assessed.",
         "",
-        "## Review summary",
-        "",
-        escape(review["summary"]),
-        "",
+        *assessment_lines,
         "## Coverage",
         "",
         "<pre>"
         + escape(json.dumps(analysis["coverage"], indent=2, ensure_ascii=False))
         + "</pre>",
     ]
-    reviews = {row["finding_id"]: row for row in review["findings"]}
+    if case_review:
+        context = (
+            "The observations, unknowns, alternative explanations, and evidence "
+            "requests below are the engine's retained analytical output. They "
+            "are not statements authored or individually adopted by the reviewer."
+        )
+        blocks.append(f"<h2>Retained analysis</h2><p>{escape(context)}</p>")
+        lines.extend(
+            [
+                "",
+                "## Warnings",
+                "",
+                "<pre>"
+                + escape(json.dumps(analysis.get("warnings", []), indent=2))
+                + "</pre>",
+                "",
+                "## Retained analysis",
+                "",
+                escape(context),
+            ]
+        )
+    reviews = {row["finding_id"]: row for row in review.get("findings", [])}
     for finding in analysis["findings"]:
-        adjudication = reviews[finding["finding_id"]]
         blocks.append(
             f"<article><h2>{escape(finding['title'])}</h2><p>{escape(finding['observation'])}</p><dl>"
         )
@@ -493,12 +576,31 @@ def _reports(
             ("Evidence references", finding["record_refs"]),
             ("Source references", finding.get("source_refs", [])),
             ("Metrics", finding["metrics"]),
-            ("Disposition", adjudication["disposition"]),
-            ("Reasoning", adjudication["rationale"]),
-            ("Unknowns", adjudication["unknowns"]),
-            ("Alternatives", adjudication["alternatives"]),
-            ("Falsifiers", adjudication["falsifiers"]),
         ]
+        if case_review:
+            sections = [
+                ("Finding ID", finding["finding_id"]),
+                ("Check", finding["investigation_id"]),
+                ("Entities", finding.get("entity_ids", [])),
+                *sections,
+                ("Analysis: unknowns", finding["unknowns"]),
+                ("Analysis: alternative explanations", finding["alternatives"]),
+                (
+                    "Analysis: evidence that could change the result",
+                    finding["falsifiers"],
+                ),
+            ]
+        else:
+            adjudication = reviews[finding["finding_id"]]
+            sections.extend(
+                [
+                    ("Disposition", adjudication["disposition"]),
+                    ("Reasoning", adjudication["rationale"]),
+                    ("Unknowns", adjudication["unknowns"]),
+                    ("Alternatives", adjudication["alternatives"]),
+                    ("Falsifiers", adjudication["falsifiers"]),
+                ]
+            )
         for label, value in sections:
             text = (
                 value
@@ -514,6 +616,20 @@ def _reports(
     return "\n".join(blocks).encode("utf-8"), ("\n".join(lines) + "\n").encode("utf-8")
 
 
+def _credential_assignment_present(text: str) -> bool:
+    """Locate key candidates, then apply the complete original detection rule."""
+    position = 0
+    while candidate := _CREDENTIAL_KEYS.search(text, position):
+        # A leading quote is optional in the full rule. Starting at its key keeps
+        # the original Unicode boundary, case matching, and value requirements.
+        if _CREDENTIAL_ASSIGNMENT.match(text, candidate.start()):
+            return True
+        # A rejected outer key may contain a valid overlapping key, for example
+        # "naccess-token=...". Advancing to its end would miss the inner token.
+        position = candidate.start() + 1
+    return False
+
+
 def _scan(path: str, content: bytes) -> list[str]:
     # Scan user data, metadata, and reports, not archived implementation strings.
     if "/engine/" in "/" + path or Path(path).suffix.lower() not in {
@@ -527,12 +643,31 @@ def _scan(path: str, content: bytes) -> list[str]:
         ".yml",
     }:
         return []
-    text = content.decode("utf-8", errors="replace")
-    return [
-        f"Credential pattern {label} in {path}"
-        for label, pattern in _SECRET_PATTERNS
-        if pattern.search(text)
-    ]
+    # These immutable results are keyed by actual bytes and the active scanner.
+    # Rechecking a package never trusts a timestamp or a prior artifact path.
+    key = (
+        sha256_bytes(content),
+        tuple(
+            (label, pattern.pattern, pattern.flags)
+            for label, pattern in _SECRET_PATTERNS
+        ),
+    )
+    matches = _SCAN_RESULTS.get(key)
+    if matches is None:
+        text = content.decode("utf-8", errors="replace")
+        matches = tuple(
+            label
+            for label, pattern in _SECRET_PATTERNS
+            if (
+                _credential_assignment_present(text)
+                if pattern is _CREDENTIAL_ASSIGNMENT
+                else pattern.search(text)
+            )
+        )
+        _SCAN_RESULTS[key] = matches
+        while len(_SCAN_RESULTS) > 64:
+            _SCAN_RESULTS.popitem(last=False)
+    return [f"Credential pattern {label} in {path}" for label in matches]
 
 
 def _review_wrapper(wrapper: Any, manifest_bytes: bytes) -> dict:
@@ -627,8 +762,7 @@ def export_bundle(run_dir: Path, review_path: Path, dest: Path) -> dict:
             raise OmphalOSError(
                 "Export validation failed: " + "; ".join(result["issues"])
             )
-        # Hard-link publication is atomic and refuses to replace an existing export.
-        os.link(temporary, destination)
+        _publish_export(temporary, destination)
         return {
             "path": str(destination),
             "name": destination.name,
@@ -640,6 +774,19 @@ def export_bundle(run_dir: Path, review_path: Path, dest: Path) -> dict:
     finally:
         if temporary:
             temporary.unlink(missing_ok=True)
+
+
+def _publish_export(temporary: Path, destination: Path) -> None:
+    if sys.platform == "emscripten":
+        # MEMFS has no hard links. The browser worker owns this filesystem and
+        # serializes operations under a cross-tab Web Lock. A checked rename
+        # publishes the completed ZIP without exposing a partially written file.
+        if destination.exists() or destination.is_symlink():
+            raise FileExistsError("An evidence package already uses this name.")
+        temporary.rename(destination)
+    else:
+        # Native publication atomically refuses to replace an existing export.
+        os.link(temporary, destination)
 
 
 def verify_bundle(path: Path) -> dict:

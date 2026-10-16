@@ -2,15 +2,18 @@
 
 const main = document.querySelector('#main');
 const notice = document.querySelector('#notice');
+let cubeMaterial = null;
 const model = {
   state: null,
-  page: 'overview',
+  page: 'investigate',
+  flow: null,
   selectedRun: null,
   run: null,
   runTab: 'findings',
   caseDraft: null,
   caseDirty: false,
   navigationVersion: 0,
+  routeVersion: 0,
   reviewDrafts: {},
   findingPage: 0,
   reviewPage: 0,
@@ -18,7 +21,9 @@ const model = {
   operation: false,
 };
 const PAGE_SIZE = 20;
+const BOX_STEPS = ['I', 'II', 'III', 'IV', 'V', 'VI'];
 const titles = {
+  investigate: 'Investigate',
   overview: 'Overview',
   data: 'Data & sources',
   cases: 'Cases',
@@ -115,11 +120,45 @@ function investigationTitle(id) {
   return model.state?.catalog?.find((item) => item.id === id)?.title || human(id);
 }
 
+function retainedEntityName(id, run = model.run) {
+  const name = run?.verification?.ok === true ? run.entity_names?.[id] : null;
+  return typeof name === 'string' && name.trim() ? name : String(id || '');
+}
+
+function findingObservation(finding, run = model.run) {
+  const observation = String(finding.observation || '');
+  const ids = array(finding.entity_ids)
+    .filter((id) => retainedEntityName(id, run) !== id && observation.includes(id))
+    .sort((left, right) => right.length - left.length);
+  if (!ids.length) return observation;
+  const pattern = ids.map((id) => id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  return observation.replace(
+    new RegExp(`(^|[^\\p{L}\\p{N}_-])(${pattern})(?=$|[^\\p{L}\\p{N}_-])`, 'gu'),
+    (_match, prefix, id) => prefix + retainedEntityName(id, run),
+  );
+}
+
+function screeningSource(run) {
+  const snapshotId = run?.case?.watchlist_snapshot_id;
+  if (!snapshotId) return null;
+  if (run.verification?.ok === true && run.screening_source?.snapshot_id === snapshotId)
+    return run.screening_source;
+  return (
+    array(model.state?.sources).find((item) => item.snapshot_id === snapshotId) || {
+      snapshot_id: snapshotId,
+    }
+  );
+}
+
+function reviewRecorded(status) {
+  return status === 'reviewed' || status === 'review_recorded';
+}
+
 function reviewStatus(status) {
   if (status === 'invalid') return badge('Invalid run', 'red');
   return badge(
-    status === 'reviewed' ? 'Review recorded' : 'Needs review',
-    status === 'reviewed' ? '' : 'amber',
+    reviewRecorded(status) ? 'Review recorded' : 'Needs review',
+    reviewRecorded(status) ? '' : 'amber',
   );
 }
 
@@ -130,7 +169,26 @@ function announce(message, kind = 'success') {
   notice.setAttribute('role', kind === 'error' ? 'alert' : 'status');
 }
 
+function storageExplanation() {
+  if (model.state?.storage?.mode === 'browser')
+    return 'Files and results stay in this browser. Clearing website data or browser storage eviction can remove them. Download an evidence package to keep a permanent copy.';
+  return 'Original files and results stay in this local workspace.';
+}
+
+function uploadLimitLabel() {
+  return `${Math.floor((model.state?.limits?.upload_bytes || 48 * 1024 * 1024) / (1024 * 1024))} MiB`;
+}
+
+function updateStorageLabels() {
+  const browser = model.state?.storage?.mode === 'browser';
+  const label = document.querySelector('.session-label');
+  const note = document.querySelector('#storage-note');
+  if (label) label.textContent = browser ? 'Browser workspace' : 'Local session';
+  if (note) note.textContent = browser ? 'Browser storage' : 'Stored on this device';
+}
+
 async function api(path, body) {
+  if (window.omphalosBrowser) return window.omphalosBrowser.request(path, body);
   let response;
   try {
     response = await fetch(`/api/${path}`, {
@@ -144,23 +202,23 @@ async function api(path, body) {
       cache: 'no-store',
     });
   } catch {
-    throw new Error(
-      'Unable to reach the local workbench. Check that its server is running, then try again.',
-    );
+    throw new Error('Unable to reach omphalOS. Check your connection and try again.');
   }
   let result;
   try {
     result = await response.json();
   } catch {
     throw new Error(
-      `The local server returned an unreadable response${response.status ? ` (${response.status})` : ''}. Reload the workspace and try again.`,
+      `omphalOS returned an unreadable response${response.status ? ` (${response.status})` : ''}. Reload the workspace and try again.`,
     );
   }
-  if (!response.ok)
-    throw new Error(
-      result.error ||
-        `The operation failed (${response.status}). Try again or inspect the local server log.`,
+  if (!response.ok) {
+    const error = new Error(
+      result.error || `The operation failed (${response.status}). Try again in a moment.`,
     );
+    error.status = response.status;
+    throw error;
+  }
   return result;
 }
 
@@ -172,7 +230,7 @@ async function task(message, fn) {
   if (trigger?.tagName === 'BUTTON') trigger.setAttribute('aria-busy', 'true');
   const controls = [
     ...document.querySelectorAll(
-      'button[type="submit"], button[data-action="verify"], button[data-action="replay"], button[data-action="export"], button[data-action="open-run"], button[data-action="load-case"], #create-demo, #refresh',
+      '[data-flow="run"], [data-flow="fetch-run"], [data-flow="import"], [data-flow="plan"], [data-flow="fetch"], [data-flow="repreview"], button[type="submit"], button[data-action="verify"], button[data-action="replay"], button[data-action="export"], button[data-action="open-run"], button[data-action="load-case"], #refresh',
     ),
   ];
   const disabled = controls.map((control) => control.disabled);
@@ -196,6 +254,7 @@ async function task(message, fn) {
 
 async function refresh(renderPage = true) {
   model.state = await api('state');
+  updateStorageLabels();
   if (renderPage) render();
 }
 
@@ -205,6 +264,11 @@ function heading(_context, title, description, actions = '') {
 
 function render() {
   if (!model.state) return;
+  if (model.page !== 'investigate') {
+    cubeMaterial?.destroy();
+    cubeMaterial = null;
+  }
+  document.querySelector('body')?.classList.toggle('object-mode', model.page === 'investigate');
   document.querySelectorAll('[data-nav]').forEach((link) => {
     const active = link.dataset.nav === model.page;
     link.classList.toggle('active', active);
@@ -212,9 +276,13 @@ function render() {
     else link.removeAttribute('aria-current');
   });
   document.querySelector('#breadcrumb').textContent = `Workspace / ${titles[model.page]}`;
-  ({ overview: renderOverview, data: renderData, cases: renderCases, runs: renderRuns })[
-    model.page
-  ]();
+  ({
+    investigate: renderGuided,
+    overview: renderOverview,
+    data: renderData,
+    cases: renderCases,
+    runs: renderRuns,
+  })[model.page]();
 }
 
 function runTable(runs) {
@@ -240,7 +308,7 @@ function runTable(runs) {
                 ${run.not_evaluable_count ? `<small>${run.not_evaluable_count} checks need attention</small>` : ''}</td>
               <td>${reviewStatus(run.status)}</td>
               <td><button class="text-button" data-action="open-run" data-id="${esc(run.run_id)}">
-                ${run.status === 'reviewed' ? 'View run' : 'Review observations'} →
+                ${reviewRecorded(run.status) ? 'View run' : 'Review observations'} →
               </button></td>
             </tr>
           `,
@@ -264,7 +332,7 @@ function renderOverview() {
     ${heading(
       '',
       'Overview',
-      'Cases, evidence, and analyst review in one local workspace.',
+      'Cases, evidence, and analyst review in one workspace.',
       `<a class="button-link" href="${state.datasets.length ? '#cases' : '#data'}">${state.datasets.length ? 'Create case' : 'Import records'}</a>`,
     )}
     ${
@@ -286,7 +354,7 @@ function renderOverview() {
       <section class="panel">
         <h2>Start an investigation</h2>
         <ol class="workflow-list">
-          <li><span class="step-number">01</span><div><h3>Import the evidence</h3><p>Add entity and transaction records, or explore a clearly labeled synthetic dataset.</p></div><a class="button-link secondary" href="#data">Add data</a></li>
+          <li><span class="step-number">01</span><div><h3>Import the evidence</h3><p>Add entity and transaction records.</p></div><a class="button-link secondary" href="#data">Add data</a></li>
           <li><span class="step-number">02</span><div><h3>Define the question</h3><p>Choose the scope, date, and checks relevant to the case.</p></div><a class="button-link secondary" href="#cases">Create case</a></li>
           <li><span class="step-number">03</span><div><h3>Review the observations</h3><p>Examine supporting records and document your assessment.</p></div><a class="button-link secondary" href="#runs">View runs</a></li>
         </ol>
@@ -326,16 +394,13 @@ function schemaHelp() {
         )
         .join('')}
       ${list(schema.notes)}
-      <p class="small muted">Invalid rows reject the import; none are silently discarded. Browser limit: six files, 48 MiB combined.</p>
+      <p class="small muted">Invalid rows reject the import; none are silently discarded. Upload limit: six files, ${uploadLimitLabel()} combined.</p>
     </details>`;
 }
 
 function datasetTable(datasets) {
   if (!datasets.length)
-    return empty(
-      'No datasets',
-      'Import your records or create a separate synthetic dataset to explore the workflow.',
-    );
+    return empty('No datasets', 'Import entity or transaction records to begin.');
   return `
     <div class="table-wrap"><table>
       <thead><tr><th>Dataset</th><th>Records</th><th>Type</th></tr></thead>
@@ -436,7 +501,6 @@ function renderData() {
       'Data & sources',
       'Import transaction records and retain dated screening snapshots.',
       `
-      <button class="secondary" id="create-demo" type="button">Create synthetic dataset</button>
       <button data-action="open-disclosure" data-target="dataset-import" type="button">Import records</button>`,
     )}
     <section class="panel panel-flush">
@@ -449,7 +513,6 @@ function renderData() {
       ${sourceTable(state.sources)}
     </section>
     ${sourceImport()}
-    <p class="small muted">Synthetic datasets contain planted signals and benign counterexamples, not real counterparties. Their synthetic label stays with every run and exported report.</p>
   `;
   renderSourceDescription();
 }
@@ -578,7 +641,7 @@ function renderCases() {
   };
   if (!state.datasets.length) {
     main.innerHTML = `${heading('', 'Cases', 'Define a question and choose the records and checks that can address it.')}
-      <section class="panel">${empty('Import records to create a case', 'A case needs a dataset. You can use your own records or explore an explicitly synthetic dataset.', '<a class="button-link" href="#data">Add data</a>')}</section>`;
+      <section class="panel">${empty('Import records to create a case', 'A case needs entity or transaction records.', '<a class="button-link" href="#data">Add data</a>')}</section>`;
     return;
   }
   main.innerHTML = `
@@ -659,8 +722,8 @@ function renderRuns() {
           .map(
             (run) => `
           <button type="button" class="run-item ${run.run_id === model.selectedRun ? 'selected' : ''}" data-action="open-run" data-id="${esc(run.run_id)}" ${run.run_id === model.selectedRun ? 'aria-current="true"' : ''}>
-            <strong>${esc(run.case_id || run.run_id)}</strong><small>${esc(displayDate(run.created_at))}</small>
-            <small>${esc(formatNumber(run.findings_count))} observations / ${run.status === 'reviewed' ? 'Review recorded' : 'Needs review'}</small>
+            <strong>${esc(savedRunTitle(run))}</strong><small>${esc(displayDate(run.created_at))}</small>
+            <small>${esc(formatNumber(run.findings_count))} observations / ${reviewRecorded(run.status) ? 'Review recorded' : 'Needs review'}</small>
           </button>`,
           )
           .join('')}
@@ -677,7 +740,8 @@ function renderRunDetail() {
   const needsData = coverage.filter((item) => item.status === 'not_evaluable').length;
   const verified = run.verification?.ok === true;
   const reviewed = Boolean(run.latest_review) && run.review_validation?.ok !== false;
-  const canExport = verified && reviewed;
+  const canExport = flowReviewRecorded(run);
+  const pendingDecision = reviewed && Boolean(model.reviewDrafts[model.selectedRun]) && !canExport;
   const tabs = [
     ['findings', `Observations (${findings.length})`],
     ['coverage', 'Coverage'],
@@ -709,8 +773,8 @@ function renderRunDetail() {
           <p class="small muted">File verification checks retained evidence. Replay checks whether the analysis reproduces. Neither establishes the truth of a conclusion.</p>
         </details>
       </div>
-      <p class="export-note">${!verified ? 'Resolve the file verification issues before exporting.' : !reviewed ? 'Export requires a named assessment of every observation and an acknowledgment of coverage limits.' : 'The package includes the recorded review and retained evidence. Reviewer identity is self-asserted.'}</p>
-      <div id="run-result" class="result-box"></div>
+      <p class="export-note">${!verified ? 'Resolve the file verification issues before exporting.' : pendingDecision ? 'Save the edited case decision before creating its package.' : !reviewed ? 'Record a case decision and acknowledge its coverage before exporting.' : 'The package includes the recorded review and retained evidence. Reviewer identity is self-asserted.'}</p>
+      <div id="run-result" class="result-box">${canExport && run.latest_export ? packageDownload(run.latest_export) : ''}</div>
     </section>
     ${run.review_validation?.issues?.length ? `<div class="callout error"><strong>Stored review could not be validated</strong>${list(run.review_validation.issues)}</div>` : ''}
     ${!verified ? `<div class="callout error"><strong>File verification failed</strong>${list(run.verification?.issues)}Displayed observations are unverified until this is resolved.</div>` : ''}
@@ -808,20 +872,26 @@ function findingCard(finding, index) {
     <article class="panel finding">
       <div class="finding-top">
         <div><div class="finding-kicker">Observation ${index + 1} / ${esc(investigationTitle(finding.investigation_id))}</div><h3>${esc(finding.title)}</h3></div>
-        ${assessment ? badge(human(assessment.disposition)) : badge('Unreviewed', 'amber')}
+        ${assessment ? badge(human(assessment.disposition)) : ''}
       </div>
-      <p class="observation">${esc(finding.observation)}</p>
+      <p class="observation">${esc(findingObservation(finding))}</p>
       ${candidateFacts(finding)}
       <div class="evidence-label">Supporting records (${array(finding.record_refs).length})</div>
       ${recordButtons(finding)}
       ${sourceButtons(finding)}
       ${Object.keys(finding.metrics || {}).length ? `<details><summary>Computed values</summary>${keyValues(Object.fromEntries(Object.entries(finding.metrics).map(([key, value]) => [human(key), value])))}</details>` : ''}
       ${analyticalCaveats(finding)}
-      <div class="finding-meta"><span>Entities: ${esc(array(finding.entity_ids).join(', ') || 'See cited records')}</span><span class="mono">${esc(finding.finding_id)}</span></div>
+      <div class="finding-meta"><span>Entities: ${esc(
+        array(finding.entity_ids)
+          .map((id) => retainedEntityName(id))
+          .join(', ') || 'See cited records',
+      )}</span><span class="mono">${esc(finding.finding_id)}</span></div>
     </article>`;
 }
 
 function renderFindings() {
+  if (Number.isSafeInteger(flowState().findingIndex))
+    return findingEvidenceView(model.run, flowState().findingIndex);
   const findings = array(model.run.analysis?.findings);
   if (!findings.length) {
     return `<section class="panel">${empty('No observations generated', 'This is not a clearance. Examine coverage to see which checks ran and what evidence was unavailable.')}
@@ -889,10 +959,11 @@ function reviewFinding(finding, index, row) {
       <legend>Observation ${index + 1}</legend>
       <h3>${esc(finding.title)}</h3>
       <div class="review-evidence">
-        <p class="small">${esc(finding.observation)}</p>
+        <p class="small">${esc(findingObservation(finding))}</p>
         ${recordButtons(finding)}${sourceButtons(finding)}
         <details><summary>Analytical context and caveats</summary>${candidateFacts(finding)}${analyticalCaveats(finding)}</details>
       </div>
+      <div class="suggestion-action"><button type="button" class="text-button" data-action="suggest-questions" data-id="${esc(finding.finding_id)}">Use suggested questions</button><p class="small muted">Fills empty uncertainty fields from the check’s suggestions. Edit them for this case; your disposition and rationale stay yours.</p></div>
       <div class="field"><label for="disposition-${index}">Disposition</label>
         <select id="disposition-${index}" name="disposition" required>
           <option value="">Choose an assessment</option>
@@ -920,7 +991,209 @@ function reviewFinding(finding, index, row) {
     </fieldset>`;
 }
 
-function renderReview() {
+function guidedReviewUi(findingId) {
+  const flow = flowState();
+  if (!flow.reviewUi) flow.reviewUi = Object.create(null);
+  const key = `${model.selectedRun}:${findingId}`;
+  if (!flow.reviewUi[key]) flow.reviewUi[key] = { editing: {}, evidenceIndex: 0 };
+  return flow.reviewUi[key];
+}
+
+function guidedReviewEvidence(finding) {
+  const refs = [
+    ...array(finding.record_refs).map((ref) => ({ ...ref, official: false })),
+    ...array(finding.source_refs).map((ref) => ({ ...ref, official: true })),
+  ];
+  if (!refs.length) return '<p class="small muted">No individual records were cited.</p>';
+  const ui = guidedReviewUi(finding.finding_id);
+  const index = Math.min(Math.max(ui.evidenceIndex, 0), refs.length - 1);
+  const ref = refs[index];
+  const title = ref.official
+    ? `${sourceTitle(ref.source_id)} / ${ref.record_id}`
+    : `${human(ref.table)} / ${ref.record_id}`;
+  return `<div class="guided-evidence-browser">
+    <p class="small muted">${countLabel(array(finding.record_refs).length, 'cited record')} / ${countLabel(array(finding.source_refs).length, 'source listing')}</p>
+    <div class="actions">
+      <button type="button" class="secondary" data-guided-review="evidence-step" data-id="${esc(finding.finding_id)}" data-index="${index - 1}" aria-label="Previous cited record" ${index === 0 ? 'disabled' : ''}>←</button>
+      <button type="button" class="text-button" data-action="${ref.official ? 'source-evidence' : 'evidence'}" data-id="${esc(ref.record_id)}" ${ref.official ? '' : `data-table="${esc(ref.table)}"`}>Open ${esc(title)} ↗</button>
+      <button type="button" class="secondary" data-guided-review="evidence-step" data-id="${esc(finding.finding_id)}" data-index="${index + 1}" aria-label="Next cited record" ${index === refs.length - 1 ? 'disabled' : ''}>→</button>
+    </div>
+    <p class="small muted" aria-live="polite">Cited record ${index + 1} of ${refs.length}. Records open from this run's retained evidence.</p>
+  </div>`;
+}
+
+function guidedReviewPrompt(finding, index, row, key, title, question) {
+  const values = array(row[key]);
+  const suggestions = array(finding[key]);
+  const editing = Boolean(guidedReviewUi(finding.finding_id).editing[key]);
+  const displayed = values.length
+    ? `<div class="adopted-review-prompts">${list(values)}</div>`
+    : `<p class="small muted">Suggested for consideration. Not yet part of your assessment.</p>${suggestions.length ? list(suggestions) : `<p class="small">${esc(question)}</p>`}`;
+  const content = editing
+    ? `<div class="field"><label for="guided-${key}-${index}">${esc(question)}</label><textarea id="guided-${key}-${index}" name="${key}" rows="3" minlength="12">${esc(values.join('\n'))}</textarea><small>One specific item per line. These words become part of your assessment.</small></div>`
+    : `<textarea name="${key}" hidden aria-hidden="true" tabindex="-1">${esc(values.join('\n'))}</textarea>${displayed}`;
+  return `<section class="guided-review-prompt">
+    <div class="panel-heading"><h4>${esc(title)}</h4><button type="button" class="text-button" data-guided-review="${editing ? 'finish-edit' : 'edit-prompt'}" data-id="${esc(finding.finding_id)}" data-field="${key}" data-index="${index}">${editing ? 'Keep these words' : values.length ? 'Edit' : 'Write my own'}</button></div>
+    ${content}
+  </section>`;
+}
+
+function guidedReviewProposal(finding, disposition = 'follow_up') {
+  const excerpt = (value, limit) => {
+    const text = String(value || '').trim();
+    return text.length > limit ? `${text.slice(0, limit)}…` : text;
+  };
+  const observation = excerpt(finding.observation, 6000);
+  const question = excerpt(array(finding.unknowns)[0], 1000);
+  const falsifier = excerpt(array(finding.falsifiers)[0], 1000);
+  return [
+    disposition === 'escalate'
+      ? 'Request specialist review before resolving this observation.'
+      : 'Keep this observation open while the supporting evidence is obtained.',
+    `The retained analysis reports: ${observation}`,
+    question ? `Question to resolve: ${question}` : '',
+    falsifier ? `Evidence that could change the assessment: ${falsifier}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function guidedReviewRationale(finding, index, row) {
+  const ui = guidedReviewUi(finding.finding_id);
+  const rationale = String(row.rationale || '');
+  const proposed = guidedReviewProposal(finding);
+  if (ui.editing.rationale) {
+    return `<section class="guided-review-rationale"><div class="field"><label for="guided-rationale-${index}">${row.disposition === 'explained' ? 'What evidence explains this observation?' : 'Your reasoning and proposed next step'}</label><textarea id="guided-rationale-${index}" name="rationale" rows="4" required minlength="12" placeholder="Describe the case-specific evidence and the reasoning behind your assessment.">${esc(rationale)}</textarea><small>${row.disposition === 'explained' ? 'An explanation needs your case-specific reasoning. No explanation is generated for you.' : 'Edit the prepared words to reflect your assessment.'}</small></div><button type="button" class="text-button" data-guided-review="finish-rationale" data-id="${esc(finding.finding_id)}">Keep this reasoning</button></section>`;
+  }
+  return `<section class="guided-review-rationale ${rationale ? 'recorded-rationale' : 'proposed-rationale'}"><div class="panel-heading"><h4>${rationale ? 'Reasoning in this draft' : 'Proposed follow-up'}</h4><button type="button" class="text-button" data-guided-review="edit-rationale" data-id="${esc(finding.finding_id)}" data-index="${index}">${rationale ? 'Edit reasoning' : 'Edit this proposal'}</button></div><textarea name="rationale" hidden aria-hidden="true" tabindex="-1">${esc(rationale)}</textarea><div class="prepared-review-copy">${(
+    rationale || proposed
+  )
+    .split('\n\n')
+    .map((paragraph) => `<p>${esc(paragraph)}</p>`)
+    .join(
+      '',
+    )}</div><p class="small muted">${rationale ? 'Your existing reasoning and review questions will be kept when you choose an action.' : 'Prepared from this observation and its review prompts. It becomes part of your draft only when you choose an action or edit it.'}</p></section>`;
+}
+
+function guidedReviewFinding(finding, index, row = {}) {
+  const prompts = [
+    ['unknowns', 'What remains unresolved', 'What is unknown, and how will you resolve it?'],
+    ['alternatives', 'Other explanations', 'What other explanation have you considered?'],
+    ['falsifiers', 'What would change your view', 'What evidence would change your assessment?'],
+  ];
+  const missingPrompts = prompts.some(
+    ([key]) => !array(row[key]).length && array(finding[key]).length,
+  );
+  const recordedPrompts = prompts.every(([key]) => array(row[key]).length);
+  return `<fieldset class="review-finding guided-review-finding" data-finding="${esc(finding.finding_id)}">
+    <legend>Observation ${index + 1}</legend>
+    <h3>${esc(finding.title)}</h3>
+    <div class="review-evidence"><p>${esc(findingObservation(finding))}</p>${candidateFacts(finding)}${guidedReviewEvidence(finding)}</div>
+    <section class="guided-assessment-action">
+      <input type="hidden" name="disposition" value="${esc(row.disposition || '')}">
+      ${guidedReviewRationale(finding, index, row)}
+      <div class="actions" role="group" aria-label="Assessment action">
+        ${[
+          ['follow_up', 'adopt-follow-up', 'Keep open with this follow-up'],
+          ['escalate', 'adopt-escalation', 'Escalate with this context'],
+          ['explained', 'explain', 'Add an explanation'],
+        ]
+          .map(
+            ([value, action, title]) =>
+              `<button type="button" class="${row.disposition === value || (!row.disposition && value === 'follow_up') ? '' : 'secondary'}" data-guided-review="${action}" data-id="${esc(finding.finding_id)}" data-disposition="${value}" aria-pressed="${row.disposition === value}">${title}</button>`,
+          )
+          .join('')}
+      </div>
+    </section>
+    <section class="guided-review-prompts"><div class="panel-heading"><div><h4>Questions to carry into the assessment</h4><p>Consider the check's prompts, then adopt or revise the ones that fit this observation.</p></div>${missingPrompts ? `<button type="button" class="secondary" data-action="suggest-questions" data-id="${esc(finding.finding_id)}">Use these review prompts</button>` : recordedPrompts ? badge('Prompts recorded in this draft') : badge('Your assessment needs context', 'amber')}</div>
+      ${prompts.map(([key, title, question]) => guidedReviewPrompt(finding, index, row, key, title, question)).join('')}
+    </section>
+  </fieldset>`;
+}
+
+function handleGuidedReviewClick(button) {
+  const action = button.dataset.guidedReview;
+  if (!action) return false;
+  const finding = array(model.run?.analysis?.findings).find(
+    (item) => item.finding_id === button.dataset.id,
+  );
+  const form = document.querySelector('#review-form');
+  if (!finding || !form || form.dataset.saving === 'true') return true;
+  const group = [...form.querySelectorAll('[data-finding]')].find(
+    (item) => item.dataset.finding === finding.finding_id,
+  );
+  if (!group) return true;
+  const ui = guidedReviewUi(finding.finding_id);
+  if (action === 'adopt-follow-up' || action === 'adopt-escalation') {
+    const disposition = action === 'adopt-escalation' ? 'escalate' : 'follow_up';
+    group.querySelector('[name="disposition"]').value = disposition;
+    const rationale = group.querySelector('[name="rationale"]');
+    if (!rationale.value.trim()) {
+      rationale.value = guidedReviewProposal(finding, disposition);
+      ui.preparedRationale = rationale.value;
+    }
+    ['unknowns', 'alternatives', 'falsifiers'].forEach((key) => {
+      const control = group.querySelector(`[name="${key}"]`);
+      if (!lines(control.value).length) control.value = array(finding[key]).join('\n');
+    });
+    ui.editing.rationale = false;
+    form.dataset.dirty = 'true';
+    saveReviewDraft();
+  } else if (action === 'explain') {
+    group.querySelector('[name="disposition"]').value = 'explained';
+    const rationale = group.querySelector('[name="rationale"]');
+    // A prepared open-follow-up statement cannot stand in for a new explanation.
+    // Preserve every rationale the analyst has changed or supplied independently.
+    if (ui.preparedRationale && rationale.value === ui.preparedRationale) {
+      ui.previousPreparedRationale = rationale.value;
+      rationale.value = '';
+    }
+    ui.editing.rationale = true;
+    form.dataset.dirty = 'true';
+    saveReviewDraft();
+  } else if (action === 'edit-rationale' || action === 'finish-rationale') {
+    const rationale = group.querySelector('[name="rationale"]');
+    if (
+      action === 'edit-rationale' &&
+      !rationale.value.trim() &&
+      group.querySelector('[name="disposition"]').value !== 'explained'
+    ) {
+      rationale.value = guidedReviewProposal(finding);
+      ui.preparedRationale = rationale.value;
+      form.dataset.dirty = 'true';
+      saveReviewDraft();
+    } else preserveDrafts();
+    ui.editing.rationale = action === 'edit-rationale';
+  } else if (action === 'edit-prompt' || action === 'finish-edit') {
+    const field = button.dataset.field;
+    if (!['unknowns', 'alternatives', 'falsifiers'].includes(field)) return true;
+    preserveDrafts();
+    ui.editing[field] = action === 'edit-prompt';
+  } else if (action === 'evidence-step') {
+    const index = Number(button.dataset.index);
+    const total = array(finding.record_refs).length + array(finding.source_refs).length;
+    if (!Number.isSafeInteger(index) || index < 0 || index >= total) return true;
+    preserveDrafts();
+    ui.evidenceIndex = index;
+  } else return false;
+  model.navigationVersion += 1;
+  renderGuided();
+  if (action === 'edit-prompt')
+    document
+      .querySelector(`#guided-${button.dataset.field}-${button.dataset.index}`)
+      ?.focus({ preventScroll: true });
+  if (action === 'explain' || action === 'edit-rationale')
+    document
+      .querySelector('.guided-review-finding [name="rationale"]')
+      ?.focus({ preventScroll: true });
+  if (action === 'evidence-step')
+    document
+      .querySelector('.guided-evidence-browser [data-action]')
+      ?.focus({ preventScroll: true });
+  return true;
+}
+
+function renderLegacyReview() {
   const run = model.run;
   const findings = array(run.analysis?.findings);
   const draft = model.reviewDrafts[model.selectedRun] || run.latest_review?.review || {};
@@ -962,6 +1235,17 @@ function renderReview() {
 
 function readReview(form) {
   const values = new FormData(form);
+  if (form.dataset.reviewScope === 'case') {
+    return {
+      schema_version: '2.1',
+      run_id: model.selectedRun,
+      reviewer: String(values.get('reviewer') || '').trim(),
+      decision: String(values.get('decision') || ''),
+      summary: String(values.get('summary') || '').trim(),
+      scope_finding_ids: array(model.run.analysis?.findings).map((finding) => finding.finding_id),
+      acknowledge_limitations: values.has('acknowledge_limitations'),
+    };
+  }
   const prior = model.reviewDrafts[model.selectedRun] || model.run.latest_review?.review || {};
   const rows = new Map(array(prior.findings).map((row) => [row.finding_id, row]));
   form.querySelectorAll('[data-finding]').forEach((group) => {
@@ -1015,6 +1299,7 @@ async function openRun(id, expectedNavigation = model.navigationVersion) {
   const run = await api(`runs/${encodeURIComponent(id)}`);
   if (expectedNavigation !== model.navigationVersion) return false;
   if (model.selectedRun !== id) {
+    flowState().findingIndex = null;
     model.findingPage = 0;
     model.reviewPage = 0;
   }
@@ -1055,9 +1340,13 @@ function saveReviewDraft() {
     const draft = readReview(form);
     model.reviewDrafts[model.selectedRun] = draft;
     const counter = document.querySelector('#review-count');
-    const message = `${draft.findings.filter(reviewRowComplete).length} of ${draft.findings.length} observations have all assessment fields filled.`;
+    const message =
+      draft.schema_version === '2.1'
+        ? 'Case decision saved in this draft.'
+        : `${draft.findings.filter(reviewRowComplete).length} of ${draft.findings.length} observations have all assessment fields filled.`;
     if (counter && counter.textContent !== message) counter.textContent = message;
     updateDraftIndicator();
+    if (model.page === 'investigate') updateFlowCube();
   }
 }
 
@@ -1069,7 +1358,7 @@ function preserveDrafts() {
 async function filesPayload(files) {
   const entries = [...files];
   if (entries.reduce((total, file) => total + file.size, 0) > model.state.limits.upload_bytes) {
-    throw new Error('Combined files exceed the 48 MiB browser upload limit.');
+    throw new Error(`Combined files exceed the ${uploadLimitLabel()} upload limit.`);
   }
   return Promise.all(
     entries.map(async (file) => {
@@ -1177,10 +1466,35 @@ async function submitReview(form) {
   const runId = model.selectedRun;
   model.reviewDrafts[runId] = review;
   const submittedDraft = JSON.stringify(review);
-  const incomplete = review.findings.findIndex((row) => !reviewRowComplete(row));
+  if (!model.run?.verification?.ok)
+    throw new Error('The retained files must pass verification before a decision can be recorded.');
+  if (
+    review.schema_version !== '2.1' &&
+    model.page === 'investigate' &&
+    flowSummaryNeedsUpdate(review)
+  )
+    throw new Error(
+      'The individual assessments changed. Update the prepared summary or edit it before saving.',
+    );
+  if (review.schema_version === '2.1') {
+    if (!['keep_open', 'escalate', 'conclude'].includes(review.decision))
+      throw new Error('Choose whether to keep the case open, escalate it, or conclude it.');
+    if (review.reviewer.length < 2) throw new Error('Enter the name attached to this decision.');
+    if (!review.acknowledge_limitations)
+      throw new Error('Confirm that you reviewed the findings and coverage.');
+    if ((review.decision === 'conclude' || review.summary) && review.summary.length < 12)
+      throw new Error('A conclusion needs a specific note explaining the evidence.');
+  }
+  const incomplete =
+    review.schema_version === '2.1'
+      ? -1
+      : review.findings.findIndex((row) => !reviewRowComplete(row));
   if (incomplete !== -1) {
     model.reviewPage = Math.floor(incomplete / PAGE_SIZE);
-    renderRuns();
+    if (model.page === 'investigate') {
+      model.flow.reviewIndex = incomplete;
+      renderGuided();
+    } else renderRuns();
     document.querySelector('#review-form [data-finding] select')?.focus();
     throw new Error(
       `Observation ${incomplete + 1} needs a disposition and specific rationale, unknowns, alternatives, and evidence that would change the assessment.`,
@@ -1188,22 +1502,1897 @@ async function submitReview(form) {
   }
   const unlock = lockForm(form);
   try {
-    const result = await api(`runs/${encodeURIComponent(runId)}/review`, review);
+    await api(`runs/${encodeURIComponent(runId)}/review`, review);
     if (JSON.stringify(model.reviewDrafts[runId]) === submittedDraft)
       delete model.reviewDrafts[runId];
     await refresh(false);
-    if (viewIsCurrent(view)) await openRun(runId, view.navigation);
-    announce(`Review ${result.review_id} saved. The verified run can now be exported.`);
+    if (viewIsCurrent(view)) {
+      if (model.page === 'investigate') {
+        const run = await api(`runs/${encodeURIComponent(runId)}`);
+        if (viewIsCurrent(view)) {
+          model.run = run;
+          model.flow.stage = 'package';
+          model.flow.cubeFace = 5;
+          model.flow.inspectionFace = null;
+          renderGuided();
+        }
+      } else await openRun(runId, view.navigation);
+    }
+    announce('Case decision recorded.');
     updateDraftIndicator();
   } finally {
     unlock();
   }
 }
 
+// Guided investigation: a revision owns every preview, plan, and result.
+function newFlow() {
+  return {
+    stage: 'goal',
+    goalId: '',
+    goalInferred: false,
+    datasetId: '',
+    asOf: dateToday(),
+    snapshotId: '',
+    sourcePolicy: 'automatic',
+    sourceRetry: false,
+    subjectName: '',
+    identityResearch: null,
+    identityError: '',
+    files: [],
+    preview: null,
+    mapping: {},
+    previewStale: false,
+    plan: null,
+    planInputs: null,
+    revision: 0,
+    reviewIndex: 0,
+    cubeFace: 0,
+    motionPaused: false,
+    inspectionFace: null,
+    surfaceOpen: false,
+    settingsOpen: false,
+    busyStep: '',
+    revealResults: false,
+    autoRunning: false,
+    autoViewChanged: false,
+  };
+}
+
+function flowState() {
+  if (!model.flow) model.flow = newFlow();
+  return model.flow;
+}
+
+function flowContext() {
+  const flow = flowState();
+  return {
+    view: currentView(),
+    flow,
+    revision: flow.revision,
+    route: model.routeVersion,
+    automatic: flow.autoRunning,
+  };
+}
+
+function flowIsCurrent(context) {
+  const sameInput = context.flow === flowState() && context.revision === flowState().revision;
+  if (!sameInput) return false;
+  // Turning the object changes its visible face, not the work in progress.
+  // Leaving the route (even briefly), changing inputs, or opening another run
+  // still cancels later stages of an automatic investigation.
+  return context.automatic
+    ? context.route === model.routeVersion &&
+        context.view.page === model.page &&
+        context.view.runId === model.selectedRun
+    : viewIsCurrent(context.view);
+}
+
+async function flowRequest(context, path, body) {
+  try {
+    return await api(path, body);
+  } catch (error) {
+    // An abandoned request must not report its error in another investigation.
+    if (!flowIsCurrent(context)) return null;
+    throw error;
+  }
+}
+
+async function refreshFlow(context) {
+  const state = await flowRequest(context, 'state');
+  if (!flowIsCurrent(context)) return false;
+  model.state = state;
+  updateStorageLabels();
+  return true;
+}
+
+function invalidateFlow(changes = {}, keepInspection = false) {
+  preserveDrafts();
+  const flow = flowState();
+  const inspectionFace =
+    keepInspection && flow.autoRunning && flow.autoViewChanged ? flow.inspectionFace : null;
+  Object.assign(flow, { settingsOpen: false }, changes, {
+    plan: null,
+    planInputs: null,
+    inspectionFace,
+  });
+  if ('datasetId' in changes && changes.datasetId !== flow.identityResearch?.dataset_id)
+    flow.identityResearch = null;
+  model.flow.revision += 1;
+}
+
+function flowDataset() {
+  return array(model.state.datasets).find((item) => item.dataset_id === flowState().datasetId);
+}
+
+function flowGoal() {
+  return array(model.state.workflow_goals).find((item) => item.id === flowState().goalId);
+}
+
+function flowInput() {
+  const flow = flowState();
+  return {
+    dataset_id: flow.datasetId,
+    goal_id: flow.goalId,
+    as_of: flow.asOf,
+    ...(flow.snapshotId && flowGoal()?.requires_source
+      ? { watchlist_snapshot_id: flow.snapshotId }
+      : {}),
+  };
+}
+
+function flowReviewRecorded(run) {
+  const draft = model.reviewDrafts[model.selectedRun];
+  const canonical = (value) =>
+    Array.isArray(value)
+      ? value.map(canonical)
+      : value && typeof value === 'object'
+        ? Object.fromEntries(
+            Object.keys(value)
+              .sort()
+              .map((key) => [key, canonical(value[key])]),
+          )
+        : value;
+  return Boolean(
+    run?.verification?.ok &&
+    run.latest_review &&
+    run.review_validation?.ok === true &&
+    (!draft ||
+      JSON.stringify(canonical(draft)) === JSON.stringify(canonical(run.latest_review.review))),
+  );
+}
+
+function flowStageAccess(index) {
+  if (!Number.isInteger(index) || index < 0 || index > 5) return false;
+  if (index === 0) return true;
+  const flow = flowState();
+  const run = ['review', 'package'].includes(flow.stage) ? model.run : null;
+  if (run) {
+    if (index < 4) return true;
+    if (index === 4) return run.verification?.ok === true;
+    return flowReviewRecorded(run);
+  }
+  const accepted = Boolean(flow.datasetId) && !['goal', 'data', 'identity'].includes(flow.stage);
+  if (index === 1) return accepted;
+  if (index === 2) return accepted && Boolean(flow.plan) && flowCubeFaces()[1].complete;
+  return false;
+}
+
+function flowNextStage() {
+  const flow = flowState();
+  const current = flow.inspectionFace ?? flow.cubeFace;
+  return flowStageAccess(current + 1) ? current + 1 : current;
+}
+
+function flowCubeFaces() {
+  const flow = flowState();
+  const run = ['review', 'package'].includes(flow.stage) ? model.run : null;
+  const preview = flow.stage === 'data' ? flow.preview : null;
+  const counts =
+    run?.dataset_metadata?.counts || flowDataset()?.counts || flow.plan?.dataset_summary?.counts;
+  const review = run ? model.reviewDrafts[model.selectedRun] || run.latest_review?.review : null;
+  const findings = array(run?.analysis?.findings);
+  const source = run
+    ? screeningSource(run)
+    : flow.plan?.source_status?.selected
+      ? flow.plan.source_status
+      : null;
+  const checked = run
+    ? array(run.analysis?.coverage).filter((row) => row.status === 'executed').length
+    : array(flow.plan?.selected_checks).length;
+  const verified = run?.verification?.ok === true;
+  const datasetReady = Boolean(
+    !preview &&
+    flow.stage !== 'identity' &&
+    flow.stage !== 'goal' &&
+    flow.stage !== 'data' &&
+    (run ? verified : flow.plan && flowDataset() && flowDataset().status !== 'invalid'),
+  );
+  const planReady = run ? verified : Boolean(flow.plan?.can_run && flow.planInputs);
+  const sourcesReady = run
+    ? verified &&
+      (!array(run.case?.investigations).includes('screening_candidates') ||
+        Boolean(run.case?.watchlist_snapshot_id))
+    : Boolean(
+        datasetReady &&
+        flow.plan &&
+        (!flowGoal()?.requires_source || flow.plan.source_status?.selected),
+      );
+  const reviewReady = flowReviewRecorded(run);
+  return [
+    {
+      title: 'Records',
+      complete: datasetReady,
+      value: preview
+        ? formatNumber(preview.row_count)
+        : counts
+          ? formatNumber(Object.values(counts).reduce((sum, n) => sum + Number(n || 0), 0))
+          : '—',
+      detail: preview ? 'Rows ready for your confirmation' : counts ? countsText(counts) : '',
+    },
+    {
+      title: 'Sources',
+      complete: sourcesReady,
+      value: source ? formatNumber(source.record_count) : '—',
+      detail: source
+        ? source.record_count === undefined
+          ? 'Source retained in the saved investigation'
+          : 'Entries in the selected reference snapshot'
+        : sourcesReady
+          ? 'No reference list required'
+          : 'No reference list selected',
+    },
+    {
+      title: 'Plan',
+      complete: planReady,
+      value: checked ? formatNumber(checked) : '—',
+      detail: run
+        ? 'Checks executed on the retained records'
+        : flow.plan
+          ? 'Checks prepared from your records'
+          : 'A plan takes shape from your records',
+    },
+    {
+      title: 'Findings',
+      complete: verified,
+      value: run ? formatNumber(findings.length) : '—',
+      detail: run
+        ? 'Observations linked to their evidence'
+        : 'Run the plan to see what needs attention',
+    },
+    {
+      title: 'Assessment',
+      complete: reviewReady,
+      value: reviewReady ? 'Recorded' : review ? 'Draft' : '—',
+      detail: 'Case decision and notes',
+    },
+    {
+      title: 'Package',
+      complete: Boolean(reviewReady && run?.latest_export),
+      value: reviewReady && run?.latest_export ? 'Created' : reviewReady ? 'Ready' : '—',
+      detail: run?.latest_review
+        ? 'Recorded review and retained evidence'
+        : 'A complete review enables the evidence package',
+    },
+  ];
+}
+
+// The stored stage index is retained across saved workflows. The object itself
+// is a folding document box; it has no free rotation or drag navigation.
+function boxPanelState() {
+  return flowCubeFaces().map((face, index) => ({
+    ...face,
+    step: BOX_STEPS[index],
+    available: flowStageAccess(index),
+  }));
+}
+
+function flowCube() {
+  const flow = flowState();
+  const faces = boxPanelState();
+  return `<section class="flow-instrument" aria-label="Investigation box">
+    <div class="box-scene" aria-label="The investigation folds into an evidence box"></div>
+    <nav class="cube-controls box-stages" aria-label="Investigation stages">
+      ${faces.map((item, index) => `<button type="button" data-flow="cube" data-face="${index}" data-complete="${item.complete}" aria-label="Open ${esc(item.title)}" aria-description="Step ${index + 1} of 6. ${item.complete ? 'Completed' : 'Not completed'}" aria-pressed="${flow.cubeFace === index}" ${item.available ? '' : 'disabled'}><span class="stage-number" aria-hidden="true">${item.step}<span class="stage-check">✓</span></span>${esc(item.title)}</button>`).join('')}
+    </nav>
+  </section>`;
+}
+
+function flowGuide() {
+  const flow = flowState();
+  const run = ['review', 'package'].includes(flow.stage) ? model.run : null;
+  const findings = array(run?.analysis?.findings);
+  const face = flow.inspectionFace ?? flow.cubeFace;
+  const stages = flowCubeFaces();
+  const next = flowNextStage();
+  if (flow.stage === 'goal' && !flow.busyStep) return flowStartView();
+  let status = '';
+  let title = '';
+  let action = '<button type="button" data-flow="choose-file">Add records</button>';
+  if (flow.busyStep) {
+    status = flow.busyStep;
+    action = '';
+  } else if (flow.stage === 'identity') {
+    title = flow.identityResearch?.query || flow.subjectName;
+    status = flow.identityError
+      ? 'Identity lookup paused'
+      : array(flow.identityResearch?.candidates).length
+        ? 'Choose the public record that fits'
+        : 'No identity selected';
+    action = `<button type="button" data-flow="focus-step">${flow.identityError ? 'Resume identity lookup' : 'Review identity'} →</button>`;
+  } else if (flow.stage === 'data') {
+    status = flow.preview
+      ? `${countLabel(flow.preview.row_count, 'record')} / ${!flow.preview.can_import ? 'corrections needed' : flow.previewStale ? 'mapping changed' : 'ready to import'}`
+      : '';
+    action = flow.preview
+      ? '<button type="button" data-flow="focus-step">Review import ↓</button>'
+      : flow.surfaceOpen
+        ? ''
+        : '<button type="button" data-flow="choose-file">Choose files</button>';
+  } else if (flow.stage === 'plan' || flow.stage === 'running') {
+    if (flow.sourceRetry)
+      return `<div class="flow-guide"><p class="guide-status" role="status">Records saved. The screening list is unavailable.</p><button type="button" data-flow="investigate-dataset" data-id="${esc(flow.datasetId)}">Retry screening →</button>${flowWorkActions()}</div>`;
+    status = !flow.plan
+      ? 'Checks not yet prepared'
+      : flow.plan.can_run
+        ? `${countLabel(array(flow.plan.selected_checks).length, 'check')} ready`
+        : flowGoal()?.requires_source && !flow.plan?.source_status?.selected
+          ? 'Screening needs a reference list'
+          : 'Additional evidence needed';
+    action = !flow.plan
+      ? '<button type="button" data-flow="plan">Prepare checks →</button>'
+      : flow.plan.can_run
+        ? '<button type="button" data-flow="run">Run investigation</button><button type="button" class="text-button" data-flow="focus-step">Review plan ↓</button>'
+        : flowGoal()?.requires_source && !flow.plan?.source_status?.selected
+          ? '<button type="button" data-flow="fetch-run">Download list & run</button><button type="button" class="text-button" data-flow="focus-step">Source details ↓</button>'
+          : '<button type="button" data-flow="focus-step">Review requirements ↓</button>';
+  } else if (flow.stage === 'review' || flow.stage === 'package') {
+    title = run?.dataset_metadata?.label || run?.case?.question || '';
+    status =
+      run?.verification?.ok !== true
+        ? 'Retained files could not be verified'
+        : face >= 4
+          ? flowReviewRecorded(run)
+            ? run.latest_export
+              ? 'Evidence package created'
+              : 'Case decision recorded'
+            : model.reviewDrafts[model.selectedRun]
+              ? 'Case decision has unsaved changes'
+              : run?.latest_review
+                ? 'Recorded decision needs verification'
+                : 'Case decision not yet recorded'
+          : face === 3
+            ? `${countLabel(findings.length, 'observation')} / ${countLabel(array(run?.analysis?.coverage).filter((row) => row.status === 'executed').length, 'completed check')}`
+            : stages[face]?.detail || '';
+    action = `<button type="button" data-flow="focus-step">Open ${face === 5 ? 'evidence package' : (stages[face]?.title || 'investigation').toLowerCase()} →</button>`;
+  }
+  if (!flow.busyStep && flow.surfaceOpen && next !== face)
+    action = `<button type="button" data-flow="continue">${esc(stages[next].title)} →</button>`;
+  return `<div class="flow-guide">${title ? `<p class="overview-case-title">${esc(title)}</p>` : ''}${status ? `<p class="guide-status" role="status">${esc(status)}</p>` : ''}<div class="actions">${action}</div>${flow.busyStep ? '' : flowWorkActions()}</div>`;
+}
+
+function flowWorkActions() {
+  return '<div class="entry-tools" role="group" aria-label="Other investigations"><button type="button" class="text-button" data-flow="restart" aria-label="Start a new investigation">New</button><button type="button" class="text-button" data-flow="open-work" aria-label="Open saved work" aria-haspopup="dialog">Open</button></div>';
+}
+
+function flowStartView() {
+  const flow = flowState();
+  return `<div class="flow-guide flow-start">
+    <form id="flow-subject-form" class="subject-start">
+      <div class="subject-label"><label for="flow-subject-name">Who are you looking into?</label><button type="button" class="information-button" data-flow="screening-info" aria-label="About name screening" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6v.5"/></svg></button></div>
+      <div class="subject-entry"><input id="flow-subject-name" name="name" type="text" required maxlength="200" autocomplete="off" placeholder="Company or person" value="${esc(flow.subjectName)}"><button type="submit">Investigate →</button></div>
+    </form>
+    <div class="entry-tools" role="group" aria-label="Other ways to begin">
+      <button type="button" class="text-button" data-flow="choose-file" aria-label="Import records"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-3-3 3 3 3-3M4 12v4a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-4"/></svg><span>Import</span></button>
+      <button type="button" class="text-button" data-flow="open-work" aria-label="Open saved work" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6V5a1 1 0 0 1 1-1h4l2 2h6a1 1 0 0 1 1 1v1M3 8h14l-2 8H3z"/></svg><span>Open</span></button>
+    </div>
+  </div>`;
+}
+
+function savedRunTitle(run) {
+  const dataset = array(model.state.datasets).find((item) => item.dataset_id === run.dataset_id);
+  return dataset?.label || run.dataset_id || run.case_id || 'Untitled investigation';
+}
+
+function savedWorkView() {
+  const datasets = array(model.state.datasets).filter((item) => item.status !== 'invalid');
+  const runs = array(model.state.runs)
+    .filter((item) => item.status !== 'invalid' && item.verification_status !== 'failed')
+    .toSorted((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const investigations = runs.map((run) => {
+    const title = savedRunTitle(run);
+    return `<li><button type="button" class="saved-work-item" data-flow="resume" data-id="${esc(run.run_id)}"><span class="saved-work-name">${esc(title)}</span><span class="saved-work-meta"><span>${esc(displayDate(run.created_at))}</span><span>${countLabel(run.findings_count, 'observation')}${reviewRecorded(run.status) ? ' / Assessed' : ''}</span></span></button></li>`;
+  });
+  const records = datasets.map((dataset) => {
+    const selected = dataset.identity_association === 'user_selected_public_record';
+    const sources = array(dataset.identity_profile?.sources).map(
+      (source) =>
+        ({ 'GLEIF legal entity records': 'GLEIF', 'Wikidata public directory': 'Wikidata' })[
+          source
+        ] || source,
+    );
+    const kind = selected
+      ? sources.length
+        ? `Selected ${sources.join(' + ')} details`
+        : 'Selected public identity'
+      : dataset.identity_association === 'no_profile_selected'
+        ? 'Name only'
+        : dataset.intake_method === 'subject_name' && !dataset.identity_research_retained
+          ? 'Original name'
+          : '';
+    const title =
+      (selected && dataset.identity_profile?.name) || dataset.label || 'Untitled records';
+    const detail = [kind, countsText(dataset.counts)].filter(Boolean).join(' / ');
+    return `<li><button type="button" class="saved-work-item" data-flow="investigate-dataset" data-id="${esc(dataset.dataset_id)}"><span class="saved-work-name">${esc(title)}</span><span class="saved-work-meta"><span>${esc(detail)}</span><span>Investigate →</span></span></button></li>`;
+  });
+  return `<div class="saved-work">${model.state?.storage?.mode === 'browser' ? '<div class="actions browser-workspace-tools"><button type="button" class="text-button" data-browser-backup>Download workspace backup</button><label class="text-button browser-restore-label">Restore a backup<input type="file" accept=".zip,application/zip" data-browser-restore aria-label="Choose a workspace backup to restore"></label></div>' : ''}${investigations.length ? `<section aria-label="Investigations"><h3>Investigations</h3><ul>${investigations.join('')}</ul></section>` : ''}${records.length ? `<section aria-label="Records"><h3>Records</h3><ul>${records.join('')}</ul></section>` : ''}${!investigations.length && !records.length ? '<p class="small muted">No saved work yet.</p>' : ''}</div>`;
+}
+
+function flowGoalsView() {
+  return '';
+}
+
+function previewIssue(issue, preview) {
+  const text = String(issue);
+  const prefix = `${preview.file_name}:`;
+  const row = text.startsWith(prefix)
+    ? text.slice(prefix.length).match(/^(\d+): ([^:]+): (.+)$/)
+    : null;
+  if (!row) return text;
+  const [, number, field, detail] = row;
+  if (field === 'country' && detail.includes("'^[A-Z]{2}$'"))
+    return `Row ${number}: Country must be a recognized country name or two-letter country code.`;
+  if (field === 'lei' && detail.includes("'^[A-Z0-9]{20}$'"))
+    return `Row ${number}: LEI must contain 20 letters or digits.`;
+  if (field === 'name' && detail.includes('at least 1 character'))
+    return `Row ${number}: Counterparty name is required.`;
+  const title =
+    array(preview.target_fields).find((item) => item.id === field)?.title || human(field);
+  return `Row ${number}: ${title}: ${detail}`;
+}
+
+function previewActionWarnings(preview) {
+  return array(preview.warnings).filter(
+    (warning) =>
+      !/^(?:Same-name records remain separate|Original CSV bytes and unmapped columns|Text fields are trimmed|Aliases accept a JSON array|Generated \d+ deterministic record IDs)/.test(
+        warning,
+      ),
+  );
+}
+
+function flowPreviewView() {
+  const flow = flowState();
+  const preview = flow.preview;
+  if (!preview) return '';
+  return `<section class="flow-preview">
+    <div class="panel-heading"><div><h3>Import preview</h3><p>${esc(preview.file_name)} / ${countLabel(preview.row_count, 'row')}</p></div><div class="actions">${badge(flow.previewStale ? 'Mapping changed' : 'Preview only')}<button type="button" class="information-button" data-flow="preview-info" aria-label="About this import preview" aria-haspopup="dialog">ⓘ</button></div></div>
+    <div class="table-wrap"><table><thead><tr><th>File column</th><th>Use as</th><th>Values from file</th></tr></thead><tbody>
+      ${array(preview.columns)
+        .map(
+          (column, index) =>
+            `<tr><td><label for="mapping-${index}">${esc(column.name)}</label></td><td><select id="mapping-${index}" data-mapping="${esc(column.name)}"><option value="">Retain in original file only</option>${array(
+              preview.target_fields,
+            )
+              .map(
+                (field) =>
+                  `<option value="${esc(field.id)}" ${flow.mapping[column.name] === field.id ? 'selected' : ''}>${esc(field.title)}${field.required ? ' (required)' : ''}</option>`,
+              )
+              .join(
+                '',
+              )}</select></td><td class="small">${esc(array(column.samples).join(' / '))}</td></tr>`,
+        )
+        .join('')}
+    </tbody></table></div>
+    ${array(preview.transformations).length ? `<section class="conversion-summary"><h3>Values recognized</h3>${list(preview.transformations.map((item) => `${item.source_value} → ${item.normalized_value} (${countLabel(item.record_count, 'record')})`))}</section>` : ''}
+    ${previewActionWarnings(preview).length ? `<div class="callout warning">${list(previewActionWarnings(preview))}</div>` : ''}
+    ${array(preview.errors).length ? `<div class="callout error"><strong>Fix before importing</strong>${list(preview.errors.map((issue) => previewIssue(issue, preview)))}</div>` : ''}
+    <div class="preview-records">${array(preview.preview_rows)
+      .slice(0, 3)
+      .map(
+        (row) =>
+          `<div><strong>${esc(row.name || row.entity_id)}</strong><span>${esc([row.country, row.address].filter(Boolean).join(' / '))}</span></div>`,
+      )
+      .join('')}</div>
+    <div class="actions"><button type="button" class="text-button" data-flow="change-files">Change files</button>${flow.previewStale ? '<button type="button" class="secondary" data-flow="repreview">Update preview</button>' : ''}<button type="button" data-flow="import" ${!preview.can_import || flow.previewStale ? 'disabled' : ''}>Investigate these records →</button></div>
+  </section>`;
+}
+
+function flowDataView() {
+  if (flowState().preview) return flowPreviewView();
+  return `<div class="flow-intro identity-heading"><h1>Import records</h1><button type="button" class="information-button" data-flow="import-info" aria-label="About record formats and privacy" aria-haspopup="dialog">ⓘ</button></div>
+    <form id="flow-upload-form" class="object-upload"><label for="flow-vendor-file">Choose records <span>CSV or JSON</span></label><input id="flow-vendor-file" name="files" type="file" accept=".csv,.json" multiple required></form>
+    <div class="actions"><button class="text-button" type="button" data-flow="back-goal">Start with a name</button></div>`;
+}
+
+function identityProfile(candidate) {
+  const labels = {
+    country: 'Country',
+    address: 'Address',
+    city: 'City',
+    postal_code: 'Postal code',
+    registration_id: 'Registration',
+    lei: 'LEI',
+  };
+  const fields = Object.fromEntries(
+    Object.entries(candidate.fields || {})
+      .filter(([, value]) => value !== null && value !== '')
+      .map(([field, value]) => [labels[field] || human(field), value]),
+  );
+  const directory = array(candidate.claims).some((claim) => claim.kind === 'directory_claim');
+  const recordUrl =
+    array(candidate.claims).find((claim) => claim.field === 'name')?.source_url ||
+    array(candidate.source_urls)[0];
+  return `<div class="identity-profile"><h2>${esc(candidate.name)}</h2>${candidate.description ? `<p class="small muted">${esc(candidate.description)}</p>` : ''}${keyValues(fields)}<p class="identity-attribution small">${directory ? 'Wikidata directory record' : 'GLEIF reference record'}${recordUrl ? ` ${sourceLink(recordUrl, 'Source ↗')}` : ''}</p></div>`;
+}
+
+function flowIdentityView() {
+  const flow = flowState();
+  const report = flow.identityResearch;
+  if (!report)
+    return flow.identityError
+      ? `<div class="flow-intro"><h1>Identity lookup paused</h1><p>${esc(flow.subjectName || flowDataset()?.label || '')}</p></div><p class="callout error">${esc(flow.identityError)}</p><div class="actions"><button type="button" data-flow="research-identity">Retry lookup →</button><button type="button" class="text-button" data-flow="back-goal">Use another name</button></div>`
+      : '<div class="flow-intro"><h1>Looking up the identity…</h1></div>';
+  const candidates = array(report.candidates);
+  return `<div class="flow-intro identity-heading"><div><h1>${candidates.length ? 'Which identity fits?' : report.status === 'unavailable' ? 'Identity lookup unavailable' : 'No identity found'}</h1><p>${esc(report.query)}</p></div><button type="button" class="information-button" data-flow="identity-info" aria-label="About these identity sources" aria-haspopup="dialog">ⓘ</button></div>
+    ${candidates.length ? `<div class="identity-options">${candidates.map((candidate) => `<article>${identityProfile(candidate)}<button type="button" data-flow="identity-select" data-id="${esc(candidate.candidate_id)}">Use this identity →</button></article>`).join('')}</div>` : `<p>${report.status === 'unavailable' ? 'The public directories could not be reached. You can retry or screen the entered name.' : 'The public directories returned no usable profile. You can still screen the entered name.'}</p>`}
+    <div class="actions"><button type="button" class="text-button" data-flow="identity-skip">Continue with name only →</button><button type="button" class="text-button" data-flow="back-goal">Use another name</button>${!candidates.length ? '<button type="button" class="text-button" data-flow="research-identity">Retry lookup</button>' : ''}</div>`;
+}
+
+function identityResearchDetails(research) {
+  const candidate = research?.selected_candidate;
+  const claims = array(research?.claims || candidate?.claims);
+  return `${candidate ? identityProfile(candidate) : ''}${research?.notice ? `<p class="small muted">${esc(research.notice)}</p>` : ''}${array(research?.conflicts).length ? `<h3>Different values retained</h3>${list(research.conflicts.map((item) => `${human(item.field)}: supplied record ${item.retained_value}; public source ${item.source_value}`))}` : ''}${
+    claims.length
+      ? `<div class="table-wrap"><table><thead><tr><th>Field</th><th>Source value</th><th>Attribution</th></tr></thead><tbody>${claims
+          .map(
+            (claim) =>
+              `<tr><td>${esc(human(claim.field))}</td><td>${esc(claim.value)}</td><td>${sourceLink(claim.source_url, claim.source_label || claim.kind)}${array(
+                claim.reference_urls,
+              )
+                .map((url) => `<br>${sourceLink(url, 'Cited reference ↗')}`)
+                .join('')}</td></tr>`,
+          )
+          .join('')}</tbody></table></div>`
+      : ''
+  }<p class="small muted">${array(research?.providers)
+    .map((provider) => `${esc(provider.label || provider.id)}: ${esc(human(provider.status))}`)
+    .join('; ')}</p>`;
+}
+
+function flowCheckRows(checks, proposed) {
+  return array(checks)
+    .map(
+      (check) =>
+        `<div class="proposed-check"><div><h3>${esc(check.title || investigationTitle(check.investigation_id))}</h3><p>${esc(check.reason || check.description || '')}</p></div><button type="button" class="text-button" data-flow="check-info" data-check="${esc(check.investigation_id)}">${proposed ? 'Method ↗' : 'Needs data ↗'}</button></div>`,
+    )
+    .join('');
+}
+
+function flowSourceView(plan) {
+  if (!flowGoal()?.requires_source) return '';
+  const status = plan?.source_status || {};
+  return `<section class="flow-section"><h2>Screening source</h2>
+    <div class="field"><label for="flow-source">Retained source snapshot</label><select id="flow-source"><option value="">Choose a snapshot or fetch the official list</option>${model.state.sources.map((source) => `<option value="${esc(source.snapshot_id)}" ${source.snapshot_id === flowState().snapshotId ? 'selected' : ''}>${esc(sourceTitle(source.source_id))} / ${esc(displayDate(source.source_updated_at || source.fetched_at))} / ${source.ingestion_method === 'manual_import' ? 'manual import' : 'downloaded'}</option>`).join('')}</select></div>
+    ${status.selected ? `<div class="source-summary">${keyValues({ Source: status.title || sourceTitle(status.source_id), Entries: formatNumber(status.record_count), 'Source timestamp': displayDate(status.source_updated_at) || 'Unknown', Acquired: displayDate(status.fetched_at) || 'Unknown', 'Age relative to assessment date': status.age_days === null || status.age_days === undefined ? 'Unknown' : `${status.age_days} days` })}<p class="small muted">${esc(acquisitionNote(status))} ${esc(status.date_note || '')} ${esc(status.freshness_note || '')}</p></div>` : `<p class="small muted">Screening needs a retained public list. Fetching downloads that list; your records stay on this device.</p>`}
+    ${array(status.warnings).length ? `<div class="callout warning">${list(status.warnings)}</div>` : ''}
+    <button type="button" class="secondary" data-flow="fetch">Download official CSL & prepare plan →</button>
+    <p class="small muted">The Consolidated Screening List combines different restrictions. Each candidate requires identity and underlying-list review. Snapshot dates do not guarantee current or historical membership.</p>
+  </section>`;
+}
+
+function flowPlanView() {
+  const flow = flowState();
+  const plan = flow.plan;
+  const dataset = flowDataset();
+  if (flow.sourceRetry && !flow.busyStep)
+    return `<div class="flow-intro"><h1>Screening paused</h1><p>${esc(dataset?.label || 'Your records')} is retained. Retry to obtain the official list and continue the analysis.</p></div><div class="actions"><button type="button" data-flow="investigate-dataset" data-id="${esc(flow.datasetId)}">Retry screening →</button></div>`;
+  return `<div class="flow-intro"><h1>${plan?.can_run ? 'Prepared plan' : 'Plan'}</h1><p>${esc(plan?.case?.question || 'Select the records to prepare a plan.')}</p></div>
+    ${dataset?.synthetic ? `<p>${badge('Fictional records / real analysis', 'amber')}</p>` : ''}
+    <div class="plan-overview"><div><strong>${esc(countsText(plan?.dataset_summary?.counts || dataset?.counts))}</strong><span class="small muted">${esc(dataset?.label || flow.datasetId)}</span></div><div><span class="small muted">As of ${esc(displayDate(flow.asOf))}</span><button class="text-button" type="button" data-flow="plan-settings">Adjust the purpose, date, or source ↗</button></div></div>
+    ${flowGoal()?.requires_source && !plan?.source_status?.selected ? flowSourceView(plan) : ''}
+    ${
+      plan
+        ? `<div class="object-next"><button type="button" data-flow="run" ${plan.can_run ? '' : 'disabled'}>Run investigation →</button><button type="button" class="text-button" data-flow="back-data">Change records</button></div>
+    <section class="flow-section"><h2>${countLabel(array(plan.selected_checks).length, 'check')} prepared</h2>${flowCheckRows(plan.selected_checks, true)}${!plan.selected_checks.length ? '<p>No checks have enough evidence yet.</p>' : ''}</section>
+    ${array(plan.unavailable_checks).length ? `<section class="flow-section"><h2>Still needs evidence</h2>${flowCheckRows(plan.unavailable_checks, false)}</section>` : ''}
+    <div class="plan-notes">${list(plan.notes)}</div>`
+        : '<button type="button" data-flow="plan">Prepare the plan →</button>'
+    }
+    <p class="small muted">Results are observations for review. No findings does not establish clearance.</p>`;
+}
+
+function flowReviewNavigation(index, total) {
+  return `<div class="flow-review-nav"><button class="secondary" type="button" data-flow="review-step" data-index="${index - 1}" ${index === 0 ? 'disabled' : ''}>← Previous</button><span>${index < total ? `Observation ${index + 1} of ${total}` : 'Overall assessment'}</span><button type="button" data-flow="review-step" data-index="${index + 1}" ${index >= total ? 'disabled' : ''}>${index + 1 < total ? 'Next observation' : 'Overall assessment'} →</button></div>`;
+}
+
+function preparedReviewSummary(run, draft) {
+  const coverage = array(run.analysis?.coverage);
+  const findings = array(run.analysis?.findings);
+  const rows = array(draft.findings);
+  const executed = coverage.filter((row) => row.status === 'executed').length;
+  const missing = coverage.length - executed;
+  const open = rows.filter((row) => row.disposition === 'follow_up').length;
+  const escalated = rows.filter((row) => row.disposition === 'escalate').length;
+  const explained = rows.filter((row) => row.disposition === 'explained').length;
+  return [
+    `Assessment of: ${run.case?.question || 'the retained investigation'}`,
+    `${run.dataset_metadata?.synthetic ? 'This run uses fictional example records. ' : ''}The retained analysis completed ${countLabel(executed, 'check')} and generated ${countLabel(findings.length, 'observation')}. ${countLabel(missing, 'check')} could not be evaluated.`,
+    findings.length
+      ? `The individual assessments record ${open} for follow-up, ${escalated} for escalation, and ${explained} as explained. Follow the evidence requests and next steps recorded for each observation; an open item remains unresolved.`
+      : 'No observations were generated by the checks that ran. This does not establish that the underlying records are accurate, complete, or clear of restrictions.',
+    `${missing ? 'Obtain the missing evidence identified in the coverage before drawing conclusions about checks that could not run. ' : ''}The result is limited to the retained inputs and executed checks. It does not establish identity, a legal violation, or clearance.`,
+  ].join('\n\n');
+}
+
+function flowSummaryNeedsUpdate(draft) {
+  const ui = guidedReviewUi('__summary');
+  const saved = model.run.latest_review?.review;
+  if (
+    !ui.preparedSummary &&
+    saved?.summary &&
+    saved.summary === preparedReviewSummary(model.run, saved)
+  )
+    ui.preparedSummary = saved.summary;
+  return Boolean(
+    ui.preparedSummary &&
+    draft.summary === ui.preparedSummary &&
+    draft.summary !== preparedReviewSummary(model.run, draft),
+  );
+}
+
+function flowSummaryView(draft, completed, total) {
+  const ui = guidedReviewUi('__summary');
+  const proposed = preparedReviewSummary(model.run, draft);
+  const stale = flowSummaryNeedsUpdate(draft);
+  const complete = completed === total;
+  return `<section class="guided-review-rationale"><div class="panel-heading"><h2>${draft.summary ? 'Your overall assessment' : 'Prepared overall assessment'}</h2><button type="button" class="text-button" data-flow="summary-edit">${ui.editing.summary ? 'Keep these words' : 'Edit the summary'}</button></div>
+    ${
+      ui.editing.summary
+        ? `<div class="field"><label for="review-summary">Overall assessment and next steps</label><textarea id="review-summary" name="summary" required minlength="12">${esc(draft.summary || '')}</textarea></div>`
+        : `<textarea name="summary" hidden aria-hidden="true" tabindex="-1">${esc(draft.summary || '')}</textarea><div class="prepared-review-copy">${(
+            draft.summary || proposed
+          )
+            .split('\n\n')
+            .map((paragraph) => `<p>${esc(paragraph)}</p>`)
+            .join('')}</div>`
+    }
+    ${stale ? '<p class="callout warning">The individual assessments changed after this summary was prepared. Update it or edit it before saving.</p>' : ''}
+    ${!draft.summary || stale ? `<button type="button" data-flow="summary-adopt" ${complete ? '' : 'disabled'}>${stale ? 'Update the summary from these assessments' : 'Use this summary'}</button>` : ''}
+    <p class="small muted">${complete ? 'Prepared from the retained results and the actions you selected. Adopt or edit it before recording the review.' : 'Assess each observation first. The summary will reflect your selected actions.'}</p>
+  </section>`;
+}
+
+function legacyFlowReviewView() {
+  const flow = flowState();
+  const run = model.run;
+  if (!run) return empty('Run unavailable', 'Open a retained run from Findings & review.');
+  const findings = array(run.analysis?.findings);
+  const draft = model.reviewDrafts[model.selectedRun] || run.latest_review?.review || {};
+  const index = Math.min(flow.reviewIndex, findings.length);
+  const completed = array(draft.findings).filter(reviewRowComplete).length;
+  const coverage = array(run.analysis?.coverage);
+  const summary = index === findings.length;
+  return `<div class="flow-intro"><h1>${summary ? 'Overall assessment' : 'Assessment'}</h1><p>${esc(run.case?.question)}</p></div>
+    ${run.dataset_metadata?.synthetic ? `<p>${badge('Synthetic example', 'amber')}</p>` : ''}
+    <div class="review-progress"><strong>${countLabel(findings.length, 'observation')}</strong><span>${countLabel(coverage.filter((row) => row.status === 'executed').length, 'check')} completed</span><span>${countLabel(coverage.filter((row) => row.status !== 'executed').length, 'check')} not evaluated</span></div>
+    ${run.verification?.ok ? '' : '<div class="callout error">Retained files did not pass verification. Review cannot be saved or exported.</div>'}
+    ${array(run.review_validation?.issues).length ? `<div class="callout error">${list(run.review_validation.issues)}</div>` : ''}
+    <button type="button" class="text-button" data-flow="coverage">View coverage and missing evidence ↗</button>
+    <form id="review-form" data-dirty="${model.reviewDrafts[model.selectedRun] ? 'true' : 'false'}">
+      <div class="review-toolbar"><span id="review-count" class="review-count" aria-live="polite">${completed} of ${findings.length} observations have all assessment fields filled.</span><button type="button" class="text-button" data-flow="review-summary">Go to overall assessment →</button></div>
+      ${
+        summary
+          ? `${flowSummaryView(draft, completed, findings.length)}<div class="field"><label for="reviewer">Record the assessment under your name</label><input id="reviewer" name="reviewer" value="${esc(draft.reviewer || '')}" required minlength="2" maxlength="200" autocomplete="name"><small>This identifies the reviewer; it is not external authentication.</small></div>
+      ${
+        findings.length
+          ? `<div class="assessment-index">${findings
+              .map((finding, findingIndex) => {
+                const row = array(draft.findings).find(
+                  (item) => item.finding_id === finding.finding_id,
+                );
+                return `<button class="secondary" type="button" data-flow="review-step" data-index="${findingIndex}"><span>${findingIndex + 1}. ${esc(finding.title)}</span>${badge(reviewRowComplete(row) ? human(row.disposition) : 'Needs assessment', reviewRowComplete(row) ? '' : 'amber')}</button>`;
+              })
+              .join('')}</div>`
+          : '<div class="callout">No observations were generated. Review the coverage and unavailable evidence before recording your overall assessment. This is not a clearance.</div>'
+      }
+      <label class="inline-check"><input name="acknowledge_limitations" type="checkbox" required ${draft.acknowledge_limitations ? 'checked' : ''}><span>I reviewed the coverage and limitations, including missing evidence. These observations and identity candidates do not establish a legal violation or clearance.</span></label>
+      <div class="form-actions"><button type="submit" ${run.verification?.ok ? '' : 'disabled'}>Save complete review & continue →</button><span class="small muted">Required fields are checked. Judgment quality remains your responsibility.</span></div>`
+          : `<input type="hidden" name="reviewer" value="${esc(draft.reviewer || '')}"><input type="hidden" name="summary" value="${esc(draft.summary || '')}">${draft.acknowledge_limitations ? '<input type="hidden" name="acknowledge_limitations" value="true">' : ''}${guidedReviewFinding(findings[index], index, array(draft.findings).find((row) => row.finding_id === findings[index].finding_id) || {})}`
+      }
+      ${flowReviewNavigation(index, findings.length)}
+    </form>`;
+}
+
+function caseDecisionTitle(decision) {
+  return (
+    { keep_open: 'Keep open', escalate: 'Escalate', conclude: 'Conclude' }[decision] ||
+    'Not recorded'
+  );
+}
+
+function caseReviewDraft() {
+  const review = model.reviewDrafts[model.selectedRun] || model.run?.latest_review?.review;
+  return review?.schema_version === '2.1' ? review : {};
+}
+
+function caseReviewView() {
+  const run = model.run;
+  if (!run) return empty('Run unavailable', 'Open a retained investigation.');
+  if (!run.verification?.ok)
+    return `<div class="flow-intro"><h1>Assessment unavailable</h1></div><div class="callout error"><p>The retained files did not pass verification. Existing decision drafts are kept.</p>${list(run.verification?.issues)}</div><button type="button" class="secondary" data-action="verify">Verify files again</button>`;
+  const draft = caseReviewDraft();
+  const saved = run.latest_review?.review;
+  const coverage = array(run.analysis?.coverage);
+  const complete = coverage.filter((row) => row.status === 'executed').length;
+  const gaps = coverage.length - complete;
+  return `<div class="flow-intro case-heading"><h1>Assessment</h1><p>${esc(run.dataset_metadata?.label || run.case?.question || 'Retained investigation')}</p>
+    <p class="small muted">${countLabel(array(run.analysis?.findings).length, 'observation')} / ${countLabel(complete, 'completed check')}${gaps ? ` / ${countLabel(gaps, 'check')} not evaluated` : ''}${run.dataset_metadata?.synthetic ? ' / Fictional example' : ''}</p></div>
+    ${array(run.review_validation?.issues).length ? `<div class="callout error">${list(run.review_validation.issues)}</div>` : ''}
+    <div class="actions"><button type="button" class="text-button" data-flow="finding-list">Review findings ↗</button><button type="button" class="text-button" data-flow="coverage">Checks and sources ↗</button></div>
+    ${saved ? `<p class="small muted">Recorded by ${esc(saved.reviewer)}${saved.schema_version === '2.1' ? `: ${esc(caseDecisionTitle(saved.decision))}` : ' in an earlier review'}. Saving keeps that record and adds a revision.</p>` : ''}
+    <form id="review-form" data-review-scope="case" class="case-decision-form" data-dirty="${model.reviewDrafts[model.selectedRun] ? 'true' : 'false'}">
+      <h2>Case decision</h2>
+      <fieldset class="case-decisions"><legend class="sr-only">Decision for this investigation</legend>
+        ${[
+          ['keep_open', 'Keep open', 'Further evidence needed'],
+          ['escalate', 'Escalate', 'Specialist review needed'],
+          ['conclude', 'Conclude', 'Record your conclusion'],
+        ]
+          .map(
+            ([value, title, detail]) =>
+              `<label><input type="radio" name="decision" value="${value}" required ${draft.decision === value ? 'checked' : ''}><span><strong>${title}</strong><small>${detail}</small></span></label>`,
+          )
+          .join('')}
+      </fieldset>
+      <div class="field"><label for="review-summary">Case note <span class="muted">Optional unless concluding</span></label><textarea id="review-summary" name="summary" rows="3" minlength="12" maxlength="10000" placeholder="Add evidence, reasoning, or a handoff note.">${esc(draft.summary || '')}</textarea></div>
+      <div class="field case-reviewer"><label for="reviewer">Your name</label><input id="reviewer" name="reviewer" value="${esc(draft.reviewer || '')}" required minlength="2" maxlength="200" autocomplete="name"></div>
+      <label class="inline-check"><input type="checkbox" name="acknowledge_limitations" required ${draft.acknowledge_limitations ? 'checked' : ''}><span>I reviewed the findings and coverage, including missing evidence.</span></label>
+      <div class="form-actions"><button type="submit" ${run.verification?.ok ? '' : 'disabled'}>Record case decision →</button></div>
+    </form>`;
+}
+
+function flowReviewView() {
+  // Preserve unfinished legacy drafts in their original contract, never silently convert them.
+  if (model.reviewDrafts[model.selectedRun]?.schema_version === '2.0')
+    return legacyFlowReviewView();
+  return caseReviewView();
+}
+
+function renderReview() {
+  if (model.reviewDrafts[model.selectedRun]?.schema_version === '2.0') return renderLegacyReview();
+  return `<section class="panel case-review-panel">${caseReviewView()}</section>`;
+}
+
+function findingChart(finding) {
+  if (finding.investigation_id !== 'volume_spike') return '';
+  const metrics = finding.metrics || {};
+  const counts = [
+    ...Object.entries(metrics.prior_month_counts || {}).sort(([a], [b]) => a.localeCompare(b)),
+    [metrics.month, metrics.current_count],
+  ];
+  if (
+    !metrics.month ||
+    !counts.length ||
+    counts.some(([, value]) => !Number.isFinite(Number(value)) || Number(value) < 0)
+  )
+    return '';
+  const maximum = Math.max(1, ...counts.map(([, value]) => Number(value)));
+  return `<figure class="shipment-chart"><figcaption>Monthly shipments <span>Retained records</span></figcaption><div class="shipment-bars" role="img" aria-label="${esc(counts.map(([month, value]) => `${month}: ${value}`).join('; '))}">${counts.map(([month, value], index) => `<div class="shipment-bar ${index === counts.length - 1 ? 'current-month' : ''}"><strong>${esc(value)}</strong><div class="shipment-bar-track"><svg aria-hidden="true" viewBox="0 0 50 128" preserveAspectRatio="none"><rect x="0" y="${128 - (Number(value) / maximum) * 128}" width="50" height="${(Number(value) / maximum) * 128}" rx="2"/></svg></div><span>${esc(month)}</span></div>`).join('')}</div><p class="small muted">Prior monthly mean: ${esc(metrics.prior_mean)}. Current count: ${esc(metrics.current_count)}.</p></figure>`;
+}
+
+function evidenceCell(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  if (Array.isArray(value))
+    return value
+      .map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item)))
+      .join(', ');
+  if (typeof value === 'object')
+    return Object.entries(value)
+      .map(([key, item]) => `${human(key)}: ${evidenceCell(item)}`)
+      .join('; ');
+  return String(value);
+}
+
+function evidenceTableCell(key, value) {
+  if (['entity_id', 'exporter_id', 'importer_id', 'parent_id', 'child_id'].includes(key)) {
+    const name = retainedEntityName(value);
+    if (name && name !== String(value))
+      return `<span class="evidence-name">${esc(name)}</span><small class="evidence-id muted">${esc(value)}</small>`;
+  }
+  return esc(evidenceCell(value));
+}
+
+function findingEvidenceRows(finding) {
+  if (!model.run?.verification?.ok)
+    return '<p class="callout error">The retained files could not be verified. Reopen the investigation after restoring them.</p>';
+  const ui = guidedReviewUi(finding.finding_id);
+  const evidence = ui.evidence;
+  const count = array(finding.record_refs).length + array(finding.source_refs).length;
+  if (!count) return '<p class="small muted">This result cites no individual records.</p>';
+  const status = ui.evidenceError
+    ? `<div class="callout error"><p>${esc(ui.evidenceError)}</p><button type="button" class="secondary" data-flow="finding-records" data-id="${esc(finding.finding_id)}" data-offset="${ui.evidenceRequestedOffset || 0}">Retry records</button></div>`
+    : ui.evidenceLoading || !evidence
+      ? '<p class="small muted" role="status">Loading the cited records…</p>'
+      : '';
+  if (!evidence) return status;
+  const groups = new Map();
+  array(evidence.rows).forEach((row) => {
+    const table = row.table;
+    if (!groups.has(table)) groups.set(table, []);
+    groups.get(table).push(row);
+  });
+  const columns = {
+    shipments: ['shipment_id', 'date', 'exporter_id', 'importer_id', 'qty', 'unit'],
+    payments: ['payment_id', 'shipment_id', 'date', 'amount', 'ccy', 'bank', 'broker'],
+    entities: ['entity_id', 'name', 'country', 'address'],
+    ownership: ['parent_id', 'child_id', 'ownership_percent'],
+    diligence: ['evidence_id', 'entity_id', 'date', 'title', 'text'],
+    source: ['name', 'list_name', 'countries'],
+  };
+  return (
+    status +
+    [...groups.entries()]
+      .map(([table, rows]) => {
+        const keys = (columns[table] || Object.keys(rows[0]?.record || {}).slice(0, 5)).filter(
+          (key) => rows.some((row) => row.record?.[key] !== undefined),
+        );
+        return `<div class="evidence-table"><h3>${esc(human(table === 'source' ? 'Official listings' : table))}</h3><div class="table-wrap"><table><thead><tr>${keys.map((key) => `<th scope="col">${esc(human(key))}</th>`).join('')}<th scope="col">Provenance</th></tr></thead><tbody>${rows.map((row) => `<tr>${keys.map((key) => `<td>${evidenceTableCell(key, row.record?.[key])}${row.identity_research?.applied_fields?.[key] ? '<small class="muted">Public-source claim</small>' : ''}</td>`).join('')}<td><button type="button" class="text-button" data-action="${row.kind === 'source' ? 'source-evidence' : 'evidence'}" data-id="${esc(row.id)}" ${row.kind === 'source' ? '' : `data-table="${esc(table)}"`} aria-label="Open ${esc(table)} ${esc(row.id)} with provenance">View ↗</button></td></tr>`).join('')}</tbody></table></div></div>`;
+      })
+      .join('') +
+    (evidence.total > evidence.rows.length
+      ? `<div class="actions evidence-pagination"><span class="small muted">${evidence.offset + 1}–${evidence.offset + evidence.rows.length} of ${evidence.total} records</span><button class="text-button" type="button" data-flow="finding-records" data-id="${esc(finding.finding_id)}" data-offset="${Math.max(0, evidence.offset - 40)}" ${ui.evidenceLoading || evidence.offset === 0 ? 'disabled' : ''}>Previous</button><button class="text-button" type="button" data-flow="finding-records" data-id="${esc(finding.finding_id)}" data-offset="${evidence.offset + evidence.rows.length}" ${ui.evidenceLoading || evidence.offset + evidence.rows.length >= evidence.total ? 'disabled' : ''}>Next</button></div>`
+      : '')
+  );
+}
+
+function findingEvidenceIsVisible(runId, findingId) {
+  const flow = flowState();
+  const finding = array(model.run?.analysis?.findings)[flow.findingIndex];
+  return (
+    model.selectedRun === runId &&
+    finding?.finding_id === findingId &&
+    ((model.page === 'investigate' &&
+      flow.surfaceOpen &&
+      (flow.inspectionFace ?? flow.cubeFace) === 3) ||
+      (model.page === 'runs' && model.runTab === 'findings'))
+  );
+}
+
+async function loadFindingEvidence(finding, offset = 0) {
+  const runId = model.selectedRun;
+  const retainedRun = model.run;
+  if (!retainedRun?.verification?.ok) return;
+  const ui = guidedReviewUi(finding.finding_id);
+  if (ui.evidence?.offset === offset || ui.evidenceLoading) return;
+  ui.evidenceLoading = true;
+  ui.evidenceError = '';
+  ui.evidenceRequestedOffset = offset;
+  const updateRecords = () => {
+    if (findingEvidenceIsVisible(runId, finding.finding_id)) {
+      const region = document.querySelector('#finding-evidence-records');
+      if (region) {
+        region.setAttribute('aria-busy', String(ui.evidenceLoading));
+        region.innerHTML = findingEvidenceRows(finding);
+      }
+    }
+  };
+  updateRecords();
+  try {
+    const evidence = await api(
+      `runs/${encodeURIComponent(runId)}/finding-evidence?finding_id=${encodeURIComponent(finding.finding_id)}&offset=${offset}`,
+    );
+    // This cache belongs to this immutable run/finding, even if its view has changed.
+    ui.evidence = evidence;
+  } catch (error) {
+    // Keep the last verified page during a temporary connection/server failure.
+    // A rejected reference or failed integrity check invalidates that cache.
+    if (error.status >= 400 && error.status < 500) ui.evidence = null;
+    ui.evidenceError = error.message || 'The cited records could not be loaded.';
+    if (error.status === 409) {
+      retainedRun.verification = { ok: false, issues: [ui.evidenceError] };
+      if (model.run === retainedRun && ['investigate', 'runs'].includes(model.page)) {
+        preserveDrafts();
+        if (model.page === 'investigate') renderGuided();
+        else if (model.page === 'runs') renderRuns();
+        announce(ui.evidenceError, 'error');
+      }
+    }
+  } finally {
+    ui.evidenceLoading = false;
+    updateRecords();
+  }
+}
+
+function loadVisibleFindingEvidence() {
+  const flow = flowState();
+  const finding = array(model.run?.analysis?.findings)[flow.findingIndex];
+  if (finding && findingEvidenceIsVisible(model.selectedRun, finding.finding_id)) {
+    const ui = guidedReviewUi(finding.finding_id);
+    if (!ui.evidence && !ui.evidenceError) loadFindingEvidence(finding);
+  }
+}
+
+function findingEvidenceView(run, index) {
+  if (run.verification?.ok === false)
+    return '<p class="callout error">The retained files failed verification. This finding and its evidence are unavailable.</p>';
+  const findings = array(run.analysis?.findings);
+  const finding = findings[index];
+  if (!finding) return empty('Finding unavailable', 'Return to the retained findings.');
+  const chart = findingChart(finding);
+  const values =
+    finding.investigation_id !== 'screening_candidates' && !chart
+      ? Object.fromEntries(
+          Object.entries(finding.metrics || {}).map(([key, value]) => [
+            human(key),
+            evidenceCell(value),
+          ]),
+        )
+      : {};
+  return `<article class="finding-detail"><nav class="finding-detail-nav" aria-label="Finding navigation"><button type="button" class="text-button" data-flow="finding-list">← All findings</button><button type="button" class="text-button" data-flow="review-summary">Case assessment ↗</button></nav>
+    <header class="flow-intro"><span class="object-label">${esc(
+      array(finding.entity_ids)
+        .map((id) => retainedEntityName(id, run))
+        .join(', '),
+    )}${run.dataset_metadata?.synthetic ? ' / Fictional example' : ''}</span><h1>${esc(finding.title)}</h1><p>${esc(findingObservation(finding))}</p></header>
+    ${candidateFacts(finding)}${chart}${Object.keys(values).length ? `<section class="computed-evidence">${keyValues(values)}</section>` : ''}
+    <section class="finding-records"><div class="panel-heading"><h2>Cited evidence</h2><span class="small muted">${countLabel(array(finding.record_refs).length + array(finding.source_refs).length, 'record')}</span></div><div id="finding-evidence-records" aria-live="polite">${run.verification?.ok ? findingEvidenceRows(finding) : '<p class="callout error">The retained files failed verification. These records cannot be opened.</p>'}</div></section>
+    <section class="finding-limits"><h2>Limits of this result</h2>${list([...array(finding.unknowns), ...array(finding.alternatives)])}<h2>Evidence that could resolve it</h2>${list(finding.falsifiers)}</section>
+    <nav class="finding-detail-nav" aria-label="Adjacent findings"><button type="button" class="text-button" data-flow="review-step" data-index="${index - 1}" ${index === 0 ? 'disabled' : ''}>← Previous finding</button><span class="small muted">${index + 1} / ${findings.length}</span><button type="button" class="text-button" data-flow="review-step" data-index="${index + 1}" ${index === findings.length - 1 ? 'disabled' : ''}>Next finding →</button></nav>
+  </article>`;
+}
+
+function packageDownload(artifact) {
+  return artifact?.download_url
+    ? `<a class="download-link" href="${esc(artifact.download_url)}" download>Download evidence package ↓</a>`
+    : '';
+}
+
+function flowPackageView() {
+  const run = model.run;
+  const review = run?.latest_review?.review;
+  const rows = array(review?.findings);
+  const ready = flowReviewRecorded(run);
+  const pending = Boolean(review && model.reviewDrafts[model.selectedRun] && !ready);
+  return `<div class="flow-intro"><h1>Evidence package</h1><p>Original records, results, and the recorded assessment.</p></div>
+    ${run?.dataset_metadata?.synthetic ? `<p>${badge('Synthetic example', 'amber')}</p>` : ''}
+    <section class="flow-section"><h2>Recorded assessment</h2>${review?.schema_version === '2.1' ? `<h3>${esc(caseDecisionTitle(review.decision))}</h3>${review.summary ? `<p>${esc(review.summary)}</p>` : ''}` : `<p>${esc(review?.summary || 'Record a case decision before creating an evidence package.')}</p>`}<p class="small muted">Reviewer: ${esc(review?.reviewer || 'Not recorded')}</p>
+      ${review?.schema_version === '2.1' ? `<p class="small muted">Assessment covers ${countLabel(array(review.scope_finding_ids).length, 'observation')}.</p>` : `<div class="review-progress"><span>${rows.filter((row) => row.disposition === 'follow_up').length} follow up</span><span>${rows.filter((row) => row.disposition === 'escalate').length} escalate</span><span>${rows.filter((row) => row.disposition === 'explained').length} explained</span></div>`}
+      ${pending ? '<p class="callout">This saved decision has unsaved edits. Record those changes before creating a package.</p>' : ''}
+      <div class="actions">${ready && run.latest_export ? '' : `<button type="button" data-action="export" ${ready ? '' : 'disabled'}>Create evidence package →</button>`}<button type="button" class="${pending ? '' : 'secondary'}" data-flow="review-summary">${pending ? 'Finish the case decision' : 'Revise assessment'}</button></div><div id="run-result" class="result-box">${ready && run.latest_export ? packageDownload(run.latest_export) : ''}</div>
+    </section><section class="flow-section"><h2>Evidence integrity</h2><p class="small muted">Verify the saved files or repeat the analysis against them.</p><div class="actions"><button type="button" class="secondary" data-action="verify">Verify files</button><button type="button" class="secondary" data-action="replay">Replay analysis</button></div></section>`;
+}
+
+function flatSections(html) {
+  return html
+    .replace(
+      /<details[^>]*>\s*<summary>([\s\S]*?)<\/summary>/g,
+      '<section class="flow-section"><h3>$1</h3>',
+    )
+    .replace(/<\/details>/g, '</section>');
+}
+
+function showFlowDocument(title, content) {
+  document.querySelector('#dialog-title').textContent = title;
+  document.querySelector('#dialog-content').innerHTML = flatSections(content);
+  document.querySelector('#evidence-dialog').showModal();
+}
+
+function flowScreeningBrief(run) {
+  if (run.verification?.ok === false)
+    return '<p class="callout error">The retained files failed verification. Screening outcomes are unavailable.</p>';
+  const coverage = array(run.analysis?.coverage).find(
+    (row) => row.investigation_id === 'screening_candidates',
+  );
+  if (!coverage) return '';
+  if (coverage.status !== 'executed')
+    return `<section class="screening-brief"><h2>List screening could not be completed</h2><p>${esc(coverage.reason || 'The required reference source was unavailable.')}</p></section>`;
+  const candidates = array(run.analysis?.findings).filter(
+    (finding) => finding.investigation_id === 'screening_candidates',
+  );
+  const source = screeningSource(run);
+  return `<section class="screening-brief"><span class="object-label">Official list screening</span><h2>${candidates.length ? `${countLabel(candidates.length, 'candidate')} for identity review` : 'No name or identifier candidates returned'}</h2>
+    <p>Checked ${countLabel(coverage.records_evaluated, 'record')} against ${source?.record_count !== undefined ? `${countLabel(source.record_count, 'entry', 'entries')} in ` : ''}the retained ${esc(source?.source_id ? sourceTitle(source.source_id) : 'screening list')}.</p>
+    ${source?.fetched_at ? `<p class="small muted">List acquired ${esc(displayDate(source.fetched_at))}.</p>` : ''}
+    <p class="small muted">This comparison does not confirm identity or establish clearance.</p></section>`;
+}
+
+function flowFindingsView() {
+  const run = ['review', 'package'].includes(flowState().stage) ? model.run : null;
+  const findings = array(run?.analysis?.findings);
+  if (!run) return flowNotReady('No results yet');
+  if (run.verification?.ok === false)
+    return '<div class="flow-intro"><h1>Findings unavailable</h1></div><p class="callout error">The retained files failed verification. These results cannot be relied on or exported.</p><button type="button" class="text-button" data-flow="coverage">Inspect coverage and diagnostics ↗</button>';
+  if (Number.isSafeInteger(flowState().findingIndex))
+    return findingEvidenceView(run, flowState().findingIndex);
+  const rows = findings.map((finding, index) => ({ finding, index }));
+  const coverage = array(run.analysis?.coverage);
+  const completed = coverage.filter((row) => row.status === 'executed').length;
+  const missingChecks = coverage.length - completed;
+  const observations = rows.filter(({ finding }) => finding.investigation_id !== 'data_quality');
+  const missing = rows.filter(({ finding }) => finding.investigation_id === 'data_quality');
+  const indexView = (items) =>
+    `<div class="finding-index">${items.map(({ finding, index }) => `<button class="secondary" type="button" data-flow="review-step" data-index="${index}"><span class="object-label">${String(index + 1).padStart(2, '0')}</span><span><strong>${esc(finding.title)}</strong><small>${esc(findingObservation(finding))}</small></span><span aria-hidden="true">↗</span></button>`).join('')}</div>`;
+  return `<div class="flow-intro"><h1>${esc(run.dataset_metadata?.label || 'Findings')}</h1><p>${countLabel(completed, 'check')} completed.${missingChecks ? ` ${countLabel(missingChecks, 'check')} could not run.` : ''}</p></div>
+    ${run.dataset_metadata?.synthetic ? `<p>${badge('Fictional example / real analysis', 'amber')}</p>` : ''}
+    ${flowScreeningBrief(run)}
+    ${observations.length ? `<section class="flow-section"><h2>${countLabel(observations.length, 'observation')}</h2>${indexView(observations)}</section>` : ''}
+    ${missing.length ? `<section class="flow-section"><div class="panel-heading"><h2>Missing context</h2>${run.dataset_metadata?.counts?.entities === 1 ? '<button type="button" class="text-button" data-flow="research-identity">Research identity →</button>' : ''}</div>${indexView(missing)}</section>` : ''}
+    <div class="object-next"><button type="button" data-flow="review-summary">Case assessment →</button><button class="text-button" type="button" data-flow="coverage">Checks and sources ↗</button></div>`;
+}
+
+function flowNotReady(description) {
+  const flow = flowState();
+  const next =
+    flow.stage === 'review'
+      ? 'Open the case assessment'
+      : flow.stage === 'package'
+        ? 'Open the recorded assessment'
+        : flow.plan
+          ? 'Continue with the prepared plan'
+          : flow.datasetId
+            ? 'Prepare the next step'
+            : 'Start with your records';
+  const detail =
+    flow.stage === 'review'
+      ? 'The findings and their evidence are ready.'
+      : flow.datasetId
+        ? 'Continue with the plan prepared from your records.'
+        : 'Add records to prepare the relevant checks.';
+  return `<div class="flow-intro"><h1>${esc(description)}</h1><p>${esc(detail)}</p></div><div class="object-next"><button type="button" data-flow="continue">${next} →</button></div>`;
+}
+
+function flowFaceView(index) {
+  const flow = flowState();
+  const run = ['review', 'package'].includes(flow.stage) ? model.run : null;
+  if (index === 0) {
+    if (flow.stage === 'identity') return flowIdentityView();
+    if (!flow.datasetId || flow.stage === 'data') return flowDataView();
+    const counts = run?.dataset_metadata?.counts || flowDataset()?.counts;
+    const research = run?.identity_research || flowDataset()?.identity_research;
+    if (research?.selected_candidate)
+      return `<div class="flow-intro"><h1>Records</h1></div>${identityProfile(research.selected_candidate)}<div class="object-next"><button type="button" data-flow="continue">Sources →</button><button type="button" class="text-button" data-flow="identity-info">Source details ↗</button></div>`;
+    return `<div class="flow-intro"><h1>Records</h1><p>${esc(countsText(counts))}</p></div><div class="records-inventory">${Object.entries(
+      counts || {},
+    )
+      .map(
+        ([key, value]) =>
+          `<div><span>${esc(human(key))}</span><strong>${formatNumber(value)}</strong></div>`,
+      )
+      .join(
+        '',
+      )}</div><div class="object-next"><button type="button" data-flow="continue">Sources →</button>${counts?.entities === 1 ? '<button type="button" class="text-button" data-flow="research-identity">Research identity</button>' : ''}<button type="button" class="secondary" data-flow="back-data">Choose other records</button></div>`;
+  }
+  if (index === 1) {
+    if (run) {
+      const snapshotId = run.case?.watchlist_snapshot_id;
+      const source = screeningSource(run);
+      return `<div class="flow-intro"><h1>Sources</h1><p>${source?.source_id ? esc(sourceTitle(source.source_id)) : snapshotId ? `Snapshot ${esc(snapshotId)} is retained in this run.` : 'No screening list was required.'}</p></div>${source?.source_id ? keyValues({ Entries: source.record_count, 'Source timestamp': displayDate(source.source_updated_at), Acquired: displayDate(source.fetched_at) }) : ''}${run.identity_research ? `<section class="flow-section"><h2>Identity research</h2>${identityResearchDetails(run.identity_research)}</section>` : ''}<button type="button" data-flow="continue">Plan →</button>`;
+    }
+    if (flowGoal()?.requires_source)
+      return `<div class="flow-intro"><h1>Sources</h1></div>${flowSourceView(flow.plan)}${flowStageAccess(2) ? '<button type="button" data-flow="continue">Plan →</button>' : ''}`;
+    return `<div class="flow-intro"><h1>Sources</h1><p>No reference list is required for the checks supported by these records.</p></div>${flowStageAccess(2) ? '<button type="button" data-flow="continue">Plan →</button>' : ''}`;
+  }
+  if (index === 2) {
+    if (run)
+      return `<div class="flow-intro"><h1>Executed plan</h1><p>${esc(run.case?.question)}</p></div>${flatSections(renderCoverage())}<div class="object-next"><button type="button" data-flow="continue">Findings →</button></div>`;
+    return flow.plan || flow.datasetId ? flowPlanView() : flowNotReady('Plan not prepared');
+  }
+  if (index === 3) return flowFindingsView();
+  if (index === 4) return run ? flowReviewView() : flowNotReady('No observations to assess yet');
+  return run?.latest_review
+    ? flowPackageView()
+    : flowNotReady('Complete the assessment to create a package');
+}
+
+function flowSettingsView() {
+  const flow = flowState();
+  return `<div class="flow-intro"><h1>Investigation settings</h1><p>Adjust the purpose, assessment date, or reference source.</p></div><div class="field"><label for="flow-goal">Investigation purpose</label><select id="flow-goal">${array(
+    model.state.workflow_goals,
+  )
+    .map(
+      (goal) =>
+        `<option value="${esc(goal.id)}" ${goal.id === flow.goalId ? 'selected' : ''}>${esc(goal.title)}</option>`,
+    )
+    .join(
+      '',
+    )}</select></div><div class="field"><label for="flow-as-of">Assessment date</label><input type="date" id="flow-as-of" value="${esc(flow.asOf)}"></div>${flowSourceView(flow.plan)}<button type="button" data-flow="plan">Prepare updated plan →</button>`;
+}
+
+function flowBody() {
+  const flow = flowState();
+  if (flow.settingsOpen) return flowSettingsView();
+  if (flow.inspectionFace !== null && flow.inspectionFace !== undefined)
+    return flowFaceView(flow.inspectionFace);
+  return {
+    goal: flowGoalsView,
+    data: flowDataView,
+    identity: flowIdentityView,
+    plan: flowPlanView,
+    running: flowPlanView,
+    review: flowReviewView,
+    package: flowPackageView,
+  }[flow.stage]();
+}
+
+function selectFlowFace(index) {
+  if (!flowStageAccess(index)) return;
+  preserveDrafts();
+  model.navigationVersion += 1;
+  const flow = flowState();
+  if (flow.autoRunning) flow.autoViewChanged = true;
+  flow.cubeFace = index;
+  flow.inspectionFace = index;
+  flow.surfaceOpen = true;
+  flow.settingsOpen = false;
+  updateFlowCube();
+  const surface = document.querySelector('.object-surface');
+  if (surface) {
+    surface.hidden = false;
+    surface.innerHTML = flowSurfaceContent();
+    surface.scrollIntoView({ block: 'nearest' });
+    surface.focus({ preventScroll: true });
+  }
+  loadVisibleFindingEvidence();
+  updateDraftIndicator();
+}
+
+function measureObjectHeader() {
+  const workspace = document.querySelector('.object-workspace');
+  const height = document.querySelector('.topbar')?.getBoundingClientRect?.().height;
+  if (workspace && height) workspace.style.setProperty('--object-topbar-height', `${height}px`);
+}
+
+function flowSurfaceContent() {
+  const content = flowBody();
+  return content
+    ? `<nav class="surface-navigation" aria-label="Investigation overview"><button type="button" class="text-button" data-flow="overview">← Back to the box</button></nav>${content}`
+    : '';
+}
+
+function renderGuided() {
+  const flow = flowState();
+  const retainedScene = main.querySelector?.('.box-scene');
+  main.innerHTML = `<div class="guided-workspace object-workspace" data-face="${flow.cubeFace}"><div class="object-core">${flowCube()}<header class="object-heading">${flowGuide()}</header></div><div class="object-surface" tabindex="-1" ${flow.surfaceOpen ? '' : 'hidden'}>${flowSurfaceContent()}</div></div>`;
+  measureObjectHeader();
+  loadVisibleFindingEvidence();
+  const placeholder = main.querySelector?.('.box-scene');
+  if (retainedScene && cubeMaterial && placeholder) {
+    placeholder.replaceWith(retainedScene);
+    cubeMaterial.update(boxPanelState(), flow.cubeFace);
+  } else {
+    cubeMaterial?.destroy();
+    cubeMaterial = window.OmphalosBox?.mount(placeholder, {
+      faces: boxPanelState(),
+      selected: flow.cubeFace,
+    });
+  }
+  if (flow.busyStep) {
+    main
+      .querySelectorAll(
+        '[data-flow="run"], [data-flow="fetch-run"], [data-flow="import"], [data-flow="plan"], [data-flow="fetch"], [data-flow="dataset"], [data-flow="investigate-dataset"], [data-flow="resume"], [data-flow="repreview"], [data-flow="identity-select"], [data-flow="identity-skip"], [data-flow="research-identity"], button[type="submit"], input[type="file"]',
+      )
+      .forEach((button) => {
+        button.disabled = true;
+      });
+  }
+}
+
+async function flowOperation(message, fn, automatic = false) {
+  await task(message, async () => {
+    const flow = flowState();
+    flow.autoRunning = automatic;
+    flow.autoViewChanged = false;
+    flow.busyStep = message;
+    renderGuided();
+    try {
+      await fn();
+    } finally {
+      flow.busyStep = '';
+      flow.autoRunning = false;
+      if (notice.className === 'notice busy') notice.hidden = true;
+      if (model.page === 'investigate' && model.flow === flow) {
+        preserveDrafts();
+        renderGuided();
+        if (flow.revealResults) {
+          flow.revealResults = false;
+          const destination = document.querySelector(
+            flow.surfaceOpen ? '.object-surface' : '.object-workspace',
+          );
+          destination?.scrollIntoView({ block: 'start' });
+          if (flow.surfaceOpen) destination?.focus({ preventScroll: true });
+          else main.focus({ preventScroll: true });
+        }
+      }
+    }
+  });
+}
+
+async function prepareFlowPlan() {
+  const context = flowContext();
+  const input = flowInput();
+  const plan = await flowRequest(context, 'workflow/plan', input);
+  if (!flowIsCurrent(context)) return false;
+  model.flow.settingsOpen = false;
+  model.flow.plan = plan;
+  model.flow.planInputs = input;
+  model.flow.stage = 'plan';
+  if (!model.flow.autoRunning || !model.flow.autoViewChanged) {
+    if (!model.flow.autoRunning) model.flow.cubeFace = 2;
+    model.flow.inspectionFace = null;
+  }
+  renderGuided();
+  if (!model.flow.autoRunning)
+    announce(
+      plan.can_run
+        ? 'Investigation prepared. Review the proposed checks and run when ready.'
+        : 'Plan prepared. Required evidence is shown before you continue.',
+    );
+  return true;
+}
+
+async function chooseFlowDataset(id) {
+  invalidateFlow(
+    {
+      datasetId: id,
+      stage: 'plan',
+      preview: null,
+      previewStale: false,
+      sourceRetry: false,
+      identityError: '',
+    },
+    true,
+  );
+  if (!model.flow.goalId || model.flow.goalInferred) {
+    model.flow.goalInferred = true;
+    const counts = flowDataset()?.counts || {};
+    model.flow.goalId =
+      counts.shipments || counts.payments ? 'transaction_review' : 'counterparty_screening';
+  }
+  if (flowGoal()?.requires_source && !model.flow.snapshotId) {
+    model.flow.snapshotId = suggestedFlowSource()?.snapshot_id || '';
+  }
+  return prepareFlowPlan();
+}
+
+function flowProgress(message, face) {
+  const flow = flowState();
+  flow.busyStep = message;
+  if (!flow.autoRunning || !flow.autoViewChanged) {
+    flow.cubeFace = face;
+    flow.inspectionFace = null;
+  }
+  announce(message, 'busy');
+  if (model.page === 'investigate') renderGuided();
+}
+
+async function investigateFlowDataset(id) {
+  const dataset = array(model.state.datasets).find((item) => item.dataset_id === id);
+  if (dataset?.intake_method === 'subject_name' && !dataset.identity_research_retained) {
+    Object.assign(flowState(), {
+      subjectName: dataset.label || '',
+      goalId: 'counterparty_screening',
+      goalInferred: true,
+    });
+    await researchFlowIdentity(id);
+    return;
+  }
+  flowProgress('Checking the sources required by these records…', 1);
+  if (!(await chooseFlowDataset(id))) return;
+  const flow = flowState();
+  if (flowGoal()?.requires_source) {
+    const source = array(model.state.sources).find((item) => item.snapshot_id === flow.snapshotId);
+    const age = Date.now() - Date.parse(source?.fetched_at);
+    const recentOfficial =
+      source?.ingestion_method === 'official_https' && age >= 0 && age < 24 * 60 * 60 * 1000;
+    if (
+      !flow.plan?.source_status?.selected ||
+      (flow.sourcePolicy === 'automatic' && flow.asOf === dateToday() && !recentOfficial)
+    ) {
+      flow.sourceRetry = true;
+      flowProgress('Downloading the official screening list…', 1);
+      await fetchFlowSource(true);
+      return;
+    }
+  }
+  if (flow.plan?.can_run) {
+    flowProgress('Running the prepared checks…', 2);
+    await runFlowPlan();
+  }
+}
+
+async function startFlowSubject(name) {
+  const subjectName = String(name || '').trim();
+  if (!subjectName) throw new Error('Enter a company or person’s name.');
+  invalidateFlow({
+    subjectName,
+    datasetId: '',
+    goalId: 'counterparty_screening',
+    goalInferred: true,
+    sourcePolicy: 'automatic',
+    sourceRetry: false,
+    snapshotId: '',
+    asOf: dateToday(),
+    stage: 'goal',
+    preview: null,
+    cubeFace: 0,
+  });
+  const context = flowContext();
+  const result = await flowRequest(context, 'workflow/subject', { name: subjectName });
+  if (!flowIsCurrent(context) || !(await refreshFlow(context))) return;
+  await researchFlowIdentity(result.dataset_id);
+}
+
+async function researchFlowIdentity(datasetId = flowState().datasetId) {
+  if (!datasetId) throw new Error('Open a retained subject first.');
+  invalidateFlow({ datasetId, identityResearch: null, identityError: '', stage: 'identity' }, true);
+  flowProgress('Looking up public identity records…', 0);
+  const context = flowContext();
+  let report;
+  try {
+    report = await api('workflow/identity-research', { dataset_id: datasetId });
+  } catch (error) {
+    if (!flowIsCurrent(context)) return;
+    const flow = flowState();
+    flow.identityError = error.message;
+    if (!flow.autoViewChanged) {
+      flow.inspectionFace = 0;
+      flow.surfaceOpen = true;
+      flow.revealResults = true;
+    }
+    throw error;
+  }
+  if (!flowIsCurrent(context)) return;
+  const flow = flowState();
+  flow.identityResearch = report;
+  flow.subjectName = report.query;
+  if (!flow.autoViewChanged) {
+    flow.inspectionFace = 0;
+    flow.surfaceOpen = true;
+    flow.revealResults = true;
+  }
+}
+
+async function selectFlowIdentity(candidateId) {
+  const flow = flowState();
+  const report = flow.identityResearch;
+  if (
+    !report ||
+    report.dataset_id !== flow.datasetId ||
+    !array(report.candidates).some((candidate) => candidate.candidate_id === candidateId)
+  )
+    throw new Error('Choose an identity from the current research.');
+  const context = flowContext();
+  const result = await flowRequest(context, 'workflow/identity-select', {
+    dataset_id: flow.datasetId,
+    research_id: report.research_id,
+    candidate_id: candidateId,
+  });
+  if (!flowIsCurrent(context) || !(await refreshFlow(context))) return;
+  flow.surfaceOpen = false;
+  await investigateFlowDataset(result.dataset_id);
+}
+
+async function skipFlowIdentity() {
+  const flow = flowState();
+  const report = flow.identityResearch;
+  if (!flow.datasetId || flow.stage !== 'identity' || report?.dataset_id !== flow.datasetId) return;
+  const context = flowContext();
+  const result = await flowRequest(context, 'workflow/identity-select', {
+    dataset_id: flow.datasetId,
+    research_id: report.research_id,
+    candidate_id: null,
+  });
+  if (!flowIsCurrent(context) || !(await refreshFlow(context))) return;
+  flow.surfaceOpen = false;
+  await investigateFlowDataset(result.dataset_id);
+}
+
+function suggestedFlowSource() {
+  const timestamp = (value) => {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return array(model.state.sources)
+    .filter(
+      (source) => source.source_id === 'csl' && source.snapshot_id && source.status !== 'invalid',
+    )
+    .sort(
+      (left, right) =>
+        Number(right.ingestion_method === 'official_https') -
+          Number(left.ingestion_method === 'official_https') ||
+        timestamp(right.fetched_at) - timestamp(left.fetched_at) ||
+        timestamp(right.source_updated_at) - timestamp(left.source_updated_at) ||
+        right.snapshot_id.localeCompare(left.snapshot_id),
+    )[0];
+}
+
+async function previewFlowFiles(form) {
+  const inputFiles = [...form.elements.files.files];
+  if (inputFiles.length !== 1 || inputFiles[0].size > 20 * 1024 * 1024)
+    throw new Error('Choose one counterparty CSV no larger than 20 MiB.');
+  invalidateFlow({ preview: null, previewStale: true });
+  const context = flowContext();
+  const files = await filesPayload(inputFiles);
+  if (!flowIsCurrent(context)) return;
+  model.flow.files = files;
+  const preview = await flowRequest(context, 'workflow/preview', { files });
+  if (!flowIsCurrent(context)) return;
+  Object.assign(model.flow, { preview, mapping: { ...preview.mapping }, previewStale: false });
+  renderGuided();
+  announce('Column preview prepared. Review every mapping before confirming the import.');
+}
+
+function flowFilesAreLinked(form) {
+  const files = [...form.elements.files.files];
+  return files.length !== 1 || files[0].name.toLowerCase().endsWith('.json');
+}
+
+async function intakeFlowFiles(form) {
+  if (flowFilesAreLinked(form)) {
+    await importFlowRecords(form);
+  } else {
+    await previewFlowFiles(form);
+  }
+}
+
+async function updateFlowPreview() {
+  const context = flowContext();
+  const preview = await flowRequest(context, 'workflow/preview', {
+    files: model.flow.files,
+    mapping: model.flow.mapping,
+  });
+  if (!flowIsCurrent(context)) return;
+  Object.assign(model.flow, { preview, mapping: { ...preview.mapping }, previewStale: false });
+  renderGuided();
+}
+
+async function importFlowPreview() {
+  const flow = flowState();
+  if (!flow.preview?.can_import || flow.previewStale)
+    throw new Error('Update and review the preview before importing.');
+  const context = flowContext();
+  const result = await flowRequest(context, 'workflow/import', {
+    files: flow.files,
+    mapping: flow.mapping,
+    preview_id: flow.preview.preview_id,
+  });
+  if (!flowIsCurrent(context) || !(await refreshFlow(context))) return;
+  await investigateFlowDataset(result.dataset_id);
+}
+
+async function importFlowRecords(form) {
+  const context = flowContext();
+  const files = await filesPayload(form.elements.files.files);
+  if (!flowIsCurrent(context)) return;
+  const label =
+    files.length === 1
+      ? files[0].name
+          .replace(/\.(?:json|csv)$/i, '')
+          .replace(/[-_]+/g, ' ')
+          .trim()
+          .slice(0, 200) || 'Imported records'
+      : 'Linked records';
+  const result = await flowRequest(context, 'datasets/import', { files, label });
+  if (!flowIsCurrent(context) || !(await refreshFlow(context))) return;
+  await investigateFlowDataset(result.dataset_id);
+}
+
+async function fetchFlowSource(andRun = false) {
+  const context = flowContext();
+  const source = await flowRequest(context, 'sources/fetch', { source_id: 'csl' });
+  if (!flowIsCurrent(context) || !(await refreshFlow(context))) return;
+  invalidateFlow({ snapshotId: source.snapshot_id, sourceRetry: false }, true);
+  if ((await prepareFlowPlan()) && andRun && flowState().plan?.can_run) {
+    flowProgress('Running checks against the retained screening list…', 2);
+    await runFlowPlan();
+  }
+}
+
+async function runFlowPlan() {
+  const flow = flowState();
+  if (!flow.plan?.can_run || !flow.planInputs)
+    throw new Error('Prepare a runnable plan before starting the investigation.');
+  const context = flowContext();
+  const body = { ...flow.planInputs, plan_id: flow.plan.plan_id, case_id: flow.plan.case.case_id };
+  const result = await flowRequest(context, 'workflow/run', body);
+  if (!flowIsCurrent(context)) return;
+  const run = await flowRequest(context, `runs/${encodeURIComponent(result.run_id)}`);
+  if (!flowIsCurrent(context) || !(await refreshFlow(context))) return;
+  model.selectedRun = result.run_id;
+  model.run = run;
+  const preserveInspection = flow.autoRunning && flow.autoViewChanged;
+  Object.assign(flow, {
+    stage: 'review',
+    reviewIndex: 0,
+    findingIndex: null,
+    ...(preserveInspection ? {} : { cubeFace: 3, inspectionFace: 3, surfaceOpen: false }),
+    revealResults: !preserveInspection,
+  });
+  renderGuided();
+  announce(
+    `Analysis saved with ${countLabel(array(run.analysis?.findings).length, 'observation')}.`,
+  );
+}
+
+async function resumeFlowRun(id) {
+  const context = flowContext();
+  const run = await flowRequest(context, `runs/${encodeURIComponent(id)}`);
+  if (!flowIsCurrent(context)) return;
+  preserveDrafts();
+  model.selectedRun = id;
+  model.run = run;
+  const reviewed = model.reviewDrafts[id] || run.latest_review?.review || {};
+  const recorded = flowReviewRecorded(run);
+  const resumeFace =
+    run.verification?.ok !== true ? 3 : recorded ? 5 : reviewed.schema_version ? 4 : 3;
+  const findings = array(run.analysis?.findings);
+  const checks = array(run.case?.investigations);
+  const goalId = checks.some(
+    (check) => !['data_quality', 'shared_address', 'screening_candidates'].includes(check),
+  )
+    ? 'transaction_review'
+    : checks.includes('screening_candidates')
+      ? 'counterparty_screening'
+      : 'data_readiness';
+  const firstIncomplete = findings.findIndex(
+    (finding) =>
+      !reviewRowComplete(
+        array(reviewed.findings).find((row) => row.finding_id === finding.finding_id),
+      ),
+  );
+  Object.assign(model.flow, {
+    stage: recorded ? 'package' : 'review',
+    reviewIndex: firstIncomplete < 0 ? findings.length : firstIncomplete,
+    findingIndex: null,
+    datasetId: run.case?.dataset_id || '',
+    subjectName: run.dataset_metadata?.label || '',
+    asOf: run.case?.as_of || dateToday(),
+    goalId,
+    goalInferred: true,
+    sourcePolicy: run.case?.watchlist_snapshot_id ? 'selected' : 'automatic',
+    sourceRetry: false,
+    identityResearch: null,
+    identityError: '',
+    preview: null,
+    previewStale: false,
+    files: [],
+    mapping: {},
+    plan: null,
+    planInputs: null,
+    settingsOpen: false,
+    snapshotId: run.case?.watchlist_snapshot_id || '',
+    cubeFace: resumeFace,
+    inspectionFace: null,
+    surfaceOpen: false,
+    revealResults: true,
+  });
+  renderGuided();
+}
+
+function selectFlowReview(index) {
+  preserveDrafts();
+  model.navigationVersion += 1;
+  const findings = array(model.run?.analysis?.findings);
+  const detail = Number.isSafeInteger(index) && index >= 0 && index < findings.length;
+  const legacy = model.reviewDrafts[model.selectedRun]?.schema_version === '2.0';
+  Object.assign(model.flow, {
+    stage: 'review',
+    surfaceOpen: true,
+    cubeFace: detail && !legacy ? 3 : 4,
+    inspectionFace: detail && !legacy ? 3 : 4,
+    findingIndex: detail ? index : null,
+    reviewIndex: Math.max(0, Math.min(index, findings.length)),
+  });
+  if (model.page !== 'investigate') model.runTab = detail ? 'findings' : 'review';
+  if (model.page === 'investigate') renderGuided();
+  else renderRuns();
+  const surface = document.querySelector('.object-surface');
+  surface?.scrollIntoView({ block: 'start' });
+  surface?.focus({ preventScroll: true });
+  if (detail && !legacy) loadFindingEvidence(findings[index]);
+}
+
+function updateFlowCube() {
+  const flow = flowState();
+  const faces = boxPanelState();
+  const face = faces[flow.cubeFace];
+  const heading = document.querySelector('.object-heading');
+  if (heading && flow.stage !== 'goal') heading.innerHTML = flowGuide();
+  document.querySelector('.object-workspace')?.setAttribute('data-face', String(flow.cubeFace));
+  const title = document.querySelector('.cube-caption strong');
+  if (title) title.textContent = `${face.title} / ${face.value}`;
+  const detail = document.querySelector('.cube-caption span');
+  if (detail) detail.textContent = face.detail;
+  document.querySelectorAll('.cube-controls [data-flow="cube"]').forEach((button) => {
+    const index = Number(button.dataset.face);
+    const item = faces[index];
+    button.setAttribute('aria-pressed', String(index === flow.cubeFace));
+    button.setAttribute('data-complete', String(item.complete));
+    button.setAttribute(
+      'aria-description',
+      `Step ${index + 1} of 6. ${item.complete ? 'Completed' : 'Not completed'}`,
+    );
+    button.disabled = !item.available;
+  });
+  cubeMaterial?.update(faces, flow.cubeFace);
+}
+
+function handleFlowClick(button) {
+  const action = button.dataset.flow;
+  if (!action) return;
+  const flow = flowState();
+  if (action === 'cube') selectFlowFace(Number(button.dataset.face));
+  if (action === 'open-work') {
+    preserveDrafts();
+    showFlowDocument('Open', savedWorkView());
+  }
+  if (action === 'import-info')
+    showFlowDocument(
+      'Record formats',
+      `<p><strong>Counterparty CSV.</strong> Choose one file up to 20 MiB. omphalOS recognizes columns and values, then shows a preview before importing.</p><p><strong>Linked records.</strong> Choose entity records together with any shipments, payments, ownership, or diligence records. A dataset JSON can contain these tables in one file.</p><p>${esc(storageExplanation())} Invalid rows must be corrected before analysis.</p>${schemaHelp()}`,
+    );
+  if (action === 'preview-info' && flow.preview) {
+    const preview = flow.preview;
+    showFlowDocument(
+      'About this import preview',
+      `<p>Nothing is imported until you choose “Investigate these records.” Every original column is retained; only mapped fields are analyzed. No company identities are merged.</p><p>${countLabel(preview.generated_id_count || 0, 'record')} will receive a local ID tied to this file and its source row. These IDs are not verified business identifiers.</p>${list(preview.warnings)}${array(preview.errors).length ? `<h3>Validation details</h3>${list(preview.errors)}` : ''}`,
+    );
+  }
+  if (action === 'change-files') {
+    invalidateFlow({
+      stage: 'data',
+      surfaceOpen: true,
+      cubeFace: 0,
+      datasetId: '',
+      files: [],
+      mapping: {},
+      preview: null,
+      previewStale: false,
+      sourceRetry: false,
+      identityError: '',
+    });
+    renderGuided();
+    document.querySelector('#flow-vendor-file')?.focus();
+    announce('Choose replacement files. The previous preview was not imported.');
+  }
+  if (action === 'add-records' || action === 'choose-file') {
+    invalidateFlow({
+      stage: 'data',
+      surfaceOpen: true,
+      ...(flow.stage === 'goal' ? { goalId: '', goalInferred: false } : {}),
+      cubeFace: 0,
+    });
+    renderGuided();
+    if (action === 'choose-file') {
+      const input = document.querySelector('#flow-vendor-file');
+      input?.focus({ preventScroll: true });
+      input?.click();
+    } else {
+      const surface = document.querySelector('.object-surface');
+      surface?.scrollIntoView({ block: 'start' });
+      surface?.focus({ preventScroll: true });
+    }
+  }
+  if (action === 'continue' || action === 'focus-step') {
+    preserveDrafts();
+    flow.surfaceOpen = true;
+    const current = flow.inspectionFace ?? flow.cubeFace;
+    let next = action === 'continue' ? flowNextStage() : current;
+    if (!flowStageAccess(next))
+      next = flowStageAccess(4)
+        ? 4
+        : flowStageAccess(3)
+          ? 3
+          : flowStageAccess(2)
+            ? 2
+            : flowStageAccess(1)
+              ? 1
+              : 0;
+    if (next !== current) {
+      model.navigationVersion += 1;
+      flow.findingIndex = null;
+    }
+    if (flow.autoRunning) flow.autoViewChanged = true;
+    flow.cubeFace = next;
+    flow.inspectionFace = next;
+    if (['review', 'package'].includes(flow.stage)) flow.stage = next === 5 ? 'package' : 'review';
+    flow.settingsOpen = false;
+    if (flow.stage === 'goal') flow.stage = 'data';
+    renderGuided();
+    if (action === 'focus-step' || action === 'continue') {
+      const surface = document.querySelector('.object-surface');
+      surface?.scrollIntoView({ block: 'start' });
+      surface?.focus({ preventScroll: true });
+    }
+  }
+  if (action === 'screening-info')
+    showFlowDocument(
+      'Name screening',
+      `<p>The entered name is sent to GLEIF and Wikidata to find public identity records. Choose a profile to use its sourced details, or continue with the name alone.</p><p>The official U.S. screening list is downloaded separately and compared locally. Your case records are not sent with that download.</p>${model.state?.storage ? `<p>${esc(storageExplanation())}</p>` : ''}`,
+    );
+  if (action === 'identity-info') {
+    const research =
+      flow.stage === 'identity'
+        ? flow.identityResearch
+        : ['review', 'package'].includes(flow.stage)
+          ? model.run?.identity_research
+          : flowDataset()?.identity_research;
+    showFlowDocument(
+      'Identity sources',
+      `<p>GLEIF provides legal-entity reference records. Wikidata is a community-maintained directory; its claims and cited links are retained as attribution, not independently verified website content.</p><p>Choosing a profile associates it with this case. It does not resolve a screening candidate. Existing supplied values are preserved when a source disagrees.</p>${identityResearchDetails(research)}`,
+    );
+  }
+  if (action === 'research-identity')
+    flowOperation('Looking up public identity records…', () => researchFlowIdentity(), true);
+  if (action === 'identity-select')
+    flowOperation(
+      'Retaining the selected identity and preparing checks…',
+      () => selectFlowIdentity(button.dataset.id),
+      true,
+    );
+  if (action === 'identity-skip')
+    flowOperation('Screening the entered name…', skipFlowIdentity, true);
+  if (action === 'coverage') showFlowDocument('Coverage and missing evidence', renderCoverage());
+  if (action === 'check-info') {
+    const check = [
+      ...array(flow.plan?.selected_checks),
+      ...array(flow.plan?.unavailable_checks),
+    ].find((item) => item.investigation_id === button.dataset.check);
+    if (check)
+      showFlowDocument(
+        check.title || investigationTitle(check.investigation_id),
+        `<p>${esc(check.description || check.reason || '')}</p><h3>Parameters</h3>${Object.keys(check.parameters || {}).length ? keyValues(check.parameters) : '<p>No configurable parameters.</p>'}<h3>Limitations</h3>${list(check.limitations)}`,
+      );
+  }
+  if (action === 'plan-settings') {
+    preserveDrafts();
+    model.navigationVersion += 1;
+    flow.inspectionFace = null;
+    flow.settingsOpen = true;
+    flow.surfaceOpen = true;
+    renderGuided();
+  }
+  if (action === 'goal') {
+    invalidateFlow({
+      goalId: button.dataset.goal,
+      surfaceOpen: true,
+      goalInferred: false,
+      stage: 'data',
+      cubeFace: 0,
+    });
+    renderGuided();
+  }
+  if (action === 'back-goal' || action === 'back-data') {
+    invalidateFlow({
+      stage: action === 'back-goal' ? 'goal' : 'data',
+      surfaceOpen: action !== 'back-goal',
+      cubeFace: 0,
+      preview: null,
+    });
+    if (action === 'back-goal' && !model.operation) notice.hidden = true;
+    renderGuided();
+    if (action === 'back-goal') document.querySelector('#flow-subject-name')?.focus();
+  }
+  if (action === 'overview') {
+    preserveDrafts();
+    model.navigationVersion += 1;
+    flow.surfaceOpen = false;
+    renderGuided();
+    document.querySelector('.topbar')?.scrollIntoView({ block: 'start' });
+    const target =
+      document.querySelector(
+        '.object-heading [data-flow="focus-step"]:not(:disabled), .object-heading #flow-subject-name',
+      ) ||
+      document.querySelector(
+        '.object-heading button[data-flow]:not(:disabled):not([aria-haspopup="dialog"]):not([data-flow="restart"])',
+      ) ||
+      document.querySelector('.cube-controls button[aria-pressed="true"]:not(:disabled)') ||
+      main;
+    target.focus({ preventScroll: true });
+  }
+  if (action === 'restart') {
+    preserveDrafts();
+    model.navigationVersion += 1;
+    model.flow = newFlow();
+    notice.hidden = true;
+    renderGuided();
+    document.querySelector('#flow-subject-name')?.focus();
+  }
+  if (action === 'dataset')
+    flowOperation('Preparing checks…', () => chooseFlowDataset(button.dataset.id));
+  if (action === 'investigate-dataset')
+    flowOperation(
+      'Investigating the retained records…',
+      () => investigateFlowDataset(button.dataset.id),
+      true,
+    );
+  if (action === 'plan') flowOperation('Preparing the plan…', prepareFlowPlan);
+  if (action === 'repreview')
+    flowOperation('Validating the revised column mapping…', updateFlowPreview);
+  if (action === 'import')
+    flowOperation('Importing records and running the supported checks…', importFlowPreview, true);
+  if (action === 'fetch-run')
+    flowOperation('Downloading the official list, then running the prepared checks…', () =>
+      fetchFlowSource(true),
+    );
+  if (action === 'fetch')
+    flowOperation('Downloading the official CSL. No case data is sent…', fetchFlowSource);
+  if (action === 'run') flowOperation('Running checks…', runFlowPlan);
+  if (action === 'resume')
+    flowOperation('Verifying retained records…', () => resumeFlowRun(button.dataset.id));
+  if (action === 'summary-adopt' || action === 'summary-edit') {
+    const form = document.querySelector('#review-form');
+    if (!form || form.dataset.saving === 'true') return;
+    preserveDrafts();
+    const draft = model.reviewDrafts[model.selectedRun] || model.run?.latest_review?.review || {};
+    const ui = guidedReviewUi('__summary');
+    const complete = array(model.run?.analysis?.findings).every((finding) =>
+      reviewRowComplete(array(draft.findings).find((row) => row.finding_id === finding.finding_id)),
+    );
+    if (action === 'summary-adopt') {
+      if (!complete || (draft.summary && !flowSummaryNeedsUpdate(draft))) return;
+      draft.summary = preparedReviewSummary(model.run, draft);
+      ui.preparedSummary = draft.summary;
+      ui.editing.summary = false;
+    } else {
+      ui.editing.summary = !ui.editing.summary;
+      if (ui.editing.summary && !draft.summary && complete) {
+        draft.summary = preparedReviewSummary(model.run, draft);
+        ui.preparedSummary = draft.summary;
+      }
+    }
+    model.reviewDrafts[model.selectedRun] = draft;
+    model.navigationVersion += 1;
+    renderGuided();
+    updateDraftIndicator();
+    if (ui.editing.summary)
+      document.querySelector('#review-summary')?.focus({ preventScroll: true });
+  }
+  if (action === 'review-step') selectFlowReview(Number(button.dataset.index));
+  if (action === 'finding-list') {
+    preserveDrafts();
+    model.navigationVersion += 1;
+    flow.findingIndex = null;
+    flow.cubeFace = 3;
+    flow.inspectionFace = 3;
+    flow.surfaceOpen = true;
+    if (model.page === 'investigate') {
+      renderGuided();
+      const surface = document.querySelector('.object-surface');
+      surface?.scrollIntoView({ block: 'nearest' });
+      surface?.focus({ preventScroll: true });
+    } else {
+      model.runTab = 'findings';
+      renderRuns();
+      main.focus({ preventScroll: true });
+    }
+  }
+  if (action === 'finding-records') {
+    const finding = array(model.run?.analysis?.findings).find(
+      (item) => item.finding_id === button.dataset.id,
+    );
+    if (finding) loadFindingEvidence(finding, Number(button.dataset.offset || 0));
+  }
+  if (action === 'review-summary') selectFlowReview(array(model.run?.analysis?.findings).length);
+}
+
 main.addEventListener('submit', (event) => {
   event.preventDefault();
   const form = event.target;
   const action = event.submitter?.value;
+  if (form.id === 'flow-subject-form') {
+    if (model.operation) return;
+    const name = String(new FormData(form).get('name') || '');
+    flowOperation('Opening the investigation…', () => startFlowSubject(name), true);
+  }
+  if (form.id === 'flow-upload-form')
+    flowOperation('Reading the records…', () => intakeFlowFiles(form), flowFilesAreLinked(form));
+  if (form.id === 'flow-records-form')
+    flowOperation(
+      'Validating linked records and preparing the investigation…',
+      () => importFlowRecords(form),
+      true,
+    );
   if (form.id === 'dataset-form') task('Validating uploaded records…', () => submitDataset(form));
   if (form.id === 'source-form')
     task(
@@ -1224,6 +3413,7 @@ main.addEventListener('submit', (event) => {
 });
 
 function captureEditedForm(event) {
+  if (event.target.id === 'flow-subject-name') flowState().subjectName = event.target.value;
   const review = event.target.closest('#review-form');
   if (review) {
     review.dataset.dirty = 'true';
@@ -1238,7 +3428,56 @@ function captureEditedForm(event) {
 
 main.addEventListener('input', captureEditedForm);
 main.addEventListener('change', (event) => {
+  if (model.operation && ['flow-vendor-file', 'flow-record-files'].includes(event.target.id)) {
+    announce(
+      'The current file is still being read. Choose another file after it finishes.',
+      'busy',
+    );
+    return;
+  }
   captureEditedForm(event);
+  if (event.target.dataset.mapping !== undefined) {
+    invalidateFlow({ previewStale: true });
+    model.flow.mapping = Object.fromEntries([
+      ...Object.entries(model.flow.mapping).filter(([key]) => key !== event.target.dataset.mapping),
+      [event.target.dataset.mapping, event.target.value || null],
+    ]);
+    renderGuided();
+    if (/^mapping-\d+$/.test(event.target.id))
+      document.querySelector(`#${event.target.id}`)?.focus({ preventScroll: true });
+  }
+  if (event.target.id === 'flow-vendor-file') {
+    invalidateFlow({ preview: null, previewStale: true, files: [], mapping: {} });
+    const form = event.target.closest('form');
+    if (event.target.files?.length)
+      flowOperation('Reading the records…', () => intakeFlowFiles(form), flowFilesAreLinked(form));
+  }
+  if (event.target.id === 'flow-record-files' && event.target.files?.length) {
+    const form = event.target.closest('form');
+    flowOperation(
+      'Validating linked records and preparing the investigation…',
+      () => importFlowRecords(form),
+      true,
+    );
+  }
+  if (event.target.id === 'flow-goal') {
+    invalidateFlow({ goalId: event.target.value, goalInferred: false, stage: 'plan' });
+    if (flowGoal()?.requires_source && !flowState().snapshotId)
+      flowState().snapshotId = suggestedFlowSource()?.snapshot_id || '';
+    flowOperation('Preparing the checks for this purpose…', prepareFlowPlan);
+  }
+  if (event.target.id === 'flow-as-of' || event.target.id === 'flow-source') {
+    invalidateFlow(
+      event.target.id === 'flow-as-of'
+        ? { asOf: event.target.value, settingsOpen: flowState().settingsOpen }
+        : {
+            snapshotId: event.target.value,
+            sourcePolicy: 'selected',
+            settingsOpen: flowState().settingsOpen,
+          },
+    );
+    renderGuided();
+  }
   if (event.target.id === 'source-id') renderSourceDescription();
   if (event.target.name === 'investigation') {
     const panel = [...document.querySelectorAll('[data-parameters]')].find(
@@ -1268,26 +3507,78 @@ async function checkRun(action) {
   const run = await api(`runs/${encodeURIComponent(view.runId)}`);
   if (viewIsCurrent(view)) {
     model.run = run;
-    renderRuns();
-    document.querySelector('#run-result').innerHTML =
-      `<details open><summary>${action === 'verify' ? 'Verification result' : 'Replay result'}</summary><pre>${json(result)}</pre></details>`;
+    if (model.page === 'investigate') renderGuided();
+    else renderRuns();
+    const panel = document.querySelector('#run-result');
+    const download =
+      flowReviewRecorded(run) && run.latest_export ? packageDownload(run.latest_export) : '';
+    if (panel)
+      panel.innerHTML =
+        download +
+        (model.page === 'investigate'
+          ? integrityResultView(action, result)
+          : `<details open><summary>${action === 'verify' ? 'Verification result' : 'Replay result'}</summary><pre>${json(result)}</pre></details>`);
   }
   announce(
-    `${action === 'verify' ? 'Verification' : 'Replay'} ${result.ok === true ? 'passed' : 'did not pass'} for ${view.runId}.${viewIsCurrent(view) ? ' Inspect the result details.' : ' Reopen the run for details.'}`,
+    `${action === 'verify' ? 'Verification' : 'Replay'} ${result.ok === true ? 'passed' : 'did not pass'}.${viewIsCurrent(view) ? '' : ' Reopen the investigation for details.'}`,
     result.ok === true ? 'success' : 'error',
   );
 }
 
+function integrityResultView(action, result) {
+  const verify = action === 'verify';
+  const issues = [...new Set([...array(result.issues), ...array(result.verification?.issues)])];
+  const summary =
+    result.ok === true
+      ? verify
+        ? 'The retained files match their recorded checksums.'
+        : 'Findings and coverage reproduced from the retained records.'
+      : verify
+        ? 'The retained files did not pass verification.'
+        : 'Replay did not pass.';
+  const checked = result.files_checked ?? result.verification?.files_checked;
+  return `<section class="flow-section"><h3>${verify ? 'Verification result' : 'Replay result'}</h3><p${result.ok === true ? '' : ' class="callout error"'}>${summary}</p>${Number.isInteger(checked) ? `<p class="small muted">${countLabel(checked, 'file')} checked.</p>` : ''}${list(issues)}</section>`;
+}
+
 async function exportRun() {
+  preserveDrafts();
+  if (!flowReviewRecorded(model.run))
+    throw new Error(
+      model.reviewDrafts[model.selectedRun]
+        ? 'Save the edited case decision before creating its evidence package.'
+        : 'A verified run and recorded case decision are required before creating a package.',
+    );
   const view = currentView();
   const result = await api(`runs/${encodeURIComponent(view.runId)}/export`, {});
+  const run = await api(`runs/${encodeURIComponent(view.runId)}`);
   if (viewIsCurrent(view)) {
+    model.run = run;
+    if (model.page === 'investigate') updateFlowCube();
+    if (
+      !flowReviewRecorded(run) ||
+      run.latest_export?.name !== result.name ||
+      run.latest_export?.download_url !== result.download_url
+    ) {
+      const message = model.reviewDrafts[view.runId]
+        ? 'The package contains the previously recorded decision. Save the current edits before creating their package.'
+        : 'The investigation changed while the package was being created. Check its current assessment and verification before exporting again.';
+      const panel = document.querySelector('#run-result');
+      if (panel) panel.innerHTML = `<p class="small muted">${esc(message)}</p>`;
+      announce(message, 'warning');
+      return;
+    }
     document.querySelector('#run-result').innerHTML = `
-      <a class="download-link" href="${esc(result.download_url)}" download>Download evidence package ↓</a>
+      ${packageDownload(result)}
       <details><summary>Package details</summary><p class="small">${esc(result.name)}</p><p class="mono small word-break">SHA-256: ${esc(result.sha256 || '')}</p></details>`;
+    if (model.page === 'investigate') {
+      const panel = document.querySelector('#run-result');
+      panel.innerHTML = flatSections(panel.innerHTML);
+    }
   }
   announce(
-    `Evidence package created for ${view.runId}.${viewIsCurrent(view) ? ' Use the download link and included verification instructions.' : ' Reopen the run to create another download link. The package is retained in the workspace exports folder.'}`,
+    viewIsCurrent(view)
+      ? 'Evidence package created.'
+      : 'Evidence package created and retained with its investigation.',
   );
 }
 
@@ -1315,10 +3606,15 @@ async function inspectEvidence(button, official = false) {
     document.querySelector('#dialog-content').innerHTML = `
       ${evidence.synthetic ? `<p class="small">${badge('Synthetic record', 'amber')}</p>` : ''}
       ${keyValues(Object.fromEntries(Object.entries(evidence.record).map(([key, value]) => [human(key), value])))}
+      ${evidence.identity_research ? `<h3>Public identity sources</h3>${identityResearchDetails(evidence.identity_research)}` : ''}
       <h3 class="stack-gap">Original provenance</h3>
       ${evidence.origin ? `<p class="small">File <code>${esc(evidence.origin.source_file)}</code>, source row ${esc(evidence.origin.source_row)}.</p>` : '<p class="small muted">Per-row provenance was not recorded.</p>'}
       <details><summary>Original file hashes</summary><pre>${json(evidence.source_files)}</pre></details>
       <p class="small muted">This record is frozen in the run, rather than read from a changing dataset.</p>`;
+  }
+  if (model.page === 'investigate') {
+    const panel = document.querySelector('#dialog-content');
+    panel.innerHTML = flatSections(panel.innerHTML);
   }
   document.querySelector('#evidence-dialog').showModal();
   notice.hidden = true;
@@ -1333,19 +3629,11 @@ function selectRunTab(tab) {
 }
 
 main.addEventListener('click', (event) => {
-  const button = event.target.closest('button');
-  if (!button) return;
+  const button = event.target.closest('button') || event.target.closest('[data-flow="cube"]');
+  if (!button || button.disabled) return;
+  handleFlowClick(button);
+  handleGuidedReviewClick(button);
   const { action, id } = button.dataset;
-  if (button.id === 'create-demo')
-    task('Creating a separate synthetic dataset…', async () => {
-      const view = currentView();
-      const result = await api('datasets/demo', {});
-      await refresh(false);
-      if (viewIsCurrent(view)) render();
-      announce(
-        `Synthetic dataset ${result.dataset_id} created. Select it in a case to explore the workflow.`,
-      );
-    });
   if (button.id === 'new-case') {
     if (model.caseDirty && !window.confirm('Discard unsaved case changes and start a new case?'))
       return;
@@ -1357,6 +3645,25 @@ main.addEventListener('click', (event) => {
     renderCases();
     document.querySelector('#case-editor')?.scrollIntoView({ block: 'start' });
     document.querySelector('#case-id')?.focus();
+  }
+  if (action === 'suggest-questions') {
+    const form = document.querySelector('#review-form');
+    form.dataset.dirty = 'true';
+    saveReviewDraft();
+    const finding = array(model.run.analysis?.findings).find((item) => item.finding_id === id);
+    const row = model.reviewDrafts[model.selectedRun]?.findings?.find(
+      (item) => item.finding_id === id,
+    );
+    if (finding && row) {
+      ['unknowns', 'alternatives', 'falsifiers'].forEach((key) => {
+        if (!array(row[key]).length) row[key] = [...array(finding[key])];
+      });
+      if (model.page === 'investigate') renderGuided();
+      else renderRuns();
+      announce(
+        'Suggested questions filled empty uncertainty fields. Edit them for this case before saving.',
+      );
+    }
   }
   if (action === 'open-disclosure') {
     const disclosure = document.getElementById(button.dataset.target);
@@ -1406,7 +3713,8 @@ main.addEventListener('click', (event) => {
   if (action === 'more-records') {
     preserveDrafts();
     model.referenceLimits[id] = (model.referenceLimits[id] || 40) + 40;
-    renderRuns();
+    if (model.page === 'investigate') renderGuided();
+    else renderRuns();
   }
   if (action === 'next-unreviewed') {
     saveReviewDraft();
@@ -1440,6 +3748,24 @@ main.addEventListener('click', (event) => {
 
 main.addEventListener('keydown', (event) => {
   if (
+    event.target.dataset.flow === 'cube' &&
+    ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)
+  ) {
+    event.preventDefault();
+    const available = [0, 1, 2, 3, 4, 5].filter(flowStageAccess);
+    const current = available.indexOf(Number(event.target.dataset.face));
+    const offset = event.key === 'ArrowRight' ? 1 : -1;
+    const next =
+      event.key === 'Home'
+        ? available[0]
+        : event.key === 'End'
+          ? available.at(-1)
+          : available[Math.max(0, Math.min(available.length - 1, current + offset))];
+    selectFlowFace(next);
+    document.querySelector(`.cube-controls [data-face="${next}"]`)?.focus();
+    return;
+  }
+  if (
     event.target.getAttribute('role') !== 'tab' ||
     !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)
   )
@@ -1464,13 +3790,19 @@ document.querySelector('.skip-link').addEventListener('click', (event) => {
 document
   .querySelector('#close-dialog')
   .addEventListener('click', () => document.querySelector('#evidence-dialog').close());
+document.querySelector('#evidence-dialog').addEventListener('click', (event) => {
+  const button = event.target.closest('.saved-work button[data-flow]');
+  if (!button || model.operation) return;
+  document.querySelector('#evidence-dialog').close();
+  handleFlowClick(button);
+});
 document.querySelector('#refresh').addEventListener('click', () => {
   preserveDrafts();
   task('Refreshing workspace…', async () => {
     const view = currentView();
     await refresh(false);
     const run =
-      view.page === 'runs' && view.runId
+      ['runs', 'investigate'].includes(view.page) && view.runId
         ? await api(`runs/${encodeURIComponent(view.runId)}`)
         : null;
     if (viewIsCurrent(view)) {
@@ -1482,10 +3814,36 @@ document.querySelector('#refresh').addEventListener('click', () => {
     );
   });
 });
+window.addEventListener('omphalos-browser-error', (event) => announce(event.detail, 'error'));
+window.addEventListener('omphalos-browser-restored', () => {
+  document.querySelector('#evidence-dialog').close();
+  model.navigationVersion += 1;
+  model.routeVersion += 1;
+  Object.assign(model, {
+    page: 'investigate',
+    flow: newFlow(),
+    selectedRun: null,
+    run: null,
+    caseDraft: null,
+    caseDirty: false,
+    reviewDrafts: {},
+    referenceLimits: {},
+  });
+  task('Opening the restored workspace…', async () => {
+    await refresh(false);
+    const latest = array(model.state.runs).find((run) => run.status !== 'invalid');
+    if (latest) await resumeFlowRun(latest.run_id);
+    else render();
+    announce('Workspace restored.');
+  });
+});
 window.addEventListener('hashchange', () => {
   preserveDrafts();
   model.navigationVersion += 1;
-  model.page = Object.hasOwn(titles, location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+  model.routeVersion += 1;
+  model.page = Object.hasOwn(titles, location.hash.slice(1))
+    ? location.hash.slice(1)
+    : 'investigate';
   render();
 });
 window.addEventListener('beforeunload', (event) => {
@@ -1494,7 +3852,11 @@ window.addEventListener('beforeunload', (event) => {
     event.returnValue = '';
   }
 });
-model.page = Object.hasOwn(titles, location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+if (window.ResizeObserver) {
+  const headerSize = new window.ResizeObserver(measureObjectHeader);
+  headerSize.observe(document.querySelector('.topbar'));
+}
+model.page = Object.hasOwn(titles, location.hash.slice(1)) ? location.hash.slice(1) : 'investigate';
 refresh().catch((error) => {
   main.innerHTML = empty('Unable to load workspace', error.message);
   announce(error.message, 'error');

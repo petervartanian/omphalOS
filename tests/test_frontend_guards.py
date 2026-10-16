@@ -28,6 +28,7 @@ class Element {
     this.listeners = new Map();
     this.dataset = {};
     this.attributes = {};
+    this.style = {};
     this.className = '';
     this.textContent = '';
     this.hidden = false;

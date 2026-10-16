@@ -10,7 +10,69 @@ from datetime import date
 from decimal import Decimal
 from difflib import SequenceMatcher
 
+from .sources import effective_date_issues
 from .util import canonical_json, sha256_bytes
+
+# These identify organizational form, not a particular legal entity. Only full
+# phrases are removed for descriptive wording: "research" or "production" alone
+# may be part of a distinctive name. Original names and aliases are never edited.
+_ORGANIZATION_PHRASES = (
+    "federal state unitary enterprise",
+    "public joint stock company",
+    "open joint stock company",
+    "closed joint stock company",
+    "joint stock company",
+    "limited liability company",
+    "public limited company",
+    "private limited company",
+    "research and production association",
+    "scientific and production association",
+    "research production association",
+    "scientific production association",
+    "research and production enterprise",
+    "scientific and production enterprise",
+    "research production enterprise",
+    "scientific production enterprise",
+    "научно производственное объединение",
+    "научно производственное предприятие",
+    "публичное акционерное общество",
+    "открытое акционерное общество",
+    "закрытое акционерное общество",
+    "акционерное общество",
+    "общество с ограниченнои ответственностью",
+    "nauchno proizvodstvennoe obedinenie",
+    "nauchno proizvodstvennoye obyedineniye",
+)
+_ORGANIZATION_WORDING = re.compile(
+    r"\b(?:" + "|".join(re.escape(p) for p in _ORGANIZATION_PHRASES) + r")\b"
+)
+_ORGANIZATION_FORMS = frozenset(
+    {
+        "company",
+        "corporation",
+        "incorporated",
+        "limited",
+        "ltd",
+        "llc",
+        "llp",
+        "plc",
+        "corp",
+        "inc",
+        "co",
+        "jsc",
+        "pjsc",
+        "ojsc",
+        "cjsc",
+        "npo",
+        "gmbh",
+        "нпо",
+        "ооо",
+        "оао",
+        "зао",
+        "пао",
+        "ао",
+    }
+)
 
 
 def normalized_name(value: str) -> str:
@@ -87,6 +149,68 @@ def _can_reach(
     return 2 * common * denominator >= numerator * total
 
 
+@dataclass(frozen=True)
+class _CandidateName:
+    full: _PreparedName
+    distinctive: _PreparedName
+    primary: bool
+
+
+def _prepare_candidate_name(value: str, *, primary: bool = False) -> _CandidateName:
+    full = _prepare_name(value)
+    distinct = " ".join(
+        token
+        for token in _ORGANIZATION_WORDING.sub(" ", full.normalized).split()
+        if token not in _ORGANIZATION_FORMS
+    )
+    return _CandidateName(full, _prepare_name(distinct), primary)
+
+
+def _organization_comparison(
+    a: _CandidateName, b: _CandidateName, known: bool, infer: bool
+) -> bool:
+    # Unknown source categories also receive the guard when both names contain
+    # organizational wording. Personal-name comparisons otherwise stay unchanged.
+    if (
+        a.full.normalized == b.full.normalized or a.full.ordered == b.full.ordered
+    ) and (
+        a.distinctive.normalized
+        or b.distinctive.normalized
+        or (a.primary and b.primary)
+    ):
+        # Exact name/token matches remain candidates even if phrase stripping is
+        # asymmetric. A wholly generic alias does not establish a name match.
+        return False
+    return known or (
+        infer
+        and a.full.normalized != a.distinctive.normalized
+        and b.full.normalized != b.distinctive.normalized
+    )
+
+
+def _candidate_name_score(
+    a: _CandidateName, b: _CandidateName, organization: bool
+) -> tuple:
+    raw = _score_prepared(a.full, b.full)
+    distinctive = _score_prepared(a.distinctive, b.distinctive) if organization else raw
+    adjusted = (
+        Decimal(0)
+        if organization
+        and (not a.distinctive.normalized or not b.distinctive.normalized)
+        else min(raw, (raw + distinctive) / Decimal(2))
+    )
+    return (
+        adjusted,
+        a.full.original,
+        b.full.original,
+        raw,
+        a.distinctive.normalized if organization else a.full.normalized,
+        b.distinctive.normalized if organization else b.full.normalized,
+        distinctive,
+        organization,
+    )
+
+
 def _identifier(value: str) -> str:
     return "".join(c for c in value.upper() if c.isalnum())
 
@@ -107,6 +231,40 @@ def _entity_category(value: str | None) -> str | None:
     return value if value in {"vessel", "aircraft"} else None
 
 
+def eligible_screening_entities(entities: list[dict]) -> list[dict]:
+    """Require a name/alias or supported identifier that survives normalization."""
+    return [
+        entity
+        for entity in entities
+        if any(
+            normalized_name(name)
+            for name in [entity["name"], *entity.get("aliases", [])]
+        )
+        or any(
+            _identifier(entity.get(field) or "") for field in ("lei", "registration_id")
+        )
+    ]
+
+
+def applicable_source_records(
+    snapshot: dict, as_of: date
+) -> tuple[list[dict], set[str]]:
+    """Retain unknown/contradictory intervals; exclude only consistent dated bounds."""
+    entries = snapshot["entries"]
+    inconsistent_dates = {
+        issue["record_id"] for issue in effective_date_issues(entries)
+    }
+    return [
+        entry
+        for entry in entries
+        if entry.get("record_id") in inconsistent_dates
+        or not (
+            (entry.get("start_date") and entry["start_date"] > as_of.isoformat())
+            or (entry.get("end_date") and entry["end_date"] < as_of.isoformat())
+        )
+    ], inconsistent_dates
+
+
 def candidate_findings(
     entities: list[dict],
     snapshot: dict,
@@ -116,14 +274,8 @@ def candidate_findings(
     max_candidates: int = 5,
 ) -> tuple[list[dict], dict]:
     entries = snapshot["entries"]
-    active = [
-        entry
-        for entry in entries
-        if not (
-            (entry.get("start_date") and entry["start_date"] > as_of.isoformat())
-            or (entry.get("end_date") and entry["end_date"] < as_of.isoformat())
-        )
-    ]
+    considered, inconsistent_dates = applicable_source_records(snapshot, as_of)
+    eligible_entities = eligible_screening_entities(entities)
     findings = []
     omitted = 0
     # Prepare Unicode, sorted tokens, and character counts only once per source name.
@@ -131,29 +283,58 @@ def candidate_findings(
         (
             entry,
             [
-                _prepare_name(name)
-                for name in [entry["name"], *entry.get("aliases", [])]
+                _prepare_candidate_name(name, primary=index == 0)
+                for index, name in enumerate([entry["name"], *entry.get("aliases", [])])
             ],
         )
-        for entry in active
+        for entry in considered
     ]
     threshold_numerator, threshold_denominator = minimum_score.as_integer_ratio()
-    for entity in entities:
+    # If full similarity cannot exceed one, the mean cannot reach the requested
+    # threshold unless distinctive similarity can reach 2 * threshold - 1.
+    core_numerator, core_denominator = max(
+        Decimal(0), 2 * minimum_score - 1
+    ).as_integer_ratio()
+    for entity in eligible_entities:
         candidates = []
         names = [
-            _prepare_name(name) for name in [entity["name"], *entity.get("aliases", [])]
+            _prepare_candidate_name(name, primary=index == 0)
+            for index, name in enumerate([entity["name"], *entity.get("aliases", [])])
         ]
         for entry, source_names in prepared:
-            best: tuple[Decimal, str, str] = (Decimal(0), "", "")
+            categories = (
+                _entity_category(entity.get("entity_type")),
+                _entity_category(entry.get("entity_type")),
+            )
+            non_organization = any(
+                category in {"individual", "vessel", "aircraft"}
+                for category in categories
+            )
+            known_organization = "organization" in categories and not non_organization
+            infer_organization = all(category is None for category in categories)
+            best = (Decimal(0), "", "", Decimal(0), "", "", Decimal(0), False)
             for name in names:
                 for source_name in source_names:
                     if not _can_reach(
-                        name, source_name, threshold_numerator, threshold_denominator
+                        name.full,
+                        source_name.full,
+                        threshold_numerator,
+                        threshold_denominator,
                     ):
                         continue
-                    score = _score_prepared(name, source_name)
-                    if (score, name.original, source_name.original) > best:
-                        best = (score, name.original, source_name.original)
+                    organization = _organization_comparison(
+                        name, source_name, known_organization, infer_organization
+                    )
+                    if organization and not _can_reach(
+                        name.distinctive,
+                        source_name.distinctive,
+                        core_numerator,
+                        core_denominator,
+                    ):
+                        continue
+                    score = _candidate_name_score(name, source_name, organization)
+                    if score > best:
+                        best = score
             matched_ids = []
             identifier_comparisons = []
             for ident in entry.get("identifiers", []):
@@ -171,7 +352,11 @@ def candidate_findings(
                     else "registration_id" if "registration" in kind.lower() else None
                 )
                 if field and entity.get(field):
-                    same = _identifier(number) == _identifier(entity[field])
+                    source_identifier = _identifier(number)
+                    entity_identifier = _identifier(entity[field])
+                    if not source_identifier or not entity_identifier:
+                        continue
+                    same = source_identifier == entity_identifier
                     identifier_comparisons.append(
                         {
                             "field": field,
@@ -191,10 +376,12 @@ def candidate_findings(
                 # For identifier-only candidates, report the actual best name score,
                 # not the zero sentinel used while pruning non-candidates.
                 best = max(
-                    (
-                        _score_prepared(name, source_name),
-                        name.original,
-                        source_name.original,
+                    _candidate_name_score(
+                        name,
+                        source_name,
+                        _organization_comparison(
+                            name, source_name, known_organization, infer_organization
+                        ),
                     )
                     for name in names
                     for source_name in source_names
@@ -255,6 +442,25 @@ def candidate_findings(
                         "minimum_similarity": str(minimum_score),
                         "entity_name_compared": best[1],
                         "source_name_compared": best[2],
+                        "full_name_similarity": format(
+                            best[3].quantize(Decimal("0.0001")), "f"
+                        ),
+                        **(
+                            {
+                                "entity_distinctive_name": best[4],
+                                "source_distinctive_name": best[5],
+                                "distinctive_name_similarity": format(
+                                    best[6].quantize(Decimal("0.0001")), "f"
+                                ),
+                            }
+                            if best[7]
+                            else {}
+                        ),
+                        "name_comparison_method": (
+                            "Organization similarity is the lower of full-name similarity and the mean of full-name and distinctive-name similarities. Shared organizational wording is downweighted."
+                            if best[7]
+                            else "Full normalized name comparison."
+                        ),
                         "identifier_matches": ids,
                         "identifier_comparisons": id_comparisons,
                         "entity_type_context": type_context,
@@ -265,6 +471,11 @@ def candidate_findings(
                         "alias_quality": alias_quality,
                         "listing_start_date": entry.get("start_date"),
                         "listing_end_date": entry.get("end_date"),
+                        **(
+                            {"listing_date_status": "inconsistent_source_interval"}
+                            if entry["record_id"] in inconsistent_dates
+                            else {}
+                        ),
                         "source_updated_at": snapshot.get("metadata", {}).get(
                             "source_updated_at"
                         ),
@@ -274,7 +485,14 @@ def candidate_findings(
                     "unknowns": [
                         "Identity equivalence and the legal effect of this specific listing require independent review.",
                         "Missing listing dates do not establish membership on the case's historical as-of date.",
-                    ],
+                    ]
+                    + (
+                        [
+                            "The source end date precedes its start date. Listing applicability on the case's as-of date cannot be evaluated; both supplied dates are retained without correction."
+                        ]
+                        if entry["record_id"] in inconsistent_dates
+                        else []
+                    ),
                     "alternatives": [
                         "Unrelated people or organizations may share a name, alias, or an unqualified registration number."
                     ],
@@ -291,7 +509,10 @@ def candidate_findings(
                 }
             )
     return findings, {
-        "source_records_considered": len(active),
-        "source_records_excluded_by_dates": len(entries) - len(active),
+        "entities_considered": len(eligible_entities),
+        "entities_without_usable_identity": len(entities) - len(eligible_entities),
+        "source_records_considered": len(considered),
+        "source_records_excluded_by_dates": len(entries) - len(considered),
+        "source_records_with_inconsistent_dates": len(inconsistent_dates),
         "candidates_omitted_by_display_limit": omitted,
     }

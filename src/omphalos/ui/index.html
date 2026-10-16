@@ -4,17 +4,24 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <title>omphalOS — Investigation workbench</title>
+    <title>omphalOS: the center of the investigation</title>
     <link rel="stylesheet" href="/styles.css" />
+    <script src="/box.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
-  <body>
+  <body class="object-mode">
     <a id="skip-navigation" class="skip-link" href="#main">Skip to workspace</a>
 
     <aside class="sidebar" aria-label="Workspace navigation">
-      <a class="brand" href="#overview" aria-label="omphalOS overview">omphal<span>OS</span></a>
-      <div class="workspace-label">Workspace</div>
+      <a class="brand" href="#investigate" aria-label="omphalOS investigation"
+        >omphal<span>OS</span></a
+      >
       <nav class="primary-nav" aria-label="Main navigation">
+        <a href="#investigate" data-nav="investigate"
+          ><svg aria-hidden="true" viewBox="0 0 20 20">
+            <path d="M10 2.5 17 6.5v7L10 17.5 3 13.5v-7zM3 6.5l7 4 7-4M10 10.5v7" /></svg
+          >Investigate</a
+        >
         <a href="#overview" data-nav="overview">
           <svg aria-hidden="true" viewBox="0 0 20 20">
             <path d="M3 3h5v5H3zm9 0h5v5h-5zM3 12h5v5H3zm9 0h5v5h-5z" />
@@ -44,14 +51,21 @@
         </a>
       </nav>
       <div class="sidebar-bottom">
-        <span class="session-label">Local session</span>
-        <p>Stored on this device</p>
+        <span class="session-label">Workspace</span>
+        <p id="storage-note"></p>
       </div>
     </aside>
 
     <div class="workspace-shell">
       <header class="topbar">
-        <span id="breadcrumb">Workspace / Overview</span>
+        <a
+          class="object-brand"
+          href="#investigate"
+          aria-label="omphalOS: the center of the investigation"
+          ><span>omphalOS:</span
+          ><span class="brand-subtitle">the center of the investigation</span></a
+        >
+        <span id="breadcrumb">Workspace / Investigate</span>
         <div class="topbar-actions">
           <span id="draft-status" class="draft-indicator" hidden>Unsaved changes</span>
           <button id="refresh" class="text-button" type="button">
@@ -71,10 +85,6 @@
         hidden
       ></div>
       <main id="main" tabindex="-1"><div class="loading">Loading workspace…</div></main>
-      <footer>
-        Decision support for analyst review. Observations and identity candidates are not legal
-        determinations.
-      </footer>
     </div>
 
     <dialog id="evidence-dialog" aria-labelledby="dialog-title">
