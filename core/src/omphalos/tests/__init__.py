@@ -1,1 +1,0 @@
-"""omphalOS test suite."""

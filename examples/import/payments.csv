@@ -1,0 +1,4 @@
+payment_id,shipment_id,amount,ccy,method,date,bank,broker
+EXAMPLE_PAYMENT1,EXAMPLE_SHIPMENT,3000,USD,wire,2026-09-02,Synthetic Bank,Synthetic Broker
+EXAMPLE_PAYMENT2,EXAMPLE_SHIPMENT,3000,USD,wire,2026-09-03,Synthetic Bank,Synthetic Broker
+EXAMPLE_PAYMENT3,EXAMPLE_SHIPMENT,4000,USD,wire,2026-09-04,Synthetic Bank,Synthetic Broker

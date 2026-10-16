@@ -1,0 +1,3 @@
+entity_id,name,entity_type,country,address
+EXAMPLE_SELLER,Synthetic Example Seller,organization,US,100 Example Road
+EXAMPLE_BUYER,Synthetic Example Buyer,organization,DE,200 Demonstration Way

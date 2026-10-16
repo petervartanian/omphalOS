@@ -1,0 +1,2 @@
+shipment_id,exporter_id,importer_id,domain,date,qty,unit,hs_code,invoice_id
+EXAMPLE_SHIPMENT,EXAMPLE_SELLER,EXAMPLE_BUYER,machine_tools,2026-09-01,10,pcs,845610,EXAMPLE/2026/001

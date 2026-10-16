@@ -1,180 +1,105 @@
-# omphalOS...
+# omphalOS: the center of the investigation
 
-**... is an investigation platform for high-stakes analytical work.**
+**Start with a name or records. Follow the evidence. Record the decision.**
 
-[![License: CC0](https://img.shields.io/badge/License-CC0-lightgrey.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18345558.svg)](https://doi.org/10.5281/zenodo.18345558)
+omphalOS is an investigation system for export-compliance analysts reviewing counterparties, shipments, and payments. Enter a company or person's name to discover public identity records, choose the relevant profile, and screen it against the official U.S. Consolidated Screening List. Import records for transaction analysis. A shallow evidence box folds as six stages of the same case are completed: Records, Sources, Plan, Findings, Assessment, and Package.
 
-## What, Precisely, Is This?
+The successor replaces the old generated-query system with an implemented investigation library shared by the browser and command line. The original code and its audit remain recoverable in Git history. See [what changed](docs/RECONSTRUCTION.md), the [research basis](docs/RESEARCH.md), and [validation results](docs/VALIDATION.md).
 
-omphalOS surfaces patterns for review, then forces the record to carry uncertainty, rival explanations, and falsifiers as first-class structure.
+## Website edition
 
-One cannot export a packet without documenting what one does not know; _e.g._, every SQL query scrolls past epistemic warnings before one reaches the data; and, years later — namely, when someone challenges one's analysis — every step is reproducible bit-for-bit.
+The website runs the actual Python investigation engine in a dedicated browser worker, using a pinned Pyodide runtime. Static files can be published on GitHub Pages without a paid server or subscription. Case records stay in that browser; the entered name goes to GLEIF and Wikidata, and the official Consolidated Screening List is downloaded separately.
 
-What omphalOS constitutes is neither risk-scoring, nor classification, but a hypothesis-generating pattern detection where the system makes doubt structurally unavoidable.
+Build with `python tools/build_browser.py --output dist/browser` and publish that directory. See [browser operation and limits](docs/BROWSER.md). The normal desktop installation remains available below.
 
-## Who Uses This
+## Start locally
 
-omphalOS enjoys usage by intelligence analysts, export-control investigators, sanctions-compliance officers, trade-finance investigators, _etc._ — in other words, anyone working in adversarial contexts of legality wherein "the-algorithm-flagged-it" is insufficient and analytical reasoning must survive scrutiny.
+Requires Python 3.11 or newer. Dependencies are pinned in `poetry.lock`.
 
-Application domains include (and are not limited to) export control casework (e.g., EAR, ITAR), sanctions enforcement (e.g., OFAC and multilateral régimes), trade-based money laundering, supply-chain risk, proliferation finance, detection of illicit and/or luxury goods... and, much, much, much more.
-
-## Quick Start
-
-```bash
-# Clone and verify
-git clone https://github.com/your-org/omphalOS
-cd omphalOS
-PYTHONPATH=core/src python -m omphalos.cli pack verify packs/INDEX.json
-
-# Build synthetic world and execute case
-PYTHONPATH=core/src python -m omphalos.cli world build --profile hydrate --out hydrate/world
-PYTHONPATH=core/src python -m omphalos.cli case run hydrate/cases/case_chemicals.json --out hydrate/runs
-
-# Verify integrity and apply export gate
-PYTHONPATH=core/src python -m omphalos.cli case verify hydrate/runs/case_chemicals/<run_id>/
-PYTHONPATH=core/src python -m omphalos.cli export hydrate/runs/case_chemicals/<run_id>/packet.json
-
-# Run conformance suite
-PYTHONPATH=core/src python -m omphalos.cli conformance
+```sh
+poetry install
+poetry run omphalos --workspace ./workspace serve --open
 ```
 
-Workbench UI: `core/ui/analyst-workbench.html` (single offline HTML file)
+With a prepared local `.venv`, double-click **Start omphalOS.command** on macOS or **Start omphalOS.cmd** on Windows. Or run:
 
-See [TUTORIAL.md](docs/TUTORIAL.md) for walkthrough.
-
-## Architecture
-
-Three object types:
-
-- **Cases**: investigative questions, scope, selected investigations
-- **Runs**: portable executions producing checksummed artifacts
-- **Packets**: claims with mandatory doubt structure (unknowns, alternatives, falsifiers)
-
-Trust is distributed across independent implementations (Python reference runtime, Rust cryptographic attestation, Go independent SQL execution). No single implementation is authoritative.
-
-Offline-first: operates in air-gapped environments. All dependencies pre-packaged in cryptographically signed packs.
-
-```
-┌───────────────────────────────────────────┐
-│              omphalOS                      │
-├───────────────────────────────────────────┤
-│  Cases → Python Runtime → SQL Warehouse   │
-│              ↓                             │
-│         Run Artifacts (Packets)           │
-│              ↓                             │
-│    ┌────────┬────────┬────────┐          │
-│    │  Rust  │   Go   │ Export │          │
-│    │ Verify │ Verify │  Gate  │          │
-│    └────────┴────────┴────────┘          │
-└───────────────────────────────────────────┘
+```sh
+PYTHONPATH=src .venv/bin/python -m omphalos --workspace ./workspace serve --open
 ```
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for complete design.
+Open the address printed by the server. The server binds only to your computer and loads no external scripts, fonts, or analytics. Identity discovery sends the entered name to GLEIF and Wikidata. Screening downloads the official public list separately when needed; that download sends no case records or search names. Analysis, review, verification, and replay work locally once dependencies and inputs are present.
 
-## The Canon
+Enter a company or person's name and choose **Investigate**. omphalOS looks up public identity records. Choose a sourced profile, or continue with the name alone. It then obtains the screening list, prepares the plan, and runs the checks. **Import** accepts counterparty or transaction records. **Open** resumes saved investigations or analyzes retained record sets. Open an available panel or its matching named control to inspect that stage; **Back to the box** returns to the overview. Earlier retained stages remain accessible, and future stages unlock when their prerequisites are present.
 
-Every SQL investigation contains 60+ repetitions of "interpret with restraint; prefer simpler explanations; record unknowns" before you reach the query. This is not documentation—it is infrastructure that makes epistemic humility structurally unavoidable.
+Records is the base. Sources, Plan, Findings, and Assessment form the walls, folding one at a time as each stage completes. Package is the lid; it closes only after the matching evidence package is created. Unfinished panels retain a muted version of their own color. Completion strengthens that color and adds a checkmark to the matching control. Editing a saved decision reopens Assessment and Package. Color and folding indicate completed work, not clearance or risk.
 
-Research shows single warnings are psychologically distant. Repeated environmental cues durably shift judgment patterns. The Canon exploits this.
+## The complete workflow
 
-See [CANON.md](docs/CANON.md) for philosophical foundation.
+1. **Records.** Start with a name, import files, or select retained records. A counterparty CSV opens a mapping preview; **Investigate these records** confirms it and starts analysis. Linked transaction files preserve their explicit relationships. Original inputs and row provenance are retained. Selected public profiles produce a new dataset with attributed fields; existing records and earlier runs remain unchanged.
+2. **Sources.** Screening obtains or reuses an eligible official-list snapshot automatically. **Sources** shows the retained list and its dates. Shipment and payment checks use the actual records supplied for the case.
+3. **Plan.** The application prepares the question, assessment date, case ID, and supported checks, then runs them. The plan remains inspectable, including missing prerequisites. Explicitly edited inputs require an updated plan.
+4. **Findings.** **Open findings** shows the results. Select an observation for its computed values, cited-record tables, and analytical limits. Evidence pages contain up to 40 references; each record opens with its provenance. Identity candidates remain candidates, and zero findings do not establish clearance.
+5. **Assessment.** Review the findings and coverage, then choose **Keep open**, **Escalate**, or **Conclude**. Record your name and acknowledge the coverage. A case note is optional except when concluding. The decision covers the case; it does not require a questionnaire for each observation or invent individual judgments.
+6. **Package.** A valid recorded decision and verified run enable an evidence ZIP containing the readable report, original and normalized inputs, code snapshot, settings, results, decision, and checksums. The report separates the analyst's decision from generated analytical context. Open questions can remain unresolved in an exported package.
 
-## Investigation Catalog
+The box and its working surface form the main application. **Open** lists saved investigations and records. Supporting record and case screens provide inventory and editing controls within the same application. See the [investigation guide](docs/WORKBENCH.md) and [evidence format](docs/EVIDENCE.md).
 
-20,000 parametric SQL queries detecting patterns: payment fragmentation, entity clustering, temporal anomalies, cross-domain procurement, price outliers, network topology.
+## Command line
 
-Each investigation includes Canon and Margin headers (epistemic safeguards), metadata (domain, intent, method), CTE-based SQL (reviewable), limited result sets (bounded).
+Import records, inspect the schemas, and save a case definition referring to the imported dataset and any required source snapshot:
 
-See [INVESTIGATIONS.md](docs/INVESTIGATIONS.md) for taxonomy.
-
-## Export Gate
-
-Packets must contain:
-- Evidence (artifact pointers with cryptographic hashes)
-- Unknowns (what claims do not establish)
-- Alternatives (rival explanations)
-- Falsifiers (what would overturn claims)
-
-No exceptions. The export gate rejects packets lacking any of these. It scans for prohibited certainty language ("proves", "must be", "conclusively"). This is enforced programmatically.
-
-See [STANDARDS_OF_REVIEW.md](docs/STANDARDS_OF_REVIEW.md) for normative requirements.
-
-## Conformance
-
-The conformance suite gates integrity:
-
-1. Pack checksum verification;
-2. Case execution producing checksummed run;
-3. Manifest integrity validation;
-4. Export gate evaluation (packet admissibility);
-5. Polycentric verification (Rust + Go).
-
-```bash
-PYTHONPATH=core/src python -m omphalos.cli conformance
+```sh
+poetry run omphalos --workspace ./workspace import ./my-records --id my-records --label 'October review'
+poetry run omphalos schema data
+poetry run omphalos schema case
+poetry run omphalos schema review
+poetry run omphalos catalog
+poetry run omphalos --workspace ./workspace sources fetch csl --id csl-october
+poetry run omphalos --workspace ./workspace case ./my-case.json
+poetry run omphalos --workspace ./workspace run CASE_ID
+poetry run omphalos --workspace ./workspace show RUN_ID
+poetry run omphalos --workspace ./workspace review ./case-decision.json
+poetry run omphalos --workspace ./workspace export RUN_ID
+poetry run omphalos --workspace ./workspace verify RUN_ID
+poetry run omphalos --workspace ./workspace replay RUN_ID
+poetry run omphalos verify /path/to/export.zip
 ```
 
-See [CONFORMANCE.md](docs/CONFORMANCE.md) for release contract.
+Use the case and run IDs returned by the commands. Review schema 2.1 records the explicit case decision, reviewer, optional note, complete observation scope, and coverage acknowledgment. Concluding requires a substantive note. Legacy schema 2.0 individual reviews remain supported. No command silently completes a human decision.
 
-## Documentation
+All commands return JSON. Verification failure exits 1; invalid input exits 2. `--debug` includes diagnostic tracebacks. Put the global `--workspace` option before the subcommand.
 
-| Document | Coverage |
-|----------|----------|
-| [CONFORMANCE.md](docs/CONFORMANCE.md) | Conformance suite and release contract |
-| [STANDARDS_OF_REVIEW.md](docs/STANDARDS_OF_REVIEW.md) | Export gate requirements (normative) |
-| [CANON.md](docs/CANON.md) | Epistemic humility as infrastructure |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design and polycentric verification |
-| [INVESTIGATIONS.md](docs/INVESTIGATIONS.md) | SQL catalog and pattern taxonomy |
-| [TUTORIAL.md](docs/TUTORIAL.md) | First case walkthrough |
-| [THREAT_MODEL.md](docs/THREAT_MODEL.md) | Security assumptions and mitigations |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment |
-| [RESEARCH.md](docs/RESEARCH.md) | Academic positioning |
+## What verification means
 
-## Design Philosophy
+- **Integrity:** the complete file inventory and hashes match; required content is present and structurally valid.
+- **Replay:** the same installed engine and dependencies recompute the normalized findings and coverage from archived inputs. Execution timestamps and ZIP bytes need not match.
+- **Review:** the required named assessment is recorded against the exact run manifest. Reviewer names are self-asserted, not verified account identities.
+- **Authenticity:** ordinary hashes do not establish who supplied evidence. Optional detached Ed25519 verification requires a separately trusted public key. A key bundled by an unknown sender is not independently trusted.
 
-Traditional algorithmic systems optimize for precision and recall, treating detection as classification. This fails when (a) base rates are exceptionally low (<0.01% of transactions), (b) adversaries adapt through FOIA and litigation disclosure, and/or (c) conclusions must survive adversarial legal scrutiny.
+A passed check does not establish the truth of source records, the quality of a human explanation, legal clearance, or admissibility. The application never automatically merges identities, blocks funds, submits reports to authorities, or calculates a probability of wrongdoing.
 
-omphalOS inverts this through a hypothesis-generating pattern detection (not classification), transparency by design (assumes disclosure), and the systematic documentation of unknowns (not confident predictions).
+## Scope and operating limits
 
-Epistemic humility, here, is architectural.
+Local mode serves one analyst on their computer. The website edition saves one workspace in each browser and does not provide organization accounts, shared cases, cross-device synchronization, or role-based access. Download evidence packages for durable copies. It is not a collaborative case-management service. It does not provide a complete beneficial-ownership graph, automatic jurisdiction/license decisions, document OCR, international rule coverage, institution-specific retention enforcement, or legal conclusions. Ownership and diligence rows preserve supplied evidence; they do not establish completeness or an automatic 50 Percent Rule decision.
 
-## Security and Privacy
+Do not interpret an expired listing retained by a publisher as an active restriction, or a later snapshot as a complete historical list. Review source dates and the underlying agency guidance. Public aggregate trade statistics cannot supply the company-level shipment and payment evidence this application needs.
 
-**Export-Control Notice**: Publicly released, not subject to EAR controls. Contains no controlled technical data. Datasets are synthetic and non-identifiable.
+Synthetic regression tests demonstrate implementation behavior; they do not establish operational detection accuracy. Domain-expert review and an authorized, representative held-out case set are still needed to measure useful findings and false-positive burden. Current validation results distinguish checks actually executed from configured future CI.
 
-**Privacy by Design**: Packets contain aggregates, not individual transactions. Export gates block credentials and secrets. Demonstration world-states are synthetic; production deployments apply redaction protocols.
+## Development
 
-See [THREAT_MODEL.md](docs/THREAT_MODEL.md) and [SECURITY.md](SECURITY.md).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
-
-Requirements are that only synthetic data is apposite, SQL investigations follow Canon/Margin conventions, code passes verification, and no credentials or classified material are used.
-
-## License
-
-CC0 1.0 Universal (Public Domain)
-
-Work from the U.S. Government is not subject to copyright protection domestically. Foreign copyrights may appl. To the extent possible under law, all copyright and related rights dedicated to the public domain worldwide.
-
-See [LICENSE](LICENSE).
-
-## Citation
-
-```bibtex
-@software{omphalos2026,
-  author = {{Peter H. Vartanian}},
-  title = {omphalOS},
-  year = {2026},
-  doi = {10.5281/zenodo.18344930},
-  url = {https://github.com/petervartanian/omphalOS}
-}
+```sh
+poetry install
+poetry run pytest
+poetry run ruff check src tests
+poetry run black --check src tests tools
+poetry build
 ```
 
-## Acknowledgments
+For interface development, use Node.js 24 or newer and run `npm ci --ignore-scripts`, then `npm run check`. ESLint checks browser code and Prettier checks the HTML, JavaScript, and CSS. `npm run format` applies the shared formatting rules. These are development tools only; running the application requires no Node.js or frontend build. The Python suite also runs the browser-state regression harness when Node.js is available, and CI explicitly installs it.
 
-omphalOS is influenced by (1) Richards Heuer's *Psychology of Intelligence Analysis*, (2) Elinor Ostrom's polycentric governance theory, and (3) the CompCert verified software project, as well as (4) personal inputs from fellow builders and stakeholders in the Government of the United States.
+[Security boundaries](SECURITY.md), [contribution guide](CONTRIBUTING.md), [data schema](docs/DATA.md), and [independent verifiers](native/README.md).
 
-Ultimately, this system is transparent _precisely_ because transparency is renders makes it defensible.. and not merely because it has nothing to hide.
+Application code retains the original **CC0-1.0** license. Packaged Geist and Geist Mono fonts come from `geist@1.7.2` and retain the **SIL Open Font License 1.1**, copied in [font-license.txt](src/omphalos/ui/font-license.txt). Fonts load from the local application, with no third-party font request. Imported data and publisher snapshots retain their own terms and provenance.
+
+The [usability review](docs/USABILITY.md) records the design research, workflow decisions, and boundaries behind the current interface.

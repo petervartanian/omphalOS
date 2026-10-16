@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>omphalOS: the center of the investigation</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/box.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body class="object-mode">
+    <a id="skip-navigation" class="skip-link" href="#main">Skip to workspace</a>
+
+    <aside class="sidebar" aria-label="Workspace navigation">
+      <a class="brand" href="#investigate" aria-label="omphalOS investigation"
+        >omphal<span>OS</span></a
+      >
+      <nav class="primary-nav" aria-label="Main navigation">
+        <a href="#investigate" data-nav="investigate"
+          ><svg aria-hidden="true" viewBox="0 0 20 20">
+            <path d="M10 2.5 17 6.5v7L10 17.5 3 13.5v-7zM3 6.5l7 4 7-4M10 10.5v7" /></svg
+          >Investigate</a
+        >
+        <a href="#overview" data-nav="overview">
+          <svg aria-hidden="true" viewBox="0 0 20 20">
+            <path d="M3 3h5v5H3zm9 0h5v5h-5zM3 12h5v5H3zm9 0h5v5h-5z" />
+          </svg>
+          Overview
+        </a>
+        <a href="#data" data-nav="data">
+          <svg aria-hidden="true" viewBox="0 0 20 20">
+            <ellipse cx="10" cy="5" rx="6.5" ry="2.5" />
+            <path
+              d="M3.5 5v5c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5V5M3.5 10v5c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5v-5"
+            />
+          </svg>
+          Data &amp; sources
+        </a>
+        <a href="#cases" data-nav="cases">
+          <svg aria-hidden="true" viewBox="0 0 20 20">
+            <path d="M2.5 5.5h6l1.5 2h7.5v9H2.5zM2.5 5.5V3.5H8l1.5 2h8v2" />
+          </svg>
+          Cases
+        </a>
+        <a href="#runs" data-nav="runs">
+          <svg aria-hidden="true" viewBox="0 0 20 20">
+            <path d="M5 2.5h8l3 3v12H5zM13 2.5v4h3M8 10h5M8 13h5" />
+          </svg>
+          Findings &amp; review
+        </a>
+      </nav>
+      <div class="sidebar-bottom">
+        <span class="session-label">Workspace</span>
+        <p id="storage-note"></p>
+      </div>
+    </aside>
+
+    <div class="workspace-shell">
+      <header class="topbar">
+        <a
+          class="object-brand"
+          href="#investigate"
+          aria-label="omphalOS: the center of the investigation"
+          ><span>omphalOS:</span
+          ><span class="brand-subtitle">the center of the investigation</span></a
+        >
+        <span id="breadcrumb">Workspace / Investigate</span>
+        <div class="topbar-actions">
+          <span id="draft-status" class="draft-indicator" hidden>Unsaved changes</span>
+          <button id="refresh" class="text-button" type="button">
+            <svg aria-hidden="true" viewBox="0 0 16 16">
+              <path d="M13.3 6A5.5 5.5 0 1 0 13 11M13.3 2.5V6H9.8" />
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </header>
+      <div
+        id="notice"
+        class="notice"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        hidden
+      ></div>
+      <main id="main" tabindex="-1"><div class="loading">Loading workspace…</div></main>
+    </div>
+
+    <dialog id="evidence-dialog" aria-labelledby="dialog-title">
+      <div class="dialog-heading">
+        <h2 id="dialog-title">Evidence record</h2>
+        <button id="close-dialog" class="secondary" type="button">Close</button>
+      </div>
+      <div id="dialog-content"></div>
+    </dialog>
+  </body>
+</html>
