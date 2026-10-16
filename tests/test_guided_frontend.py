@@ -27,7 +27,7 @@ GUIDED_SETUP = r"""
     {id: 'data_readiness', title: 'Check data readiness', description: 'Inspect missing evidence.', requires_source: false},
   ];
   state.datasets.push({dataset_id: 'datasetB', label: 'Another retained dataset', counts: {entities: 2}, synthetic: false});
-  run(`model.state = ${JSON.stringify(state)}; model.flow = newFlow(); Object.assign(model.flow, {stage: 'plan', goalId: 'transaction_review', datasetId: 'datasetA', asOf: '2026-10-13'});`);
+  run(`model.state = ${JSON.stringify(state)}; model.flow = newFlow(); Object.assign(model.flow, {stage: 'plan', recordsConfirmed: true, goalId: 'transaction_review', datasetId: 'datasetA', asOf: '2026-10-13'});`);
   function flowButton(action, attributes = {}) {
     const element = button('');
     element.dataset = {flow: action, ...attributes};
@@ -50,6 +50,7 @@ GUIDED_SETUP = r"""
       source_status: {selected: false},
     };
   }
+  const approvedSources = {signature: 'opaque-test-approval', plan_id: 'planA', records_selected: true, source_accepted: true};
   function previewed(mapping = {Supplier: 'name', Country: 'country'}) {
     return {
       preview_id: 'previewA', file_name: 'suppliers.csv', row_count: 1,
@@ -77,6 +78,8 @@ GUIDED_SETUP = r"""
   }
   function enterLegacyReview() {
     const retained = enterReview();
+    click(flowButton('findings-reviewed'));
+    run('model.flow.reviewIndex = 0;');
     // These compatibility cases exercise an unfinished 2.0 draft. New reviews
     // use the case-level form covered by test_case_review_frontend.py.
     run(`model.reviewDrafts.runA = {schema_version: '2.0', run_id: 'runA', reviewer: '', summary: '', findings: [], acknowledge_limitations: false}; renderGuided();`);
@@ -200,7 +203,10 @@ def test_choosing_another_dataset_invalidates_the_previous_runnable_plan() -> No
   release(jsonResponse(planned('Review the second dataset after selecting it.')));
   await settle();
   assert.equal(run('model.flow.planInputs.dataset_id'), 'datasetB');
-  assert.ok(main.innerHTML.includes('Review the second dataset after selecting it.'));
+  assert.equal(run('model.flow.plan.case.question'), 'Review the second dataset after selecting it.');
+  assert.equal(run('model.flow.recordsConfirmed'), true);
+  assert.equal(run('model.flow.cubeFace'), 1);
+  assert.equal(run('model.flow.approval'), null);
   assert.notEqual(notice.className, 'notice error');
 """)
 
@@ -269,8 +275,11 @@ def test_mapping_edits_require_a_new_preview_before_import() -> None:
   const imported = requests.find((request) => request.url === '/api/workflow/import');
   assert.equal(imported.body.preview_id, 'previewB');
   assert.deepEqual(imported.body.mapping, {Supplier: 'name', Country: null});
-  assert.equal(run('model.flow.stage'), 'review');
-  assert.equal(requests.filter(request => request.url === '/api/workflow/run').length, 1);
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
+  assert.equal(run('model.flow.recordsConfirmed'), true);
+  assert.equal(run('model.flow.approval'), null);
+  assert.equal(requests.filter(request => request.url === '/api/workflow/run').length, 0);
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
   assert.notEqual(notice.className, 'notice error');
 """)
@@ -659,6 +668,8 @@ def test_legacy_evidence_paging_keeps_the_assessment_and_reaches_later_citations
   const retained = enterLegacyReview();
   retained.analysis.findings[0].record_refs = Array.from({length: 45}, (_, index) => ({table: 'payments', record_id: 'payment-' + index}));
   run(`model.run = ${JSON.stringify(retained)};`);
+  click(flowButton('findings-reviewed'));
+  run('model.flow.reviewIndex = 0;');
   navigate('investigate');
   const {controls} = reviewForm({rationale: 'The analyst is checking the cited payment documents.'});
   main.emit('input', {target: controls.rationale});
@@ -715,7 +726,9 @@ def test_landing_action_opens_the_file_picker_after_rendering_the_intake() -> No
 """)
 
 
-def test_retained_records_run_analysis_without_recording_judgment() -> None:
+def test_retained_records_require_source_and_plan_approval_then_findings_review() -> (
+    None
+):
     run_guided(r"""
   const records = {dataset_id: 'retained-fixture', label: 'Retained test records', counts: {entities: 2, shipments: 3, payments: 4}, synthetic: true};
   state.datasets.push(records);
@@ -726,17 +739,34 @@ def test_retained_records_run_analysis_without_recording_judgment() -> None:
     requests.push({url, payload: options?.body ? JSON.parse(options.body) : null});
     if (url === '/api/state') return jsonResponse(state);
     if (url === '/api/workflow/plan') return jsonResponse(planned());
+    if (url === '/api/workflow/approve') return jsonResponse({approval: approvedSources});
     if (url === '/api/workflow/run') return jsonResponse({run_id: 'retained-run'});
     if (url === '/api/runs/retained-run') return jsonResponse(retained);
     throw new Error('Unexpected request: ' + url);
   };
   click(flowButton('investigate-dataset', {id: records.dataset_id}));
   await settle();
+  assert.equal(run('model.flow.cubeFace'), 1);
+  assert.equal(run('model.flow.recordsConfirmed'), true);
+  assert.equal(run('flowStageAccess(2)'), false);
+  assert.equal(requests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(requests.filter(item => item.url === '/api/workflow/approve').length, 0);
+  click(flowButton('approve-sources'));
+  await settle();
+  const acceptance = requests.find(item => item.url === '/api/workflow/approve').payload;
+  assert.deepEqual(acceptance, {dataset_id: records.dataset_id, goal_id: 'transaction_review', as_of: run('model.flow.asOf'), plan_id: 'planA', case_id: 'prepared-case', acknowledge_records: true, acknowledge_source: true});
+  assert.equal(run('model.flow.cubeFace'), 2);
+  assert.equal(run('flowCubeFaces()[2].complete'), false, 'Preparing or opening Plan is not approval to execute.');
+  assert.equal(requests.filter(item => item.url === '/api/workflow/run').length, 0);
+  click(flowButton('run'));
+  await settle();
   assert.equal(requests.filter(item => item.url === '/api/workflow/run').length, 1);
   const execution = requests.find(item => item.url === '/api/workflow/run').payload;
   assert.equal(execution.dataset_id, records.dataset_id);
   assert.equal(execution.goal_id, 'transaction_review');
   assert.equal(execution.plan_id, 'planA');
+  assert.deepEqual(execution.approval, approvedSources);
+  assert.equal(execution.acknowledge_plan, true);
   assert.equal(run('model.selectedRun'), 'retained-run');
   assert.equal(run('model.flow.stage'), 'review');
   assert.equal(run('model.flow.cubeFace'), 3);
@@ -748,7 +778,11 @@ def test_retained_records_run_analysis_without_recording_judgment() -> None:
   assert.ok(!main.innerHTML.includes('name="disposition"'));
   assert.ok(!main.innerHTML.includes('proposed-rationale'));
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
-  click(flowButton('review-summary'));
+  assert.equal(run('flowResultsReviewed(model.run)'), false);
+  assert.equal(run('flowStageAccess(4)'), false);
+  click(flowButton('findings-reviewed'));
+  assert.equal(run('flowResultsReviewed(model.run)'), true);
+  assert.equal(run('model.flow.cubeFace'), 4);
   assert.ok(main.innerHTML.includes('data-review-scope="case"'));
   assert.ok(!/name="decision"[^>]*checked/.test(main.innerHTML));
   assert.ok(!/name="acknowledge_limitations"[^>]*checked/.test(main.innerHTML));
@@ -795,7 +829,7 @@ def test_navigation_during_linked_import_prevents_automatic_execution(
 
 
 @pytest.mark.parametrize("action", ["fetch", "fetch-run"])
-def test_source_download_runs_analysis_only_when_the_action_says_so(
+def test_source_download_prepares_sources_without_accepting_or_running_them(
     action: str,
 ) -> None:
     run_guided(r"""
@@ -814,8 +848,11 @@ def test_source_download_runs_analysis_only_when_the_action_says_so(
   };
   click(flowButton(ACTION));
   await settle();
-  assert.equal(requests.includes('/api/workflow/run'), ACTION === 'fetch-run');
-  assert.equal(run('model.flow.stage'), ACTION === 'fetch-run' ? 'review' : 'plan');
+  assert.equal(requests.includes('/api/workflow/run'), false);
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
+  assert.equal(run('flowSourcesAccepted()'), false);
+  assert.equal(run('flowStageAccess(2)'), false);
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
 """.replace("ACTION", repr(action)))
 

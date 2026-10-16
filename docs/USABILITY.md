@@ -14,13 +14,21 @@ The review used primary design and accessibility guidance:
 
 These sources informed specific decisions, rather than supplying a visual theme or a certification.
 
+## Investigation controls
+
+The Commerce Office of Inspector General's [May 4, 2026 audit of BIS enforcement of Russia and Belarus export controls](https://www.oig.doc.gov/audit-of-the-bureau-of-industry-and-securitys-enforcement-of-russia-and-belarus-export-controls/) examined end-use checks from fiscal years 2022–2023. Its [process diagram and findings](https://www.oig.doc.gov/wp-content/OIGPublications/OIG-26-019-A_FinalReport-SECURED.pdf) distinguish target approval, evidence collection and recommended ratings, and supervisory review; the audit also identifies manual-entry and evidence-retention weaknesses. This is a bounded example of an investigative process, not a universal BIS workflow.
+
+The design implication is to automate retrieval and plan drafting while recording the user's source acceptance, execution approval, and assessment separately. **Use these sources** completes II; **Run reviewed plan** records III; **Mark results reviewed** acknowledges IV. Computation and file verification cannot substitute for those actions. Older runs retain their actual history, including absent approval records.
+
+The [official CSL guidance](https://www.trade.gov/consolidated-screening-list) describes the list as a screening aid. Apparent matches require further due diligence and checking the underlying official lists and Federal Register. omphalOS supports evidence inspection; it does not conduct field inspections or interviews, authenticate supervisors, enforce separation of duties, or reproduce an agency's approval hierarchy.
+
 ## What separates a useful tool from a polished mockup
 
 | Question | Implemented behavior |
 | --- | --- |
-| Can a new person begin without inventing technical inputs? | Name entry is primary. Import is optional. Identity selection and CSV interpretation are explicit; compatible checks, case details, source acquisition, and execution are prepared automatically. |
+| Can a new person begin without inventing technical inputs? | Name entry is primary. Import is optional. Source acquisition and plan drafting are automatic; identity selection, source acceptance, and authorization to run remain explicit. |
 | Is the next action clear? | Six named stages follow Records, Sources, Plan, Findings, Assessment, and Package. A stage becomes available when its inputs exist. |
-| Does completion mean something real? | A saved, verified result completes Findings. An explicit saved decision completes Assessment. An actual matching export closes Package. Merely opening a panel does not complete it. |
+| Does completion mean something real? | Selected records complete I; accepted sources complete II; an explicitly authorized, verified run completes III. Results review completes IV, a saved decision completes V, and a matching export closes VI. Merely opening a panel does not complete it. |
 | Can someone read and act without scrolling past decoration? | The overview fits one page at tested sizes. Opening a stage places work beside the box on desktop and uses compact stage navigation on narrow screens. |
 | Can someone distinguish unfinished from finished without relying on red and green? | Stages I–V have light and deeper pigments. Every stage retains a numeral, name, completion check, and fold state; the completed package gains a shared dark rainbow finish and engraved pattern. |
 | Is an error recoverable? | Invalid imports retain a preview with correction actions. Failed or lost-response execution can resume the exact approved plan. Evidence-page retries retain the requested page. |

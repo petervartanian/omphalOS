@@ -94,6 +94,8 @@ inputs = {'dataset_id': subject['dataset_id'], 'goal_id': 'counterparty_screenin
 plan = request('/api/workflow/plan', inputs)
 assert plan['can_run'], plan
 run_payload = {**inputs, 'plan_id': plan['plan_id'], 'case_id': plan['case']['case_id']}
+approval = request('/api/workflow/approve', {**run_payload, 'acknowledge_records': True, 'acknowledge_source': True})
+run_payload.update({'approval': approval['approval'], 'acknowledge_plan': True})
 run_id = request('/api/workflow/run', run_payload)['run_id']
 run = request('/api/runs/' + run_id)
 review = {
@@ -137,7 +139,7 @@ json.dumps({
     'valid': valid, 'invalid_rejected': rejected,
     'case_schema': bool(Case.model_json_schema()['properties']),
     'standard_imports': True,
-    'workflow': 'subject-source-plan-run-review-export-verify-replay',
+    'workflow': 'subject-source-approval-plan-approval-run-review-export-verify-replay',
     'javascript_bytes_preserved': True,
     'workspace_reopened': True,
     'backup_restored_and_reopened': True,

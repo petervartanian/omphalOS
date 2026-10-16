@@ -19,9 +19,18 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .data import TABLES, data_schema, import_dataset, load_dataset
 from .investigations import catalog
+from .models import Case, GuidedApproval, GuidedPreflight, GuidedWorkflow
 from .runner import Workspace
 from .sources import fetch_source, import_source, load_source, source_catalog
-from .util import canonical_json, read_json, safe_child, safe_id, sha256_file
+from .util import (
+    canonical_json,
+    read_json,
+    safe_child,
+    safe_id,
+    sha256_bytes,
+    sha256_file,
+    utc_now,
+)
 from .workflow import (
     goal_catalog,
     import_subject,
@@ -783,14 +792,21 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     label=_text(body.get("label", ""), "Label"),
                     synthetic=False,
                 )
-        if action not in {"plan", "run"}:
+        if action not in {"plan", "approve", "run"}:
             raise RequestError("Route not found.", 404)
         executing = action == "run"
+        approving = action == "approve"
         fields = {"dataset_id", "goal_id", "as_of", "watchlist_snapshot_id"}
         required = {"dataset_id", "goal_id", "as_of"}
-        if executing:
+        if executing or approving:
             fields |= {"plan_id", "case_id"}
             required |= {"plan_id", "case_id"}
+        if approving:
+            fields |= {"acknowledge_records", "acknowledge_source"}
+            required |= {"acknowledge_records", "acknowledge_source"}
+        if executing:
+            fields |= {"approval", "acknowledge_plan"}
+            required |= {"approval", "acknowledge_plan"}
         _fields(body, fields, required)
         dataset_id = safe_id(_text(body["dataset_id"], "Dataset identifier", 80))
         dataset_path = safe_child(self.server.root / "datasets", dataset_id)
@@ -804,7 +820,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             snapshot = load_source(snapshot_path)
         case_id = (
             safe_id(_text(body["case_id"], "Case identifier", 80))
-            if executing
+            if executing or approving
             else None
         )
         plan = plan_case(
@@ -820,14 +836,14 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             "dataset_sha256": sha256_file(safe_child(dataset_path, "dataset.json")),
             "source_sha256": (
                 sha256_file(safe_child(snapshot_path, "source.json"))
-                if snapshot_path is not None
+                if snapshot_path is not None and plan["case"]["watchlist_snapshot_id"]
                 else None
             ),
         }
         plan_id = hmac.digest(
             self.server.workflow_secret, canonical_json(binding), "sha256"
         ).hex()
-        if not executing:
+        if not (executing or approving):
             return {**plan, "plan_id": plan_id}
         supplied_id = _text(body["plan_id"], "Plan identifier", 128)
         if not hmac.compare_digest(plan_id, supplied_id):
@@ -835,25 +851,94 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 "The plan or its inputs changed. Prepare a new plan before running.",
                 409,
             )
+        expected_preflight = {
+            "schema_version": "1.0",
+            "plan_id": plan_id,
+            "case_sha256": sha256_bytes(canonical_json(plan["case"])),
+            "dataset_id": dataset_id,
+            "dataset_sha256": binding["dataset_sha256"],
+            "source_snapshot_id": plan["case"]["watchlist_snapshot_id"],
+            "source_sha256": binding["source_sha256"],
+            "records_selected": True,
+            "source_accepted": True,
+        }
+        if approving:
+            if (
+                plan["source_status"]["required"]
+                and not plan["source_status"]["selected"]
+            ):
+                raise RequestError(
+                    "Retain the required screening source before accepting it."
+                )
+            if (
+                body["acknowledge_records"] is not True
+                or body["acknowledge_source"] is not True
+            ):
+                raise RequestError(
+                    "Confirm the selected records and source choices before continuing."
+                )
+            receipt = GuidedPreflight.model_validate(
+                {**expected_preflight, "source_accepted_at": utc_now()}
+            ).model_dump(mode="json")
+            signature = hmac.digest(
+                self.server.workflow_secret,
+                canonical_json(
+                    {"kind": "omphalos-source-approval-v1", "approval": receipt}
+                ),
+                "sha256",
+            ).hex()
+            return {"approval": {**receipt, "signature": signature}}
         if not plan["can_run"]:
             raise RequestError("Complete the missing plan requirements before running.")
+        if body["acknowledge_plan"] is not True:
+            raise RequestError("Review the plan and explicitly authorize execution.")
+        approval = GuidedApproval.model_validate(body["approval"]).model_dump(
+            mode="json"
+        )
+        signature = approval.pop("signature")
+        expected_signature = hmac.digest(
+            self.server.workflow_secret,
+            canonical_json(
+                {"kind": "omphalos-source-approval-v1", "approval": approval}
+            ),
+            "sha256",
+        ).hex()
+        if not hmac.compare_digest(signature, expected_signature) or any(
+            approval[key] != value for key, value in expected_preflight.items()
+        ):
+            raise RequestError(
+                "The source approval or plan changed. Review the current sources and plan again.",
+                409,
+            )
         ws = self.server.workspace
         case_path = safe_child(self.server.root / "cases", f"{case_id}.json")
         if case_path.exists():
+            saved = ws.get_case(case_id)
+            workflow = saved.get("workflow")
+            proposed = {key: value for key, value in saved.items() if key != "workflow"}
+            proposed["schema_version"] = "2.0"
             if (
                 self.server.guided_runs.get(case_id) != supplied_id
-                or ws.get_case(case_id) != plan["case"]
+                or proposed != plan["case"]
+                or not workflow
+                or any(workflow.get(key) != value for key, value in approval.items())
             ):
                 raise RequestError(
                     "This case already exists or changed. Prepare a new plan to run again.",
                     409,
                 )
-            recovered = self._completed_guided_run(plan["case"], binding)
+            recovered = self._completed_guided_run(saved, binding)
             if recovered is not None:
                 return recovered
         else:
+            workflow = GuidedWorkflow.model_validate(
+                {**approval, "plan_approved": True, "plan_approved_at": utc_now()}
+            ).model_dump(mode="json")
+            recorded_case = Case.model_validate(
+                {**plan["case"], "schema_version": "2.1", "workflow": workflow}
+            ).model_dump(mode="json")
             self.server.guided_runs[case_id] = supplied_id
-            ws.save_case(plan["case"])
+            ws.save_case(recorded_case)
         return ws.run_case(case_id)
 
     def _completed_guided_run(self, case: dict, binding: dict) -> dict | None:

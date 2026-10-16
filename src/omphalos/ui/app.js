@@ -230,7 +230,7 @@ async function task(message, fn) {
   if (trigger?.tagName === 'BUTTON') trigger.setAttribute('aria-busy', 'true');
   const controls = [
     ...document.querySelectorAll(
-      '[data-flow="run"], [data-flow="fetch-run"], [data-flow="import"], [data-flow="plan"], [data-flow="fetch"], [data-flow="repreview"], button[type="submit"], button[data-action="verify"], button[data-action="replay"], button[data-action="export"], button[data-action="open-run"], button[data-action="load-case"], #refresh',
+      '[data-flow="approve-sources"], [data-flow="findings-reviewed"], [data-flow="run"], [data-flow="fetch-run"], [data-flow="import"], [data-flow="plan"], [data-flow="fetch"], [data-flow="repreview"], button[type="submit"], button[data-action="verify"], button[data-action="replay"], button[data-action="export"], button[data-action="open-run"], button[data-action="load-case"], #refresh',
     ),
   ];
   const disabled = controls.map((control) => control.disabled);
@@ -1545,6 +1545,10 @@ function newFlow() {
     previewStale: false,
     plan: null,
     planInputs: null,
+    recordsConfirmed: false,
+    approval: null,
+    approvalPlanId: null,
+    resultsReview: null,
     revision: 0,
     reviewIndex: 0,
     cubeFace: 0,
@@ -1614,6 +1618,10 @@ function invalidateFlow(changes = {}, keepInspection = false) {
   Object.assign(flow, { settingsOpen: false }, changes, {
     plan: null,
     planInputs: null,
+    approval: null,
+    approvalPlanId: null,
+    resultsReview: null,
+    ...('datasetId' in changes && !changes.recordsConfirmed ? { recordsConfirmed: false } : {}),
     inspectionFace,
   });
   if ('datasetId' in changes && changes.datasetId !== flow.identityResearch?.dataset_id)
@@ -1662,6 +1670,43 @@ function flowReviewRecorded(run) {
   );
 }
 
+function flowSourcesAccepted() {
+  const flow = flowState();
+  return Boolean(
+    flow.approval &&
+    flow.plan &&
+    flow.approvalPlanId === flow.plan.plan_id &&
+    flow.planInputs &&
+    JSON.stringify(flow.planInputs) === JSON.stringify(flowInput()),
+  );
+}
+
+function flowWorkflowRecorded(run) {
+  return Boolean(
+    run?.verification?.ok &&
+    run.workflow?.status === 'recorded' &&
+    run.workflow.records_selected &&
+    run.workflow.source_accepted &&
+    run.workflow.plan_approved,
+  );
+}
+
+function flowResultsReviewed(run) {
+  if (!run?.verification?.ok) return false;
+  return Boolean(
+    (run.latest_review?.review?.acknowledge_limitations && run.review_validation?.ok === true) ||
+    (flowState().resultsReview?.runId === model.selectedRun &&
+      flowState().resultsReview?.run === run),
+  );
+}
+
+function flowLegacyNote(run) {
+  if (flowWorkflowRecorded(run)) return '';
+  if (!run?.verification?.ok)
+    return '<p class="callout error">The retained files could not be verified. Stage approvals cannot be verified.</p>';
+  return `<div class="callout workflow-history"><p>This run has no recorded source acceptance or plan approval. Its saved results and assessment remain available.</p><button type="button" class="text-button" data-flow="investigate-dataset" data-id="${esc(run?.case?.dataset_id || '')}">Review these records anew →</button></div>`;
+}
+
 function flowStageAccess(index) {
   if (!Number.isInteger(index) || index < 0 || index > 5) return false;
   if (index === 0) return true;
@@ -1669,10 +1714,12 @@ function flowStageAccess(index) {
   const run = ['review', 'package'].includes(flow.stage) ? model.run : null;
   if (run) {
     if (index < 4) return true;
-    if (index === 4) return run.verification?.ok === true;
+    if (index === 4) return flowResultsReviewed(run);
     return flowReviewRecorded(run);
   }
-  const accepted = Boolean(flow.datasetId) && !['goal', 'data', 'identity'].includes(flow.stage);
+  const accepted =
+    Boolean(flow.datasetId && flow.recordsConfirmed) &&
+    !['goal', 'data', 'identity'].includes(flow.stage);
   if (index === 1) return accepted;
   if (index === 2) return accepted && Boolean(flow.plan) && flowCubeFaces()[1].complete;
   return false;
@@ -1701,28 +1748,31 @@ function flowCubeFaces() {
     ? array(run.analysis?.coverage).filter((row) => row.status === 'executed').length
     : array(flow.plan?.selected_checks).length;
   const verified = run?.verification?.ok === true;
+  const workflowRecorded = flowWorkflowRecorded(run);
   const datasetReady = Boolean(
     !preview &&
-    flow.stage !== 'identity' &&
-    flow.stage !== 'goal' &&
-    flow.stage !== 'data' &&
-    (run ? verified : flow.plan && flowDataset() && flowDataset().status !== 'invalid'),
+    !['identity', 'goal', 'data'].includes(flow.stage) &&
+    (run
+      ? workflowRecorded
+      : flow.recordsConfirmed && flowDataset() && flowDataset().status !== 'invalid'),
   );
-  const planReady = run ? verified : Boolean(flow.plan?.can_run && flow.planInputs);
-  const sourcesReady = run
-    ? verified &&
-      (!array(run.case?.investigations).includes('screening_candidates') ||
-        Boolean(run.case?.watchlist_snapshot_id))
-    : Boolean(
-        datasetReady &&
-        flow.plan &&
-        (!flowGoal()?.requires_source || flow.plan.source_status?.selected),
-      );
+  const planReady = run ? workflowRecorded : false;
+  const sourcesReady = run ? workflowRecorded : flowSourcesAccepted();
+  const findingsReady = flowResultsReviewed(run);
+  const legacy = Boolean(run && !workflowRecorded);
   const reviewReady = flowReviewRecorded(run);
   return [
     {
       title: 'Records',
       complete: datasetReady,
+      status:
+        run && !verified
+          ? 'Cannot verify'
+          : legacy
+            ? 'Not recorded'
+            : datasetReady
+              ? 'Selected'
+              : '',
       value: preview
         ? formatNumber(preview.row_count)
         : counts
@@ -1733,6 +1783,16 @@ function flowCubeFaces() {
     {
       title: 'Sources',
       complete: sourcesReady,
+      status:
+        run && !verified
+          ? 'Cannot verify'
+          : legacy
+            ? 'Not recorded'
+            : sourcesReady
+              ? 'Accepted'
+              : flow.plan
+                ? 'Review needed'
+                : '',
       value: source ? formatNumber(source.record_count) : '—',
       detail: source
         ? source.record_count === undefined
@@ -1745,6 +1805,16 @@ function flowCubeFaces() {
     {
       title: 'Plan',
       complete: planReady,
+      status:
+        run && !verified
+          ? 'Cannot verify'
+          : legacy
+            ? 'Not recorded'
+            : planReady
+              ? 'Approved'
+              : flow.plan
+                ? 'Draft'
+                : '',
       value: checked ? formatNumber(checked) : '—',
       detail: run
         ? 'Checks executed on the retained records'
@@ -1754,7 +1824,8 @@ function flowCubeFaces() {
     },
     {
       title: 'Findings',
-      complete: verified,
+      complete: findingsReady,
+      status: findingsReady ? 'Reviewed' : verified ? 'Review needed' : '',
       value: run ? formatNumber(findings.length) : '—',
       detail: run
         ? 'Observations linked to their evidence'
@@ -1763,12 +1834,21 @@ function flowCubeFaces() {
     {
       title: 'Assessment',
       complete: reviewReady,
+      status: reviewReady ? 'Recorded' : review ? 'Draft' : '',
       value: reviewReady ? 'Recorded' : review ? 'Draft' : '—',
       detail: 'Case decision and notes',
     },
     {
       title: 'Package',
-      complete: Boolean(reviewReady && run?.latest_export),
+      complete: Boolean(workflowRecorded && reviewReady && run?.latest_export),
+      status:
+        reviewReady && run?.latest_export
+          ? legacy
+            ? 'Earlier package'
+            : 'Created'
+          : reviewReady
+            ? 'Ready'
+            : '',
       value: reviewReady && run?.latest_export ? 'Created' : reviewReady ? 'Ready' : '—',
       detail: run?.latest_review
         ? 'Recorded review and retained evidence'
@@ -1793,7 +1873,7 @@ function flowCube() {
   return `<section class="flow-instrument" aria-label="Investigation box">
     <div class="box-scene" aria-label="The investigation folds into an evidence box"></div>
     <nav class="cube-controls box-stages" aria-label="Investigation stages">
-      ${faces.map((item, index) => `<button type="button" data-flow="cube" data-face="${index}" data-complete="${item.complete}" aria-label="Open ${esc(item.title)}" aria-description="Step ${index + 1} of 6. ${item.complete ? 'Completed' : 'Not completed'}" aria-pressed="${flow.cubeFace === index}" ${item.available ? '' : 'disabled'}><span class="stage-number" aria-hidden="true">${item.step}<span class="stage-check">✓</span></span>${esc(item.title)}</button>`).join('')}
+      ${faces.map((item, index) => `<button type="button" data-flow="cube" data-face="${index}" data-complete="${item.complete}" aria-label="Open ${esc(item.title)}" aria-description="Step ${index + 1} of 6. ${item.status || 'Not started'}" aria-pressed="${flow.cubeFace === index}" ${item.available ? '' : 'disabled'}><span class="stage-number" aria-hidden="true">${item.step}<span class="stage-check">✓</span></span><span class="stage-copy">${esc(item.title)}<small class="stage-status">${esc(item.status)}</small></span></button>`).join('')}
     </nav>
   </section>`;
 }
@@ -1831,21 +1911,13 @@ function flowGuide() {
         : '<button type="button" data-flow="choose-file">Choose files</button>';
   } else if (flow.stage === 'plan' || flow.stage === 'running') {
     if (flow.sourceRetry)
-      return `<div class="flow-guide"><p class="guide-status" role="status">Records saved. The screening list is unavailable.</p><button type="button" data-flow="investigate-dataset" data-id="${esc(flow.datasetId)}">Retry screening →</button>${flowWorkActions()}</div>`;
+      return `<div class="flow-guide"><p class="guide-status" role="status">Records saved. The screening list is unavailable.</p><button type="button" data-flow="investigate-dataset" data-id="${esc(flow.datasetId)}">Retry source download →</button>${flowWorkActions()}</div>`;
     status = !flow.plan
-      ? 'Checks not yet prepared'
-      : flow.plan.can_run
-        ? `${countLabel(array(flow.plan.selected_checks).length, 'check')} ready`
-        : flowGoal()?.requires_source && !flow.plan?.source_status?.selected
-          ? 'Screening needs a reference list'
-          : 'Additional evidence needed';
-    action = !flow.plan
-      ? '<button type="button" data-flow="plan">Prepare checks →</button>'
-      : flow.plan.can_run
-        ? '<button type="button" data-flow="run">Run investigation</button><button type="button" class="text-button" data-flow="focus-step">Review plan ↓</button>'
-        : flowGoal()?.requires_source && !flow.plan?.source_status?.selected
-          ? '<button type="button" data-flow="fetch-run">Download list & run</button><button type="button" class="text-button" data-flow="focus-step">Source details ↓</button>'
-          : '<button type="button" data-flow="focus-step">Review requirements ↓</button>';
+      ? 'Preparing sources and checks'
+      : flowSourcesAccepted()
+        ? 'Plan ready for your review'
+        : 'Sources ready for your review';
+    action = '<button type="button" data-flow="focus-step">Continue review →</button>';
   } else if (flow.stage === 'review' || flow.stage === 'package') {
     title = run?.dataset_metadata?.label || run?.case?.question || '';
     status =
@@ -1880,7 +1952,7 @@ function flowStartView() {
   return `<div class="flow-guide flow-start">
     <form id="flow-subject-form" class="subject-start">
       <div class="subject-label"><label for="flow-subject-name">Who are you looking into?</label><button type="button" class="information-button" data-flow="screening-info" aria-label="About name screening" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6v.5"/></svg></button></div>
-      <div class="subject-entry"><input id="flow-subject-name" name="name" type="text" required maxlength="200" autocomplete="off" placeholder="Company or person" value="${esc(flow.subjectName)}"><button type="submit">Investigate →</button></div>
+      <div class="subject-entry"><input id="flow-subject-name" name="name" type="text" required maxlength="200" autocomplete="off" placeholder="Company or person" value="${esc(flow.subjectName)}"><button type="submit">Find records →</button></div>
     </form>
     <div class="entry-tools" role="group" aria-label="Other ways to begin">
       <button type="button" class="text-button" data-flow="choose-file" aria-label="Import records"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-3-3 3 3 3-3M4 12v4a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-4"/></svg><span>Import</span></button>
@@ -2069,14 +2141,33 @@ function flowCheckRows(checks, proposed) {
 }
 
 function flowSourceView(plan) {
-  if (!flowGoal()?.requires_source) return '';
+  const flow = flowState();
   const status = plan?.source_status || {};
-  return `<section class="flow-section"><h2>Screening source</h2>
-    <div class="field"><label for="flow-source">Retained source snapshot</label><select id="flow-source"><option value="">Choose a snapshot or fetch the official list</option>${model.state.sources.map((source) => `<option value="${esc(source.snapshot_id)}" ${source.snapshot_id === flowState().snapshotId ? 'selected' : ''}>${esc(sourceTitle(source.source_id))} / ${esc(displayDate(source.source_updated_at || source.fetched_at))} / ${source.ingestion_method === 'manual_import' ? 'manual import' : 'downloaded'}</option>`).join('')}</select></div>
-    ${status.selected ? `<div class="source-summary">${keyValues({ Source: status.title || sourceTitle(status.source_id), Entries: formatNumber(status.record_count), 'Source timestamp': displayDate(status.source_updated_at) || 'Unknown', Acquired: displayDate(status.fetched_at) || 'Unknown', 'Age relative to assessment date': status.age_days === null || status.age_days === undefined ? 'Unknown' : `${status.age_days} days` })}<p class="small muted">${esc(acquisitionNote(status))} ${esc(status.date_note || '')} ${esc(status.freshness_note || '')}</p></div>` : `<p class="small muted">Screening needs a retained public list. Fetching downloads that list; your records stay on this device.</p>`}
-    ${array(status.warnings).length ? `<div class="callout warning">${list(status.warnings)}</div>` : ''}
-    <button type="button" class="secondary" data-flow="fetch">Download official CSL & prepare plan →</button>
-    <p class="small muted">The Consolidated Screening List combines different restrictions. Each candidate requires identity and underlying-list review. Snapshot dates do not guarantee current or historical membership.</p>
+  const requiresSource = flowGoal()?.requires_source;
+  const ready = Boolean(plan && (!requiresSource || status.selected));
+  const warnings = array(status.warnings).filter(
+    (warning) =>
+      warning !== 'List membership is source-specific evidence, not a legal determination.',
+  );
+  const settings = flow.settingsOpen;
+  const selector =
+    requiresSource && (settings || !status.selected)
+      ? `<div class="field"><label for="flow-source">Reference snapshot</label><select id="flow-source"><option value="">Choose a snapshot or download the official list</option>${array(
+          model.state.sources,
+        )
+          .map(
+            (source) =>
+              `<option value="${esc(source.snapshot_id)}" ${source.snapshot_id === flow.snapshotId ? 'selected' : ''}>${esc(sourceTitle(source.source_id))} / ${esc(displayDate(source.source_updated_at || source.fetched_at))}</option>`,
+          )
+          .join('')}</select></div>`
+      : '';
+  return `<section class="flow-section source-review">
+    ${requiresSource ? `<h2>${esc(status.title || 'Consolidated Screening List')}</h2>${status.selected ? `<div class="source-summary">${keyValues({ Entries: formatNumber(status.record_count), Acquired: displayDate(status.fetched_at) || 'Unknown', 'Source updated': displayDate(status.source_updated_at) || 'Unknown' })}</div>` : '<p>The official list must be retained before name screening can run.</p>'}` : `<h2>Supplied records</h2><p>${esc(countsText(plan?.dataset_summary?.counts || flowDataset()?.counts))}. These checks use the selected dataset; no external screening list is included.</p>`}
+    ${warnings.length ? `<div class="callout warning">${list(warnings)}</div>` : ''}
+    ${selector}
+    ${settings || !ready ? (requiresSource ? '<button type="button" class="secondary" data-flow="fetch">Download official CSL →</button>' : '') : ''}
+    ${!settings ? `<div class="object-next"><button type="button" data-flow="approve-sources" ${ready ? '' : 'disabled'}>${flowSourcesAccepted() ? 'Continue to plan' : 'Use these sources'} →</button><button class="information-button" type="button" data-flow="source-info" aria-label="Source provenance and limitations" aria-haspopup="dialog">i</button><button class="text-button" type="button" data-flow="plan-settings">Change sources</button></div>` : ''}
+    ${!settings && !plan ? '<button class="text-button" type="button" data-flow="plan">Prepare sources and checks →</button>' : ''}
   </section>`;
 }
 
@@ -2084,21 +2175,14 @@ function flowPlanView() {
   const flow = flowState();
   const plan = flow.plan;
   const dataset = flowDataset();
-  if (flow.sourceRetry && !flow.busyStep)
-    return `<div class="flow-intro"><h1>Screening paused</h1><p>${esc(dataset?.label || 'Your records')} is retained. Retry to obtain the official list and continue the analysis.</p></div><div class="actions"><button type="button" data-flow="investigate-dataset" data-id="${esc(flow.datasetId)}">Retry screening →</button></div>`;
-  return `<div class="flow-intro"><h1>${plan?.can_run ? 'Prepared plan' : 'Plan'}</h1><p>${esc(plan?.case?.question || 'Select the records to prepare a plan.')}</p></div>
-    ${dataset?.synthetic ? `<p>${badge('Fictional records / real analysis', 'amber')}</p>` : ''}
-    <div class="plan-overview"><div><strong>${esc(countsText(plan?.dataset_summary?.counts || dataset?.counts))}</strong><span class="small muted">${esc(dataset?.label || flow.datasetId)}</span></div><div><span class="small muted">As of ${esc(displayDate(flow.asOf))}</span><button class="text-button" type="button" data-flow="plan-settings">Adjust the purpose, date, or source ↗</button></div></div>
-    ${flowGoal()?.requires_source && !plan?.source_status?.selected ? flowSourceView(plan) : ''}
-    ${
-      plan
-        ? `<div class="object-next"><button type="button" data-flow="run" ${plan.can_run ? '' : 'disabled'}>Run investigation →</button><button type="button" class="text-button" data-flow="back-data">Change records</button></div>
-    <section class="flow-section"><h2>${countLabel(array(plan.selected_checks).length, 'check')} prepared</h2>${flowCheckRows(plan.selected_checks, true)}${!plan.selected_checks.length ? '<p>No checks have enough evidence yet.</p>' : ''}</section>
-    ${array(plan.unavailable_checks).length ? `<section class="flow-section"><h2>Still needs evidence</h2>${flowCheckRows(plan.unavailable_checks, false)}</section>` : ''}
-    <div class="plan-notes">${list(plan.notes)}</div>`
-        : '<button type="button" data-flow="plan">Prepare the plan →</button>'
-    }
-    <p class="small muted">Results are observations for review. No findings does not establish clearance.</p>`;
+  if (!flowSourcesAccepted())
+    return `<div class="flow-intro"><h1>Review sources</h1></div>${flowSourceView(plan)}`;
+  return `<div class="flow-intro"><h1>Review plan</h1><p>${esc(plan?.case?.question || 'Select the records to prepare a plan.')}</p></div>
+    <div class="plan-overview"><div><strong>${esc(countsText(plan?.dataset_summary?.counts || dataset?.counts))}</strong><span class="small muted">${esc(dataset?.label || flow.datasetId)}</span></div><div><span class="small muted">As of ${esc(displayDate(flow.asOf))}</span><button class="text-button" type="button" data-flow="plan-settings">Change scope or date</button></div></div>
+    <section class="flow-section"><h2>${countLabel(array(plan.selected_checks).length, 'available check')}</h2>${flowCheckRows(plan.selected_checks, true)}${!plan.selected_checks.length ? '<p>No checks have enough evidence yet.</p>' : ''}</section>
+    ${array(plan.unavailable_checks).length ? `<section class="flow-section"><h2>Cannot evaluate</h2>${flowCheckRows(plan.unavailable_checks, false)}</section>` : ''}
+    ${flowGoal()?.requires_source ? '<p class="plan-scope">Scope: name and identifier screening. Item classification, destination, end use, ownership restrictions, and export authorization are outside this plan.</p>' : ''}
+    <div class="object-next"><button type="button" data-flow="run" ${plan.can_run ? '' : 'disabled'}>Run reviewed plan →</button><button class="information-button" type="button" data-flow="plan-info" aria-label="Plan methods and limitations" aria-haspopup="dialog">i</button></div>`;
 }
 
 function flowReviewNavigation(index, total) {
@@ -2453,7 +2537,7 @@ function flowPackageView() {
   const rows = array(review?.findings);
   const ready = flowReviewRecorded(run);
   const pending = Boolean(review && model.reviewDrafts[model.selectedRun] && !ready);
-  return `<div class="flow-intro"><h1>Evidence package</h1><p>Original records, results, and the recorded assessment.</p></div>
+  return `<div class="flow-intro"><h1>Evidence package</h1><p>Original records, results, and the recorded assessment.</p></div>${flowLegacyNote(run)}
     ${run?.dataset_metadata?.synthetic ? `<p>${badge('Synthetic example', 'amber')}</p>` : ''}
     <section class="flow-section"><h2>Recorded assessment</h2>${review?.schema_version === '2.1' ? `<h3>${esc(caseDecisionTitle(review.decision))}</h3>${review.summary ? `<p>${esc(review.summary)}</p>` : ''}` : `<p>${esc(review?.summary || 'Record a case decision before creating an evidence package.')}</p>`}<p class="small muted">Reviewer: ${esc(review?.reviewer || 'Not recorded')}</p>
       ${review?.schema_version === '2.1' ? `<p class="small muted">Assessment covers ${countLabel(array(review.scope_finding_ids).length, 'observation')}.</p>` : `<div class="review-progress"><span>${rows.filter((row) => row.disposition === 'follow_up').length} follow up</span><span>${rows.filter((row) => row.disposition === 'escalate').length} escalate</span><span>${rows.filter((row) => row.disposition === 'explained').length} explained</span></div>`}
@@ -2517,7 +2601,7 @@ function flowFindingsView() {
     ${flowScreeningBrief(run)}
     ${observations.length ? `<section class="flow-section"><h2>${countLabel(observations.length, 'observation')}</h2>${indexView(observations)}</section>` : ''}
     ${missing.length ? `<section class="flow-section"><div class="panel-heading"><h2>Missing context</h2>${run.dataset_metadata?.counts?.entities === 1 ? '<button type="button" class="text-button" data-flow="research-identity">Research identity →</button>' : ''}</div>${indexView(missing)}</section>` : ''}
-    <div class="object-next"><button type="button" data-flow="review-summary">Case assessment →</button><button class="text-button" type="button" data-flow="coverage">Checks and sources ↗</button></div>`;
+    <div class="object-next"><button type="button" data-flow="findings-reviewed">${flowResultsReviewed(run) ? 'Continue to assessment' : 'Mark results reviewed'} →</button><button class="text-button" type="button" data-flow="coverage">Checks and sources ↗</button></div>`;
 }
 
 function flowNotReady(description) {
@@ -2566,19 +2650,17 @@ function flowFaceView(index) {
     if (run) {
       const snapshotId = run.case?.watchlist_snapshot_id;
       const source = screeningSource(run);
-      return `<div class="flow-intro"><h1>Sources</h1><p>${source?.source_id ? esc(sourceTitle(source.source_id)) : snapshotId ? `Snapshot ${esc(snapshotId)} is retained in this run.` : 'No screening list was required.'}</p></div>${source?.source_id ? keyValues({ Entries: source.record_count, 'Source timestamp': displayDate(source.source_updated_at), Acquired: displayDate(source.fetched_at) }) : ''}${run.identity_research ? `<section class="flow-section"><h2>Identity research</h2>${identityResearchDetails(run.identity_research)}</section>` : ''}<button type="button" data-flow="continue">Plan →</button>`;
+      return `<div class="flow-intro"><h1>Sources</h1>${flowLegacyNote(run)}<p>${source?.source_id ? esc(sourceTitle(source.source_id)) : snapshotId ? `Snapshot ${esc(snapshotId)} is retained in this run.` : 'No screening list was required.'}</p></div>${source?.source_id ? keyValues({ Entries: source.record_count, 'Source timestamp': displayDate(source.source_updated_at), Acquired: displayDate(source.fetched_at) }) : ''}${run.identity_research ? `<section class="flow-section"><h2>Identity research</h2>${identityResearchDetails(run.identity_research)}</section>` : ''}<button type="button" data-flow="continue">Plan →</button>`;
     }
-    if (flowGoal()?.requires_source)
-      return `<div class="flow-intro"><h1>Sources</h1></div>${flowSourceView(flow.plan)}${flowStageAccess(2) ? '<button type="button" data-flow="continue">Plan →</button>' : ''}`;
-    return `<div class="flow-intro"><h1>Sources</h1><p>No reference list is required for the checks supported by these records.</p></div>${flowStageAccess(2) ? '<button type="button" data-flow="continue">Plan →</button>' : ''}`;
+    return `<div class="flow-intro"><h1>Review sources</h1><p>${esc(flowDataset()?.label || flow.datasetId)}</p></div>${flowSourceView(flow.plan)}`;
   }
   if (index === 2) {
     if (run)
-      return `<div class="flow-intro"><h1>Executed plan</h1><p>${esc(run.case?.question)}</p></div>${flatSections(renderCoverage())}<div class="object-next"><button type="button" data-flow="continue">Findings →</button></div>`;
+      return `<div class="flow-intro"><h1>Executed plan</h1>${flowLegacyNote(run)}<p>${esc(run.case?.question)}</p></div>${flatSections(renderCoverage())}<div class="object-next"><button type="button" data-flow="continue">Findings →</button></div>`;
     return flow.plan || flow.datasetId ? flowPlanView() : flowNotReady('Plan not prepared');
   }
   if (index === 3) return flowFindingsView();
-  if (index === 4) return run ? flowReviewView() : flowNotReady('No observations to assess yet');
+  if (index === 4) return run && flowResultsReviewed(run) ? flowReviewView() : flowFindingsView();
   return run?.latest_review
     ? flowPackageView()
     : flowNotReady('Complete the assessment to create a package');
@@ -2607,9 +2689,9 @@ function flowBody() {
     goal: flowGoalsView,
     data: flowDataView,
     identity: flowIdentityView,
-    plan: flowPlanView,
+    plan: () => flowFaceView(flow.cubeFace === 2 ? 2 : 1),
     running: flowPlanView,
-    review: flowReviewView,
+    review: () => flowFaceView(flow.cubeFace === 4 ? 4 : 3),
     package: flowPackageView,
   }[flow.stage]();
 }
@@ -2712,21 +2794,19 @@ async function prepareFlowPlan() {
   const input = flowInput();
   const plan = await flowRequest(context, 'workflow/plan', input);
   if (!flowIsCurrent(context)) return false;
-  model.flow.settingsOpen = false;
-  model.flow.plan = plan;
-  model.flow.planInputs = input;
-  model.flow.stage = 'plan';
-  if (!model.flow.autoRunning || !model.flow.autoViewChanged) {
-    if (!model.flow.autoRunning) model.flow.cubeFace = 2;
-    model.flow.inspectionFace = null;
-  }
+  Object.assign(model.flow, {
+    settingsOpen: false,
+    plan,
+    planInputs: input,
+    approval: null,
+    approvalPlanId: null,
+    stage: 'plan',
+  });
+  if (!model.flow.autoRunning || !model.flow.autoViewChanged)
+    Object.assign(model.flow, { cubeFace: 1, inspectionFace: 1, surfaceOpen: true });
   renderGuided();
   if (!model.flow.autoRunning)
-    announce(
-      plan.can_run
-        ? 'Investigation prepared. Review the proposed checks and run when ready.'
-        : 'Plan prepared. Required evidence is shown before you continue.',
-    );
+    announce('Sources and draft plan prepared. Review the sources to continue.');
   return true;
 }
 
@@ -2734,6 +2814,7 @@ async function chooseFlowDataset(id) {
   invalidateFlow(
     {
       datasetId: id,
+      recordsConfirmed: true,
       stage: 'plan',
       preview: null,
       previewStale: false,
@@ -2790,14 +2871,11 @@ async function investigateFlowDataset(id) {
     ) {
       flow.sourceRetry = true;
       flowProgress('Downloading the official screening list…', 1);
-      await fetchFlowSource(true);
+      await fetchFlowSource();
       return;
     }
   }
-  if (flow.plan?.can_run) {
-    flowProgress('Running the prepared checks…', 2);
-    await runFlowPlan();
-  }
+  // Preparation stops here. Sources and plan each require an explicit action.
 }
 
 async function startFlowSubject(name) {
@@ -2977,23 +3055,59 @@ async function importFlowRecords(form) {
   await investigateFlowDataset(result.dataset_id);
 }
 
-async function fetchFlowSource(andRun = false) {
+async function fetchFlowSource() {
   const context = flowContext();
   const source = await flowRequest(context, 'sources/fetch', { source_id: 'csl' });
   if (!flowIsCurrent(context) || !(await refreshFlow(context))) return;
   invalidateFlow({ snapshotId: source.snapshot_id, sourceRetry: false }, true);
-  if ((await prepareFlowPlan()) && andRun && flowState().plan?.can_run) {
-    flowProgress('Running checks against the retained screening list…', 2);
-    await runFlowPlan();
+  await prepareFlowPlan();
+}
+
+async function approveFlowSources() {
+  const flow = flowState();
+  if (
+    !flow.recordsConfirmed ||
+    !flow.plan ||
+    !flow.planInputs ||
+    (flowGoal()?.requires_source && !flow.plan.source_status?.selected)
+  )
+    throw new Error('Select records and prepare the sources before accepting them.');
+  if (!flowSourcesAccepted()) {
+    const context = flowContext();
+    const result = await flowRequest(context, 'workflow/approve', {
+      ...flow.planInputs,
+      plan_id: flow.plan.plan_id,
+      case_id: flow.plan.case.case_id,
+      acknowledge_records: true,
+      acknowledge_source: true,
+    });
+    if (!flowIsCurrent(context)) return;
+    flow.approval = result.approval;
+    flow.approvalPlanId = flow.plan.plan_id;
   }
+  Object.assign(flow, { cubeFace: 2, inspectionFace: 2, surfaceOpen: true });
+  renderGuided();
+  announce('Sources accepted. Review the proposed checks before running.');
+}
+
+function reviewFlowFindings() {
+  if (!model.run?.verification?.ok) return;
+  flowState().resultsReview = { runId: model.selectedRun, run: model.run };
+  selectFlowReview(array(model.run.analysis?.findings).length);
 }
 
 async function runFlowPlan() {
   const flow = flowState();
-  if (!flow.plan?.can_run || !flow.planInputs)
-    throw new Error('Prepare a runnable plan before starting the investigation.');
+  if (!flow.plan?.can_run || !flow.planInputs || !flowSourcesAccepted())
+    throw new Error('Accept the sources and review a runnable plan before starting.');
   const context = flowContext();
-  const body = { ...flow.planInputs, plan_id: flow.plan.plan_id, case_id: flow.plan.case.case_id };
+  const body = {
+    ...flow.planInputs,
+    plan_id: flow.plan.plan_id,
+    case_id: flow.plan.case.case_id,
+    approval: flow.approval,
+    acknowledge_plan: true,
+  };
   const result = await flowRequest(context, 'workflow/run', body);
   if (!flowIsCurrent(context)) return;
   const run = await flowRequest(context, `runs/${encodeURIComponent(result.run_id)}`);
@@ -3003,9 +3117,10 @@ async function runFlowPlan() {
   const preserveInspection = flow.autoRunning && flow.autoViewChanged;
   Object.assign(flow, {
     stage: 'review',
+    resultsReview: null,
     reviewIndex: 0,
     findingIndex: null,
-    ...(preserveInspection ? {} : { cubeFace: 3, inspectionFace: 3, surfaceOpen: false }),
+    ...(preserveInspection ? {} : { cubeFace: 3, inspectionFace: 3, surfaceOpen: true }),
     revealResults: !preserveInspection,
   });
   renderGuided();
@@ -3024,7 +3139,13 @@ async function resumeFlowRun(id) {
   const reviewed = model.reviewDrafts[id] || run.latest_review?.review || {};
   const recorded = flowReviewRecorded(run);
   const resumeFace =
-    run.verification?.ok !== true ? 3 : recorded ? 5 : reviewed.schema_version ? 4 : 3;
+    run.verification?.ok !== true
+      ? 3
+      : recorded
+        ? 5
+        : flowResultsReviewed(run) && reviewed.schema_version
+          ? 4
+          : 3;
   const findings = array(run.analysis?.findings);
   const checks = array(run.case?.investigations);
   const goalId = checks.some(
@@ -3042,6 +3163,10 @@ async function resumeFlowRun(id) {
   );
   Object.assign(model.flow, {
     stage: recorded ? 'package' : 'review',
+    recordsConfirmed: false,
+    approval: null,
+    approvalPlanId: null,
+    resultsReview: null,
     reviewIndex: firstIncomplete < 0 ? findings.length : firstIncomplete,
     findingIndex: null,
     datasetId: run.case?.dataset_id || '',
@@ -3070,6 +3195,17 @@ async function resumeFlowRun(id) {
 }
 
 function selectFlowReview(index) {
+  if (index >= array(model.run?.analysis?.findings).length && !flowResultsReviewed(model.run)) {
+    Object.assign(flowState(), {
+      cubeFace: 3,
+      inspectionFace: 3,
+      surfaceOpen: true,
+      findingIndex: null,
+    });
+    renderGuided();
+    announce('Review the results and coverage, then mark the results reviewed.');
+    return;
+  }
   preserveDrafts();
   model.navigationVersion += 1;
   const findings = array(model.run?.analysis?.findings);
@@ -3110,8 +3246,10 @@ function updateFlowCube() {
     button.setAttribute('data-complete', String(item.complete));
     button.setAttribute(
       'aria-description',
-      `Step ${index + 1} of 6. ${item.complete ? 'Completed' : 'Not completed'}`,
+      `Step ${index + 1} of 6. ${item.status || 'Not started'}`,
     );
+    const status = button.querySelector?.('.stage-status');
+    if (status) status.textContent = item.status || '';
     button.disabled = !item.available;
   });
   cubeMaterial?.update(faces, flow.cubeFace);
@@ -3231,7 +3369,19 @@ function handleFlowClick(button) {
       true,
     );
   if (action === 'identity-skip')
-    flowOperation('Screening the entered name…', skipFlowIdentity, true);
+    flowOperation('Preparing sources for the entered name…', skipFlowIdentity, true);
+  if (action === 'source-info') {
+    const source = flow.plan?.source_status || {};
+    showFlowDocument(
+      'Sources and scope',
+      `<p>The selected records and this source snapshot will be retained together when you run the plan. Accepting sources records your choice; it does not verify identity or approve a transaction.</p><p>${esc(acquisitionNote(source))} ${esc(source.date_note || '')} ${esc(source.freshness_note || '')}</p>${list(source.warnings)}${flowGoal()?.requires_source ? '<p>The Consolidated Screening List is a screening aid. Apparent matches require identity checks and review of the underlying official list and restrictions.</p><p><a href="https://www.trade.gov/consolidated-screening-list" target="_blank" rel="noopener noreferrer">Official CSL guidance ↗</a></p>' : ''}${flowDataset()?.identity_research ? identityResearchDetails(flowDataset().identity_research) : ''}`,
+    );
+  }
+  if (action === 'plan-info')
+    showFlowDocument('Plan methods and limitations', list(flow.plan?.notes));
+  if (action === 'approve-sources')
+    flowOperation('Recording source acceptance…', approveFlowSources);
+  if (action === 'findings-reviewed') reviewFlowFindings();
   if (action === 'coverage') showFlowDocument('Coverage and missing evidence', renderCoverage());
   if (action === 'check-info') {
     const check = [
@@ -3302,7 +3452,7 @@ function handleFlowClick(button) {
     flowOperation('Preparing checks…', () => chooseFlowDataset(button.dataset.id));
   if (action === 'investigate-dataset')
     flowOperation(
-      'Investigating the retained records…',
+      'Preparing the retained records…',
       () => investigateFlowDataset(button.dataset.id),
       true,
     );
@@ -3310,11 +3460,8 @@ function handleFlowClick(button) {
   if (action === 'repreview')
     flowOperation('Validating the revised column mapping…', updateFlowPreview);
   if (action === 'import')
-    flowOperation('Importing records and running the supported checks…', importFlowPreview, true);
-  if (action === 'fetch-run')
-    flowOperation('Downloading the official list, then running the prepared checks…', () =>
-      fetchFlowSource(true),
-    );
+    flowOperation('Importing records and preparing checks…', importFlowPreview, true);
+  if (action === 'fetch-run') flowOperation('Downloading the official list…', fetchFlowSource);
   if (action === 'fetch')
     flowOperation('Downloading the official CSL. No case data is sent…', fetchFlowSource);
   if (action === 'run') flowOperation('Running checks…', runFlowPlan);

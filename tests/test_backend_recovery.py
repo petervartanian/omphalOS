@@ -11,7 +11,7 @@ def approved_run(request):
     status, imported, _ = import_preview(request, preview(request))
     assert status == 200
     inputs, prepared = plan(request, imported["dataset_id"])
-    return run_payload(inputs, prepared), prepared
+    return run_payload(request, inputs, prepared), prepared
 
 
 def test_same_approved_plan_can_retry_after_execution_fails(browser, monkeypatch):

@@ -6,6 +6,16 @@ Finalization is write-once through the application. A failed verification does n
 
 `analysis_digest` is recomputed from the actual analysis using the documented `omphalos-json-v1` encoding: UTF-8, sorted object keys, compact separators, no nonfinite values, and a terminating newline. Analysis numbers are signed 64-bit integers; decimals and larger exact numbers are strings. This is an application encoding, not a claim of RFC 8785 conformance. Timestamps and execution IDs remain outside the deterministic analytical content.
 
+## Guided workflow record
+
+New guided runs use case schema 2.1. Its `workflow` records the selected dataset, accepted source snapshot when required, input digests, plan identifier, and source-acceptance and execution-approval timestamps. **Use these sources** issues a receipt bound to the exact proposed case and inputs. **Run reviewed plan** requires that receipt and an explicit execution acknowledgment before retaining the case and run. Changing an input invalidates the receipt; a repeated unchanged request reuses its verified run.
+
+The service authenticates the temporary receipt with its own secret. That receipt signature is not included in the evidence package and is not a publisher signature. The retained workflow describes local user actions, not verified identities or supervisor authorization. Run verification checks that its recorded case and input digests agree with the archived evidence.
+
+Earlier case schema 2.0 remains supported with its original serialization. Its absent approval history is reported as not recorded, never inferred from completed checks or a later assessment. The case schema and review schema are separate contracts; existing reviews and packages retain their original attribution.
+
+**Mark results reviewed** opens Assessment in the current session. It is not a separately persisted attestation. A valid saved review against the exact run manifest provides the durable findings-and-coverage acknowledgment described below.
+
 ## Review
 
 A case decision (review schema 2.1) records a named reviewer, a decision to keep the investigation open, escalate it, or conclude it, and an acknowledgment of the coverage limitations. Its scope includes every retained finding exactly once. This scope identifies the observations included in the decision; it does not assert that the reviewer individually assessed each observation. A case note is optional when keeping the investigation open or escalating it and required when concluding it. Supplied notes must be substantive. A zero-findings result still requires an explicit named decision and acknowledgment.

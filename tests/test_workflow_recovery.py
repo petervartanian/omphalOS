@@ -236,7 +236,7 @@ def test_back_to_overview_falls_back_to_a_visible_action_or_stage(state: str) ->
   click(flowButton('overview'));
   assert.equal(run('model.flow.surfaceOpen'), false);
   if (STATE === 'import') assert.ok(main.innerHTML.includes('data-flow="choose-file">Choose files'));
-  if (STATE === 'source_retry') assert.ok(main.innerHTML.includes('Retry screening'));
+  if (STATE === 'source_retry') assert.ok(main.innerHTML.includes('Retry source download'));
   const target = ['import', 'source_retry'].includes(STATE) ? action : STATE === 'busy' ? stage : main;
   assert.equal(target.focusCount, 1, 'Back must focus an existing visible control, or the main region.');
   assert.equal(node('.object-surface').focusCount, 0, 'The now-hidden form must not receive focus.');
@@ -276,8 +276,10 @@ def test_linked_import_uses_a_readable_title_without_changing_files_or_identifie
   const expectedLabel = MULTIPLE ? 'Linked records' : 'Quarterly <ledger> 2026';
   const dataset = {dataset_id: 'server-generated-record-id', label: expectedLabel, counts: {entities: 1, payments: 2}};
   let imported;
+  const requests = [];
   fetchImplementation = async (url, options) => {
     const body = options?.body ? JSON.parse(options.body) : null;
+    requests.push({url, body});
     if (url === '/api/datasets/import') {
       imported = body;
       state.datasets.push(dataset);
@@ -288,6 +290,7 @@ def test_linked_import_uses_a_readable_title_without_changing_files_or_identifie
       assert.equal(body.dataset_id, dataset.dataset_id);
       return jsonResponse(planned());
     }
+    if (url === '/api/workflow/approve') return jsonResponse({approval: approvedSources});
     if (url === '/api/workflow/run') {
       assert.equal(body.dataset_id, dataset.dataset_id);
       return jsonResponse({run_id: 'imported-run'});
@@ -302,7 +305,17 @@ def test_linked_import_uses_a_readable_title_without_changing_files_or_identifie
   assert.deepEqual(imported.files.map(file => file.name), originalNames);
   assert.equal(Buffer.from(imported.files[0].content_base64, 'base64').toString(), original);
   assert.equal(run('model.flow.datasetId'), dataset.dataset_id);
+  assert.equal(run('flowDataset().label'), expectedLabel);
+  assert.equal(run('model.flow.cubeFace'), 1);
+  assert.ok(!requests.some(item => item.url === '/api/workflow/run' || item.url === '/api/workflow/approve'));
+  click(flowButton('approve-sources'));
+  await settle();
+  assert.equal(run('model.flow.cubeFace'), 2);
+  assert.ok(!requests.some(item => item.url === '/api/workflow/run'));
+  click(flowButton('run'));
+  await settle();
   assert.equal(run('model.run.dataset_metadata.label'), expectedLabel);
+  assert.equal(run('flowResultsReviewed(model.run)'), false);
   const escapedLabel = MULTIPLE ? expectedLabel : 'Quarterly &lt;ledger&gt; 2026';
   assert.ok(main.innerHTML.includes(escapedLabel));
   assert.ok(run('savedWorkView()').includes(escapedLabel));

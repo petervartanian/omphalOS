@@ -14,8 +14,11 @@ from pydantic import (
     StringConstraints,
     TypeAdapter,
     field_validator,
+    model_serializer,
     model_validator,
 )
+
+from .util import canonical_json, sha256_bytes
 
 Identifier = Annotated[
     str, StringConstraints(strict=True, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
@@ -34,6 +37,7 @@ Substance = Annotated[
 ]
 SubstanceList = Annotated[list[Substance], Field(min_length=1, max_length=100)]
 Count = Annotated[int, Field(strict=True, ge=0, le=2**63 - 1)]
+Digest = Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")]
 
 
 def _iso_date(value: Any) -> Any:
@@ -115,8 +119,65 @@ class Scope(Contract):
         return self
 
 
+class GuidedPreflight(Contract):
+    """Local user actions bound to the exact proposed inputs, not identity proof."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    plan_id: Digest
+    case_sha256: Digest
+    dataset_id: Identifier
+    dataset_sha256: Digest
+    source_snapshot_id: Identifier | None
+    source_sha256: Digest | None
+    records_selected: StrictBool
+    source_accepted: StrictBool
+    source_accepted_at: str
+
+    @field_validator("source_accepted_at")
+    @classmethod
+    def utc_timestamp(cls, value: str) -> str:
+        if not value.endswith("Z"):
+            raise ValueError("Approval timestamps must be UTC with Z")
+        datetime.fromisoformat(value[:-1] + "+00:00")
+        return value
+
+    @model_validator(mode="after")
+    def explicit_actions(self) -> GuidedPreflight:
+        if not self.records_selected or not self.source_accepted:
+            raise ValueError(
+                "Records and source choices require explicit acknowledgment"
+            )
+        if (self.source_snapshot_id is None) != (self.source_sha256 is None):
+            raise ValueError("Source identity and digest must be recorded together")
+        return self
+
+
+class GuidedApproval(GuidedPreflight):
+    signature: Digest
+
+
+class GuidedWorkflow(GuidedPreflight):
+    plan_approved: StrictBool
+    plan_approved_at: str
+
+    @field_validator("plan_approved_at")
+    @classmethod
+    def plan_timestamp(cls, value: str) -> str:
+        return cls.utc_timestamp(value)
+
+    @model_validator(mode="after")
+    def explicit_execution(self) -> GuidedWorkflow:
+        if not self.plan_approved:
+            raise ValueError("Plan execution requires explicit acknowledgment")
+        if datetime.fromisoformat(
+            self.plan_approved_at.replace("Z", "+00:00")
+        ) < datetime.fromisoformat(self.source_accepted_at.replace("Z", "+00:00")):
+            raise ValueError("Plan approval cannot precede source acceptance")
+        return self
+
+
 class Case(Contract):
-    schema_version: Literal["2.0"] = "2.0"
+    schema_version: Literal["2.0", "2.1"] = "2.0"
     case_id: Identifier
     question: Substance
     dataset_id: Identifier
@@ -125,6 +186,14 @@ class Case(Contract):
     scope: Scope = Field(default_factory=Scope)
     parameters: dict[str, dict[str, Any]] = Field(default_factory=dict)
     watchlist_snapshot_id: Identifier | None = None
+    workflow: GuidedWorkflow | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_shape(self, handler: Any) -> dict[str, Any]:
+        result = handler(self)
+        if self.workflow is None:
+            result.pop("workflow", None)
+        return result
 
     @field_validator("as_of", mode="before")
     @classmethod
@@ -142,6 +211,22 @@ class Case(Contract):
     def parameter_scope(self) -> Case:
         if set(self.parameters) - set(self.investigations):
             raise ValueError("Parameters may only refer to selected investigations")
+        if self.schema_version == "2.0":
+            if self.workflow is not None:
+                raise ValueError("Recorded workflow approvals require case schema 2.1")
+        elif self.workflow is None:
+            raise ValueError("Case schema 2.1 requires recorded workflow approvals")
+        else:
+            if (
+                self.workflow.dataset_id != self.dataset_id
+                or self.workflow.source_snapshot_id != self.watchlist_snapshot_id
+            ):
+                raise ValueError("Workflow approvals refer to different case inputs")
+            proposed = self.model_dump(mode="json")
+            proposed.pop("workflow")
+            proposed["schema_version"] = "2.0"
+            if sha256_bytes(canonical_json(proposed)) != self.workflow.case_sha256:
+                raise ValueError("Workflow approval does not match the recorded plan")
         return self
 
 

@@ -100,6 +100,7 @@ const state = {
   source_catalog: [], data_schema: {tables: {}}, limits: {upload_bytes: 50331648},
 };
 const runA = {
+  workflow: {status: 'recorded', records_selected: true, source_accepted: true, plan_approved: true},
   manifest: {run_id: 'runA', case_id: 'caseA'}, case: {case_id: 'caseA', question: 'Inspect the synthetic supplied records.', as_of: '2026-10-13'},
   analysis: {findings: [], coverage: [], scope_counts: {}, warnings: []},
   latest_review: {review_id: 'reviewA', review: {findings: []}}, review_validation: {ok: true, issues: []}, verification: {ok: true, issues: []},

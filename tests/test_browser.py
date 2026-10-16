@@ -42,11 +42,17 @@ def plan(app: BrowserApp, dataset_id: str, snapshot_id: str | None = None) -> di
     }
     prepared = good(app, "/api/workflow/plan", values)
     assert prepared["can_run"]
-    return {
+    execution = {
         **values,
         "case_id": prepared["case"]["case_id"],
         "plan_id": prepared["plan_id"],
     }
+    approved = good(
+        app,
+        "/api/workflow/approve",
+        {**execution, "acknowledge_records": True, "acknowledge_source": True},
+    )
+    return {**execution, "approval": approved["approval"], "acknowledge_plan": True}
 
 
 def review_and_export(app: BrowserApp, run_id: str) -> dict:

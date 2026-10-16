@@ -67,11 +67,14 @@ def test_name_research_pauses_for_selection_and_uses_only_the_selected_derivatio
   const plans = entryRequests.filter(item => item.url === '/api/workflow/plan');
   assert.ok(plans.length > 0);
   assert.ok(plans.every(item => item.body.dataset_id === selectedDataset.dataset_id));
-  const execution = entryRequests.find(item => item.url === '/api/workflow/run');
-  assert.equal(execution.body.dataset_id, selectedDataset.dataset_id);
-  assert.equal(execution.body.watchlist_snapshot_id, freshSource.snapshot_id);
-  assert.equal(run('model.flow.stage'), 'review');
-  assert.equal(run('model.flow.surfaceOpen'), false);
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(run('model.flow.planInputs.dataset_id'), selectedDataset.dataset_id);
+  assert.equal(run('model.flow.planInputs.watchlist_snapshot_id'), freshSource.snapshot_id);
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
+  assert.equal(run('model.flow.surfaceOpen'), true);
+  assert.equal(run('model.flow.recordsConfirmed'), true);
+  assert.equal(run('model.flow.approval'), null);
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
   assert.notEqual(notice.className, 'notice error');
 """)
@@ -94,12 +97,12 @@ def test_empty_or_unavailable_lookup_requires_explicit_name_only_continuation(
   assert.ok(main.innerHTML.includes(STATUS === 'unavailable' ? 'could not be reached' : 'no usable profile'));
   click(flowButton('identity-skip'));
   await settle();
-  const execution = entryRequests.find(item => item.url === '/api/workflow/run');
-  assert.ok(execution, 'Explicit continuation must remain available without a directory match.');
-  assert.equal(execution.body.dataset_id, nameOnlyDataset.dataset_id);
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(run('model.flow.planInputs.dataset_id'), nameOnlyDataset.dataset_id, 'A name-only choice prepares the selected records without executing checks.');
   const continuation = entryRequests.find(item => item.url === '/api/workflow/identity-select');
   assert.deepEqual(continuation.body, {dataset_id: subjectDataset.dataset_id, research_id: identityReport.research_id, candidate_id: null});
-  assert.equal(run('model.flow.stage'), 'review');
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
   assert.equal(entryRequests.filter(item => item.url === '/api/workflow/subject').length, 1);
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
 """.replace("STATUS", repr(status)))
@@ -219,12 +222,15 @@ def test_invalid_or_failed_selection_keeps_research_available_without_running_ch
   failSelection = false;
   click(flowButton('identity-select', {id: candidate.candidate_id}));
   await settle();
-  assert.equal(run('model.flow.stage'), 'review');
-  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 1);
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
 """)
 
 
-def test_duplicate_identity_selection_creates_one_derivation_and_one_run() -> None:
+def test_duplicate_identity_selection_creates_one_derivation_without_executing_checks() -> (
+    None
+):
     run_identity(r"""
   submitSubject();
   await settle();
@@ -241,6 +247,7 @@ def test_duplicate_identity_selection_creates_one_derivation_and_one_run() -> No
   assert.equal(entryRequests.filter(item => item.url === '/api/workflow/identity-select').length, 1);
   release();
   await settle();
-  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 1);
-  assert.equal(run('model.flow.stage'), 'review');
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
 """)
