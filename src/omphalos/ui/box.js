@@ -14,7 +14,7 @@
   const darkInk = [11, 20, 32];
   const white = [255, 255, 255];
   const black = [0, 0, 0];
-  const finishedBase = channels('#303030');
+  const finishedMetal = ['#3d3d3d', '#343434', '#303030'].map(channels);
   const rainbow = [
     '#d47b7c',
     '#cc8553',
@@ -26,7 +26,7 @@
     '#bf7fb9',
   ];
   const spectralColors = rainbow.map(channels);
-  const spectralStrength = 0.68;
+  const spectralStrength = 0.54;
   // Equal-area centers of the fixed, closed box projection. Wider end regions
   // compensate for the silhouette's taper without sampling on animation frames.
   const spectralPositions = [
@@ -156,7 +156,7 @@
         fill: 'none',
         stroke: '#e8e8e8',
         'stroke-width': 0.8,
-        'stroke-opacity': 0.24,
+        'stroke-opacity': 0.12,
         transform: 'translate(0 0.65)',
       }),
       element('path', {
@@ -164,7 +164,7 @@
         fill: 'none',
         stroke: '#111111',
         'stroke-width': 0.55,
-        'stroke-opacity': 0.3,
+        'stroke-opacity': 0.18,
       }),
     );
     defs.append(weave);
@@ -193,8 +193,8 @@
       reflection = low;
       highlight = mix(base, white, reflection);
     }
-    node.materialColors = [highlight, mix(base, highlight, 0.28), base].map((color) =>
-      mix(color, finishedBase, finished),
+    node.materialColors = [highlight, mix(base, highlight, 0.28), base].map((color, stop) =>
+      mix(color, finishedMetal[stop], finished),
     );
     node.materialColors.forEach((color, stop) => {
       node.stops[stop].setAttribute('stop-color', rgb(color));
@@ -237,8 +237,8 @@
         if (node.paintedFinish > 0)
           samples = samples.flatMap((sample) => [
             sample,
-            mix(sample, [232, 232, 232], 0.24 * node.paintedFinish),
-            mix(sample, [17, 17, 17], 0.3 * node.paintedFinish),
+            mix(sample, [232, 232, 232], 0.12 * node.paintedFinish),
+            mix(sample, [17, 17, 17], 0.18 * node.paintedFinish),
           ]);
         backgrounds.push(...samples);
       }

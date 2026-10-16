@@ -81,7 +81,7 @@ function reflectedPigment(index, text) {
     const hue = blend(color(from.getAttribute('stop-color')), color(to.getAttribute('stop-color')), progress);
     const result = blend(base, hue, opacity * amount);
     let samples = index === 5 && finished < 1 ? [result, blend(result, [248,252,255], .3 * (1 - finished)), blend(result, [101,119,137], .18 * (1 - finished))] : [result];
-    if (finished > 0) samples = samples.flatMap(sample => [sample, blend(sample, [232,232,232], .24 * finished), blend(sample, [17,17,17], .3 * finished)]);
+    if (finished > 0) samples = samples.flatMap(sample => [sample, blend(sample, [232,232,232], .12 * finished), blend(sample, [17,17,17], .18 * finished)]);
     return samples;
   })));
 }
@@ -319,7 +319,7 @@ for (let index = 0; index < 5; index += 1) assert.equal(reflection(index).getAtt
 controller.update(faces(6), 5); advance(5);
 assert.ok(Number(reflection(0).getAttribute('opacity')) > 0 && Number(reflection(0).getAttribute('opacity')) < 1);
 assert.notDeepEqual(pigment(0), stagePigments[0], 'The last fold transitions the stage pigment into neutral charcoal.');
-const completedPigment = [[48,48,48], [48,48,48], [48,48,48]];
+const completedPigment = [[61,61,61], [52,52,52], [48,48,48]];
 assert.notDeepEqual(pigment(0), completedPigment, 'The whole-box material transitions rather than jumping to its finished base.');
 finish();
 const vertices = [0,1,2,3,4,5].flatMap(points).sort((a,b) => a[0] - b[0] || a[1] - b[1]);
@@ -343,7 +343,7 @@ const totalArea = areas.reduce((sum, area) => sum + area, 0);
 for (const area of areas) assert.ok(area / totalArea > .115 && area / totalArea < .135, 'Each hue occupies a comparable share of the folded silhouette, including red and magenta at its tapered ends.');
 for (let index = 0; index < 6; index += 1) {
   assert.equal(reflection(index).getAttribute('opacity'), '1');
-  assert.deepEqual(pigment(index), completedPigment, 'Every finished side must have exactly the same neutral charcoal base, with no brown or stage-color patches.');
+  assert.deepEqual(pigment(index), completedPigment, 'Every finished side must share the same neutral charcoal lighting, with no brown or stage-color patches.');
   assert.equal(reflection(index).getAttribute('points'), panel(index).children[0].getAttribute('points'), 'The reflection is clipped to its panel.');
   assert.equal(reflection(index).getAttribute('transform'), null, 'The shared field remains in one coordinate system across seams.');
 }
