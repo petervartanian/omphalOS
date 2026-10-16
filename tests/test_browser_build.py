@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import re
 import zipfile
 from pathlib import Path
 
@@ -72,6 +73,43 @@ def test_browser_assets_are_relative_and_bridge_precedes_app(builder):
         "styles.css", b"src:url('/geist.woff2'); background:url(/image.png)"
     )
     assert css == b"src:url('./geist.woff2'); background:url(./image.png)"
+
+
+def test_browser_entry_urls_hash_transformed_assets_without_changing_native_index(
+    builder,
+):
+    directory = builder.ROOT / "src" / "omphalos" / "ui"
+    original_index = (directory / "index.html").read_bytes()
+    assets = builder.browser_interface(directory)
+    html = assets["index.html"].decode()
+    versions = dict(re.findall(r'(?:src|href)="\./([^"?]+)\?v=([0-9a-f]{16})"', html))
+    assert set(versions) == {"styles.css", "box.js", "browser.js", "app.js"}
+    for name, version in versions.items():
+        assert version == builder.digest(assets[name])[:16]
+    assert html.index('src="./browser.js?v=') < html.index('src="./app.js?v=')
+    assert assets["styles.css"] != (directory / "styles.css").read_bytes()
+    assert (directory / "index.html").read_bytes() == original_index
+    assert b'src="/app.js"' in original_index and b"?v=" not in original_index
+
+
+def test_changed_renderer_gets_new_url_while_unchanged_assets_keep_their_urls(
+    builder, tmp_path
+):
+    directory = builder.ROOT / "src" / "omphalos" / "ui"
+    for name in builder.UI_FILES:
+        (tmp_path / name).write_bytes((directory / name).read_bytes())
+    first = builder.browser_interface(tmp_path)
+    (tmp_path / "box.js").write_bytes(
+        first["box.js"] + b"\n// Updated renderer fixture\n"
+    )
+    second = builder.browser_interface(tmp_path)
+    for name in ("styles.css", "box.js", "browser.js", "app.js"):
+        first_url = f"./{name}?v={builder.digest(first[name])[:16]}".encode()
+        second_url = f"./{name}?v={builder.digest(second[name])[:16]}".encode()
+        assert first_url in first["index.html"]
+        assert second_url in second["index.html"]
+        assert (first_url != second_url) is (name == "box.js")
+    assert builder.browser_interface(tmp_path) == second
 
 
 def test_build_will_not_replace_unrecognized_output(builder, tmp_path):

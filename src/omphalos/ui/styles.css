@@ -1743,19 +1743,23 @@ body.object-mode {
   font-weight: 600;
 }
 .cube-controls button[data-face='5'] .stage-number {
-  background:
-    radial-gradient(at 20% 25%, #c9bce8 0%, transparent 65%),
-    radial-gradient(at 85% 30%, #a6dce3 0%, transparent 65%),
-    radial-gradient(at 70% 90%, #efc2d2 0%, transparent 65%), var(--face-light);
+  --package-spectrum: linear-gradient(
+    90deg,
+    #d47b7c 0% 6.25%,
+    #cc8553 18.75%,
+    #ae9740 31.25%,
+    #6baa6d 43.75%,
+    #21adad 56.25%,
+    #599fd8 68.75%,
+    #918ed9 81.25%,
+    #bf7fb9 93.75% 100%
+  );
+  background: linear-gradient(#dce4ed80, #dce4ed80), var(--package-spectrum);
   color: #0b1420;
 }
 .cube-controls button[data-face='5'][data-complete='true'] .stage-number {
-  border-color: #56627e;
-  background:
-    repeating-radial-gradient(ellipse at 50% 50%, transparent 0 3px, #dae4ff26 3.5px 4px),
-    radial-gradient(at 15% 30%, #7468a7 0%, transparent 70%),
-    radial-gradient(at 85% 65%, #346e82 0%, transparent 70%),
-    radial-gradient(at 60% 90%, #9b617d 0%, transparent 65%), #293246;
+  border-color: #626262;
+  background: linear-gradient(#30303066, #30303066), var(--package-spectrum);
   color: #fff;
 }
 .cube-controls button:not(:disabled):hover {
