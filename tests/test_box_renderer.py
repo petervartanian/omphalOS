@@ -80,7 +80,7 @@ function reflectedPigment(index, text) {
     const opacity = Number(from.getAttribute('stop-opacity')) + (Number(to.getAttribute('stop-opacity')) - Number(from.getAttribute('stop-opacity'))) * progress;
     const hue = blend(color(from.getAttribute('stop-color')), color(to.getAttribute('stop-color')), progress);
     const result = blend(base, hue, opacity * amount);
-    let samples = index === 5 && finished < 1 ? [result, blend(result, [248,252,255], .3 * (1 - finished)), blend(result, [101,119,137], .18 * (1 - finished))] : [result];
+    let samples = index === 5 && finished < 1 ? [result, blend(result, [250,250,250], .65 * (1 - finished)), blend(result, [119,119,119], .28 * (1 - finished))] : [result];
     if (finished > 0) samples = samples.flatMap(sample => [sample, blend(sample, [232,232,232], .12 * finished), blend(sample, [17,17,17], .18 * finished)]);
     return samples;
   })));
@@ -190,7 +190,7 @@ for (let index = 0; index < 6; index += 1) {
   assert.ok(label.getAttribute('clip-path'), 'Labels stay within their own folded panels.');
   if (index > 0 && index < 5) assert.notDeepEqual(pigment(index), initial[index]);
 }
-assert.notDeepEqual(pigment(5), initial[5], 'VI changes from light pearl to dark iridescence only with the finished package.');
+assert.notDeepEqual(pigment(5), initial[5], 'VI changes from neutral gray to dark iridescence only with the finished package.');
 controller.destroy(); assertReleased();
 """)
 
@@ -223,8 +223,8 @@ for (let index = 0; index < 5; index += 1) {
     for (const stop of stops) assert.ok(Math.max(...stop) - Math.min(...stop) >= 35, 'Surfaces keep chroma instead of becoming neutral gray.');
   }
 }
-assert.deepEqual(unfinished[5], completed[5], 'VI keeps its cool pearl base from the beginning.');
-assert.deepEqual(unfinished[5].at(-1), [220,228,237]);
+assert.deepEqual(unfinished[5], completed[5], 'VI keeps its neutral gray base until export.');
+assert.deepEqual(unfinished[5].at(-1), [227,227,227]);
 assert.equal(new Set(unfinished.map(stops => stops.at(-1).join(','))).size, 6);
 assert.equal(new Set(completed.map(stops => stops.at(-1).join(','))).size, 6);
 second.destroy(); assertReleased();
@@ -310,12 +310,12 @@ const perceptual = field.children.slice(1, -1).map(stop => {
 for (const axis of [0,1]) assert.ok(Math.max(...perceptual.map(value => value[axis])) - Math.min(...perceptual.map(value => value[axis])) < .004, 'Spectrum hues keep matched perceptual lightness and chroma.');
 for (let index = 0; index < 6; index += 1) {
   assert.equal(reflection(index).getAttribute('fill'), fill, 'Every face samples the same field instead of restarting its own rainbow.');
-  assert.equal(reflection(index).getAttribute('opacity'), index === 5 ? '1' : '0');
+  assert.equal(reflection(index).getAttribute('opacity'), '0', 'Every panel stays without a rainbow before verified export.');
 }
 controller.update(faces(5), 5);
 assert.equal(pending.size, 0, 'Viewing Package must not finish the box.');
 assert.deepEqual([0,1,2,3,4,5].map(pigment), stagePigments);
-for (let index = 0; index < 5; index += 1) assert.equal(reflection(index).getAttribute('opacity'), '0');
+for (let index = 0; index < 6; index += 1) assert.equal(reflection(index).getAttribute('opacity'), '0');
 controller.update(faces(6), 5); advance(5);
 assert.ok(Number(reflection(0).getAttribute('opacity')) > 0 && Number(reflection(0).getAttribute('opacity')) < 1);
 assert.notDeepEqual(pigment(0), stagePigments[0], 'The last fold transitions the stage pigment into neutral charcoal.');
@@ -348,9 +348,8 @@ for (let index = 0; index < 6; index += 1) {
   assert.equal(reflection(index).getAttribute('transform'), null, 'The shared field remains in one coordinate system across seams.');
 }
 controller.update(faces(5), 4);
-assert.deepEqual([0,1,2,3,4,5].map(pigment), stagePigments, 'Invalidating the export restores the stage pigments while VI stays pearl.');
-for (let index = 0; index < 5; index += 1) assert.equal(reflection(index).getAttribute('opacity'), '0', 'An invalidated export must remove the whole-box finish.');
-assert.equal(reflection(5).getAttribute('opacity'), '1');
+assert.deepEqual([0,1,2,3,4,5].map(pigment), stagePigments, 'Invalidating the export restores the stage pigments and gray VI.');
+for (let index = 0; index < 6; index += 1) assert.equal(reflection(index).getAttribute('opacity'), '0', 'An invalidated export must remove the whole-box finish.');
 finish(); controller.destroy(); assertReleased();
 """)
 
@@ -381,7 +380,7 @@ assert.equal(pending.size, 0, 'The finished texture has no idle animation.');
 controller.update(faces(5), 5);
 for (let index = 0; index < 6; index += 1) assert.equal(engraving(index).getAttribute('opacity'), '0');
 assert.equal(lidFinish.getAttribute('opacity'), '1');
-assert.deepEqual(pigment(5).at(-1), [220,228,237], 'Invalidation restores VI to light pearl.');
+assert.deepEqual(pigment(5).at(-1), [227,227,227], 'Invalidation restores VI to neutral gray.');
 finish(); controller.destroy(); assertReleased();
 """)
 

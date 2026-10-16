@@ -9,7 +9,7 @@
     { light: '#ffd4af', complete: '#d88b49', sheen: [0.1, 0.06] },
     { light: '#fff1a8', complete: '#ccae3b', sheen: [0.08, 0.04] },
     { light: '#f5bcd3', complete: '#cc7fa1', sheen: [0.1, 0.06] },
-    { light: '#dce4ed', complete: '#dce4ed', sheen: [0, 0] },
+    { light: '#e3e3e3', complete: '#e3e3e3', sheen: [0, 0] },
   ].map((face) => ({ ...face, light: channels(face.light), complete: channels(face.complete) }));
   const darkInk = [11, 20, 32];
   const white = [255, 255, 255];
@@ -105,17 +105,17 @@
     const relief = element('path', {
       d: thread,
       fill: 'none',
-      stroke: '#f8fcff',
+      stroke: '#fafafa',
       'stroke-width': 0.6,
-      'stroke-opacity': 0.3,
+      'stroke-opacity': 0.65,
       transform: 'translate(0 0.7)',
     });
     const engraving = element('path', {
       d: thread,
       fill: 'none',
-      stroke: '#657789',
-      'stroke-width': 0.55,
-      'stroke-opacity': 0.18,
+      stroke: '#777777',
+      'stroke-width': 0.65,
+      'stroke-opacity': 0.28,
     });
     weave.append(relief, engraving);
     defs.append(weave);
@@ -133,7 +133,7 @@
         height: 164,
         rx: 2,
         fill: 'none',
-        stroke: '#f8fcff',
+        stroke: '#fafafa',
         'stroke-width': 0.7,
         'stroke-opacity': 0.34,
       }),
@@ -231,8 +231,8 @@
         let samples = [color];
         if (node.finish && node.paintedFinish < 1) {
           const strength = 1 - node.paintedFinish;
-          samples.push(mix(color, [248, 252, 255], 0.3 * strength));
-          samples.push(mix(color, [101, 119, 137], 0.18 * strength));
+          samples.push(mix(color, [250, 250, 250], 0.65 * strength));
+          samples.push(mix(color, [119, 119, 119], 0.28 * strength));
         }
         if (node.paintedFinish > 0)
           samples = samples.flatMap((sample) => [
@@ -558,7 +558,6 @@
         // their unfinished color until their own fold starts; the base has no hinge.
         const filled = index === 0 ? Number(currentFaces[index].complete) : folds[index];
         const finished = currentFaces[5].complete ? folds[5] : 0;
-        const reflectionAmount = index === 5 ? 1 : finished;
         paintMaterial(node, index, filled, finished);
         const polygon = projected[index].map(position);
         const coordinates = polygon
@@ -569,9 +568,9 @@
         node.engraving.setAttribute('points', coordinates);
         node.engraving.setAttribute('opacity', finished);
         node.finish?.group.setAttribute('opacity', 1 - finished);
-        // VI carries the reflection before export. A verified package shares
-        // that one field across every visible panel as its lid closes.
-        node.iridescence.setAttribute('opacity', reflectionAmount);
+        // VI stays gray and engraved until a verified package shares the
+        // spectrum across every visible panel as its lid closes.
+        node.iridescence.setAttribute('opacity', finished);
         node.sheen.setAttribute('points', coordinates);
         node.labelBounds.setAttribute('points', coordinates);
         const center = polygon.reduce(
@@ -625,7 +624,7 @@
         }
         paintCaption(
           node,
-          reflectionAmount,
+          finished,
           center,
           Math.max(captionWidth, (node.labelWidth * labelSize) / labelFontSize + 24),
           spectrum,
