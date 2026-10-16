@@ -29,9 +29,9 @@ These sources informed specific decisions, rather than supplying a visual theme 
 
 ## Color and motion
 
-Stages I–V use blue, teal, peach, yellow, and pink, with their own light and completed colors. VI is pearl with a rainbow reflection before completion. The completed package uses the same dark ink and continuous rainbow material across every panel. There is no diagonal stripe. Exact values are in [DESIGN.md](DESIGN.md).
+Stages I–V use blue, teal, peach, yellow, and pink, with their own light and completed colors. VI starts neutral gray with a visible engraved pattern. The completed package uses the same charcoal base and continuous rainbow material across every panel. There is no diagonal stripe. Exact values are in [DESIGN.md](DESIGN.md).
 
-The Package lid has an engraved weave, an embossed border, and a restrained rainbow sheen. VI uses a pearl base before completion. After verified export, every panel takes on a neutral charcoal base with gentle highlights, continuous rainbow reflection, and fine engraved weave; no stage pigment remains underneath. The full red-to-magenta spectrum is ordered across the object, with balanced, subdued color strength and no blue base or overlapping color pools. Caption ink adapts to the reflected color, without a blank patch in the finish. The finish adds no idle motion. Changing the assessment removes the completed finish until a new matching export is created.
+The Package lid has an engraved weave and an embossed border over a neutral gray base before completion. After verified export, every panel takes on a neutral charcoal base with gentle highlights, continuous rainbow reflection, and fine engraved weave; no stage pigment remains underneath. The full red-to-magenta spectrum is ordered across the object, with balanced, subdued color strength and no blue base or overlapping color pools. Caption ink adapts to the reflected color, without a blank patch in the finish. The finish adds no idle motion. Changing the assessment removes the completed finish until a new matching export is created.
 
 Tests check text contrast across gradient stops and intermediate folds, and completion lightness changes under normal and simulated red-green vision. Simulations cannot establish what any individual sees. Full names, Roman numerals, checkmarks, and geometry remain necessary cues.
 

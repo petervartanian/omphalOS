@@ -1680,9 +1680,9 @@ body.object-mode {
 }
 .cube-controls button[data-face='5'],
 .object-workspace[data-face='5'] {
-  --face-base: #899eb7;
-  --face-light: #dce4ed;
-  --face-filled: #dce4ed;
+  --face-base: #888888;
+  --face-light: #e3e3e3;
+  --face-filled: #e3e3e3;
 }
 .cube-controls {
   display: flex;
@@ -1754,7 +1754,9 @@ body.object-mode {
     #918ed9 81.25%,
     #bf7fb9 93.75% 100%
   );
-  background: linear-gradient(#dce4ed80, #dce4ed80), var(--package-spectrum);
+  background:
+    radial-gradient(#77777740 0.55px, transparent 0.7px) 0 0 / 4px 4px,
+    #e3e3e3;
   color: #0b1420;
 }
 .cube-controls button[data-face='5'][data-complete='true'] .stage-number {
