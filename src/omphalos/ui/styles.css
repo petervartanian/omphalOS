@@ -1759,7 +1759,7 @@ body.object-mode {
 }
 .cube-controls button[data-face='5'][data-complete='true'] .stage-number {
   border-color: #626262;
-  background: linear-gradient(#30303066, #30303066), var(--package-spectrum);
+  background: linear-gradient(#3d3d3d75, #30303075), var(--package-spectrum);
   color: #fff;
 }
 .cube-controls button:not(:disabled):hover {
