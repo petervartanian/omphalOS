@@ -167,6 +167,25 @@ def browser_asset(name: str, raw: bytes) -> bytes:
     return raw
 
 
+def browser_interface(directory: Path) -> dict[str, bytes]:
+    """Bind browser entry-point URLs to the exact assets in this build."""
+    assets = {}
+    for name in sorted(UI_FILES):
+        source = directory / name
+        if source.is_symlink() or not source.is_file():
+            raise ValueError(f"Required browser interface asset is missing: {name}")
+        assets[name] = browser_asset(name, source.read_bytes())
+    index = assets["index.html"].decode("utf-8")
+    for name in ("styles.css", "box.js", "browser.js", "app.js"):
+        reference = f'="./{name}"'
+        if index.count(reference) != 1:
+            raise ValueError(f"Expected one browser entry-point reference: {name}")
+        version = digest(assets[name])[:16]
+        index = index.replace(reference, f'="./{name}?v={version}"')
+    assets["index.html"] = index.encode("utf-8")
+    return assets
+
+
 def validate_output(output: Path) -> None:
     if not output.exists():
         return
@@ -267,15 +286,10 @@ def build(output: Path, cache: Path, *, runtime_only: bool = False) -> dict:
             )
         )
         if not runtime_only:
-            for name in sorted(UI_FILES):
-                source = ROOT / "src" / "omphalos" / "ui" / name
-                if source.is_symlink() or not source.is_file():
-                    raise ValueError(
-                        f"Required browser interface asset is missing: {name}"
-                    )
-                files.append(
-                    write_file(stage, name, browser_asset(name, source.read_bytes()))
-                )
+            for name, data in browser_interface(
+                ROOT / "src" / "omphalos" / "ui"
+            ).items():
+                files.append(write_file(stage, name, data))
         files.append(write_file(stage, "LICENSE", (ROOT / "LICENSE").read_bytes()))
         manifest = {
             "kind": "omphalos-browser-build",

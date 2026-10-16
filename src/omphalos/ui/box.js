@@ -14,13 +14,24 @@
   const darkInk = [11, 20, 32];
   const white = [255, 255, 255];
   const black = [0, 0, 0];
-  const finishedBase = channels('#293246');
+  const finishedBase = channels('#303030');
   const rainbow = [
-    { color: '#aaa5ff', x: 430, y: 125, radius: 205 },
-    { color: '#68dfea', x: 190, y: 265, radius: 205 },
-    { color: '#f3a8d3', x: 420, y: 310, radius: 185 },
-    { color: '#ffda93', x: 85, y: 70, radius: 170 },
-  ].map((pool) => ({ ...pool, channels: channels(pool.color) }));
+    '#d47b7c',
+    '#cc8553',
+    '#ae9740',
+    '#6baa6d',
+    '#21adad',
+    '#599fd8',
+    '#918ed9',
+    '#bf7fb9',
+  ];
+  const spectralColors = rainbow.map(channels);
+  const spectralStrength = 0.68;
+  // Equal-area centers of the fixed, closed box projection. Wider end regions
+  // compensate for the silhouette's taper without sampling on animation frames.
+  const spectralPositions = [
+    0.110275, 0.239445, 0.343685, 0.447895, 0.552105, 0.656315, 0.760555, 0.889725,
+  ];
   const labelFontSize = 14;
   const minimumLabelSize = 11;
   const azimuth = (25 * Math.PI) / 180;
@@ -66,35 +77,21 @@
   }
 
   function reflectionField(defs, id) {
-    const field = element('pattern', {
+    const field = element('linearGradient', {
       id: `${id}-iridescence`,
-      patternUnits: 'userSpaceOnUse',
-      x: 0,
-      y: 0,
-      width: 600,
-      height: 430,
+      gradientUnits: 'userSpaceOnUse',
+      x1: 0,
+      x2: 600,
+      y1: 0,
+      y2: 0,
+      'color-interpolation': 'sRGB',
     });
-    rainbow.forEach((pool, index) => {
-      const gradient = element('radialGradient', {
-        id: `${id}-reflection-${index}`,
-        gradientUnits: 'userSpaceOnUse',
-        cx: pool.x,
-        cy: pool.y,
-        r: pool.radius,
-        'color-interpolation': 'sRGB',
-      });
-      gradient.append(
-        element('stop', { offset: 0, 'stop-color': pool.color, 'stop-opacity': 0.6 }),
-        element('stop', { offset: 0.42, 'stop-color': pool.color, 'stop-opacity': 0.34 }),
-        element('stop', { offset: 1, 'stop-color': pool.color, 'stop-opacity': 0 }),
-      );
-      defs.append(gradient);
-      field.append(
-        element('rect', { width: 600, height: 430, fill: `url(#${id}-reflection-${index})` }),
-      );
-    });
+    const stop = (color, offset) =>
+      element('stop', { offset, 'stop-color': color, 'stop-opacity': spectralStrength });
+    const centers = rainbow.map((color, index) => stop(color, spectralPositions[index]));
+    field.append(stop(rainbow[0], 0), ...centers, stop(rainbow.at(-1), 1));
     defs.append(field);
-    return `url(#${id}-iridescence)`;
+    return { field, centers, fill: `url(#${id}-iridescence)` };
   }
 
   function packageFinish(defs, id) {
@@ -157,7 +154,7 @@
       element('path', {
         d: thread,
         fill: 'none',
-        stroke: '#dae4ff',
+        stroke: '#e8e8e8',
         'stroke-width': 0.8,
         'stroke-opacity': 0.24,
         transform: 'translate(0 0.65)',
@@ -165,7 +162,7 @@
       element('path', {
         d: thread,
         fill: 'none',
-        stroke: '#08111f',
+        stroke: '#111111',
         'stroke-width': 0.55,
         'stroke-opacity': 0.3,
       }),
@@ -204,34 +201,46 @@
     });
   }
 
-  function paintCaption(node, amount, center, width, stacked) {
+  function paintCaption(node, amount, center, width, spectrum) {
     const backgrounds = [];
-    for (const dx of [-width / 2, 0, width / 2]) {
-      for (const dy of [-1, 0, 1].map((value) => value * (stacked ? 22 : 14))) {
-        for (const base of node.materialColors) {
-          let reflected = base;
-          rainbow.forEach((pool) => {
-            const distance = Math.hypot(center[0] + dx - pool.x, center[1] + dy - pool.y);
-            const radius = Math.min(1, distance / pool.radius);
-            const opacity =
-              radius < 0.42 ? 0.6 - (0.26 * radius) / 0.42 : (0.34 * (1 - radius)) / 0.58;
-            reflected = mix(reflected, pool.channels, opacity);
-          });
-          const color = mix(base, reflected, amount);
-          let samples = [color];
-          if (node.finish && node.paintedFinish < 1) {
-            const strength = 1 - node.paintedFinish;
-            samples.push(mix(color, [248, 252, 255], 0.3 * strength));
-            samples.push(mix(color, [101, 119, 137], 0.18 * strength));
-          }
-          if (node.paintedFinish > 0)
-            samples = samples.flatMap((sample) => [
-              sample,
-              mix(sample, [218, 228, 255], 0.24 * node.paintedFinish),
-              mix(sample, [8, 17, 31], 0.3 * node.paintedFinish),
-            ]);
-          backgrounds.push(...samples);
+    const left = center[0] - width / 2;
+    const right = center[0] + width / 2;
+    const samples = [left, center[0], right];
+    spectrum.positions.forEach((offset) => {
+      const x = spectrum.left + offset * (spectrum.right - spectrum.left);
+      if (x > left && x < right) samples.push(x);
+    });
+    samples.sort((a, b) => a - b);
+    const midpoints = samples.slice(1).map((value, index) => (value + samples[index]) / 2);
+    for (const x of [...samples, ...midpoints]) {
+      const position = (x - spectrum.left) / (spectrum.right - spectrum.left);
+      let hue = spectralColors.at(-1);
+      if (position <= spectrum.positions[0]) hue = spectralColors[0];
+      else {
+        const next = spectrum.positions.findIndex((offset) => offset >= position);
+        if (next > 0)
+          hue = mix(
+            spectralColors[next - 1],
+            spectralColors[next],
+            (position - spectrum.positions[next - 1]) /
+              (spectrum.positions[next] - spectrum.positions[next - 1]),
+          );
+      }
+      for (const base of node.materialColors) {
+        const color = mix(base, hue, spectralStrength * amount);
+        let samples = [color];
+        if (node.finish && node.paintedFinish < 1) {
+          const strength = 1 - node.paintedFinish;
+          samples.push(mix(color, [248, 252, 255], 0.3 * strength));
+          samples.push(mix(color, [101, 119, 137], 0.18 * strength));
         }
+        if (node.paintedFinish > 0)
+          samples = samples.flatMap((sample) => [
+            sample,
+            mix(sample, [232, 232, 232], 0.24 * node.paintedFinish),
+            mix(sample, [17, 17, 17], 0.3 * node.paintedFinish),
+          ]);
+        backgrounds.push(...samples);
       }
     }
     const candidates = [darkInk, black, white].map((ink) => ({
@@ -427,7 +436,7 @@
       marker.append(ring, numeral, check);
       const iridescence = element('polygon', {
         class: 'box-iridescence',
-        fill: reflection,
+        fill: reflection.fill,
         'pointer-events': 'none',
       });
       const finish = index === 5 ? packageFinish(defs, id) : null;
@@ -530,6 +539,13 @@
         300 + (point[0] - (minX + maxX) / 2) * scale,
         215 + (point[1] - (minY + maxY) / 2) * scale,
       ];
+      const spectrum = {
+        left: 300 - ((maxX - minX) * scale) / 2,
+        right: 300 + ((maxX - minX) * scale) / 2,
+        positions: spectralPositions,
+      };
+      reflection.field.setAttribute('x1', spectrum.left);
+      reflection.field.setAttribute('x2', spectrum.right);
       const ordered = projected
         .map((panel, index) => ({
           index,
@@ -612,7 +628,7 @@
           reflectionAmount,
           center,
           Math.max(captionWidth, (node.labelWidth * labelSize) / labelFontSize + 24),
-          stacked,
+          spectrum,
         );
         const markerX = center[0] - captionWidth / 2 + 9;
         const markerY = center[1] - (stacked ? 9 : 0);

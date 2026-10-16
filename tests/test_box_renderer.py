@@ -67,25 +67,21 @@ function reflectedPigment(index, text) {
   const overlay = panel(index).children.find(node => node.getAttribute('class') === 'box-iridescence');
   const amount = Number(overlay.getAttribute('opacity'));
   const finished = Number(panel(index).children.find(node => node.getAttribute('class') === 'box-completion-engraving').getAttribute('opacity'));
-  const fields = all(scene, 'radialGradient').filter(node => /-reflection-\d+$/.test(node.getAttribute('id')));
+  const field = all(scene, 'linearGradient').find(node => node.getAttribute('id') === overlay.getAttribute('fill').slice(5, -1));
   const x = Number(text.getAttribute('x')), y = Number(text.getAttribute('y'));
   const size = Number(text.getAttribute('font-size')), half = text.textContent.length * size * .54 / 2;
   const blend = (left, right, opacity) => left.map((channel, axis) => Math.round(channel + (right[axis] - channel) * opacity));
   return pigment(index).flatMap(base => [-half, 0, half].flatMap(dx => [-size/2, 0, size/2].flatMap(dy => {
-    let result = base;
-    for (const field of fields) {
-      const distance = Math.hypot(x + dx - Number(field.getAttribute('cx')), y + dy - Number(field.getAttribute('cy')));
-      const ratio = Math.min(1, distance / Number(field.getAttribute('r')));
-      const stops = field.children;
-      const end = stops.findIndex((stop, offset) => offset && Number(stop.getAttribute('offset')) >= ratio);
-      const from = stops[end - 1], to = stops[end];
-      const progress = (ratio - Number(from.getAttribute('offset'))) / (Number(to.getAttribute('offset')) - Number(from.getAttribute('offset')));
-      const opacity = Number(from.getAttribute('stop-opacity')) + (Number(to.getAttribute('stop-opacity')) - Number(from.getAttribute('stop-opacity'))) * progress;
-      result = blend(result, color(from.getAttribute('stop-color')), opacity);
-    }
-    result = blend(base, result, amount);
+    const ratio = Math.max(0, Math.min(1, (x + dx - Number(field.getAttribute('x1'))) / (Number(field.getAttribute('x2')) - Number(field.getAttribute('x1')))));
+    const stops = field.children;
+    const end = stops.findIndex((stop, offset) => offset && Number(stop.getAttribute('offset')) >= ratio);
+    const from = stops[end - 1], to = stops[end];
+    const progress = (ratio - Number(from.getAttribute('offset'))) / (Number(to.getAttribute('offset')) - Number(from.getAttribute('offset')));
+    const opacity = Number(from.getAttribute('stop-opacity')) + (Number(to.getAttribute('stop-opacity')) - Number(from.getAttribute('stop-opacity'))) * progress;
+    const hue = blend(color(from.getAttribute('stop-color')), color(to.getAttribute('stop-color')), progress);
+    const result = blend(base, hue, opacity * amount);
     let samples = index === 5 && finished < 1 ? [result, blend(result, [248,252,255], .3 * (1 - finished)), blend(result, [101,119,137], .18 * (1 - finished))] : [result];
-    if (finished > 0) samples = samples.flatMap(sample => [sample, blend(sample, [218,228,255], .24 * finished), blend(sample, [8,17,31], .3 * finished)]);
+    if (finished > 0) samples = samples.flatMap(sample => [sample, blend(sample, [232,232,232], .24 * finished), blend(sample, [17,17,17], .3 * finished)]);
     return samples;
   })));
 }
@@ -296,11 +292,22 @@ const controller = mount(5);
 const stagePigments = [0,1,2,3,4,5].map(pigment);
 const reflection = index => panel(index).children.find(node => node.getAttribute('class') === 'box-iridescence');
 const fill = reflection(5).getAttribute('fill');
-const field = all(scene, 'pattern').find(node => node.getAttribute('id') === fill.slice(5, -1));
-assert.equal(field.getAttribute('patternUnits'), 'userSpaceOnUse');
-assert.equal(field.getAttribute('width'), '600');
-assert.equal(field.getAttribute('height'), '430');
-assert.equal(field.children.length, 4, 'Separated violet, cyan, rose, and amber pools form one reflection.');
+const field = all(scene, 'linearGradient').find(node => node.getAttribute('id') === fill.slice(5, -1));
+assert.equal(field.getAttribute('gradientUnits'), 'userSpaceOnUse');
+assert.equal(field.getAttribute('y1'), field.getAttribute('y2'), 'The formal spectrum is horizontal, without a diagonal gloss stripe.');
+assert.equal(field.children.length, 10, 'Eight ordered hues plus matching endpoint caps form the spectrum.');
+assert.equal(field.children[0].getAttribute('stop-color'), field.children[1].getAttribute('stop-color'));
+assert.equal(field.children.at(-1).getAttribute('stop-color'), field.children.at(-2).getAttribute('stop-color'));
+assert.equal(new Set(field.children.slice(1, -1).map(stop => stop.getAttribute('stop-color'))).size, 8);
+assert.equal(new Set(field.children.map(stop => stop.getAttribute('stop-opacity'))).size, 1, 'No hue receives a stronger reflection.');
+const perceptual = field.children.slice(1, -1).map(stop => {
+  const [r,g,b] = linear(color(stop.getAttribute('stop-color')));
+  const l = Math.cbrt(.4122214708*r + .5363325363*g + .0514459929*b);
+  const m = Math.cbrt(.2119034982*r + .6806995451*g + .1073969566*b);
+  const s = Math.cbrt(.0883024619*r + .2817188376*g + .6299787005*b);
+  return [.2104542553*l + .793617785*m - .0040720468*s, Math.hypot(1.9779984951*l - 2.428592205*m + .4505937099*s, .0259040371*l + .7827717662*m - .808675766*s)];
+});
+for (const axis of [0,1]) assert.ok(Math.max(...perceptual.map(value => value[axis])) - Math.min(...perceptual.map(value => value[axis])) < .004, 'Spectrum hues keep matched perceptual lightness and chroma.');
 for (let index = 0; index < 6; index += 1) {
   assert.equal(reflection(index).getAttribute('fill'), fill, 'Every face samples the same field instead of restarting its own rainbow.');
   assert.equal(reflection(index).getAttribute('opacity'), index === 5 ? '1' : '0');
@@ -311,13 +318,32 @@ assert.deepEqual([0,1,2,3,4,5].map(pigment), stagePigments);
 for (let index = 0; index < 5; index += 1) assert.equal(reflection(index).getAttribute('opacity'), '0');
 controller.update(faces(6), 5); advance(5);
 assert.ok(Number(reflection(0).getAttribute('opacity')) > 0 && Number(reflection(0).getAttribute('opacity')) < 1);
-assert.notDeepEqual(pigment(0), stagePigments[0], 'The last fold transitions the stage pigment into pearl.');
-const completedPigment = [[41,50,70], [41,50,70], [41,50,70]];
+assert.notDeepEqual(pigment(0), stagePigments[0], 'The last fold transitions the stage pigment into neutral charcoal.');
+const completedPigment = [[48,48,48], [48,48,48], [48,48,48]];
 assert.notDeepEqual(pigment(0), completedPigment, 'The whole-box material transitions rather than jumping to its finished base.');
 finish();
+const vertices = [0,1,2,3,4,5].flatMap(points).sort((a,b) => a[0] - b[0] || a[1] - b[1]);
+assert.ok(Math.abs(Number(field.getAttribute('x1')) - vertices[0][0]) < .001);
+assert.ok(Math.abs(Number(field.getAttribute('x2')) - vertices.at(-1)[0]) < .001, 'The full spectrum spans the actual box, not the wider page.');
+const cross = (o,a,b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+const halfHull = values => { const result = []; for (const point of values) { while (result.length > 1 && cross(result.at(-2), result.at(-1), point) <= 0) result.pop(); result.push(point); } return result.slice(0, -1); };
+const hull = [...halfHull(vertices), ...halfHull([...vertices].reverse())];
+const centers = field.children.slice(1, -1).map(stop => Number(stop.getAttribute('offset'))), areas = Array(8).fill(0);
+for (let column = 0; column < 1600; column += 1) {
+  const u = (column + .5) / 1600, x = vertices[0][0] + u * (vertices.at(-1)[0] - vertices[0][0]);
+  const intersections = hull.flatMap((point, edge) => {
+    const next = hull[(edge+1)%hull.length];
+    if (x < Math.min(point[0], next[0]) || x >= Math.max(point[0], next[0])) return [];
+    return [point[1] + (x-point[0]) * (next[1]-point[1]) / (next[0]-point[0])];
+  });
+  const hue = centers.reduce((best, value, index) => Math.abs(value-u) < Math.abs(centers[best]-u) ? index : best, 0);
+  areas[hue] += Math.max(...intersections) - Math.min(...intersections);
+}
+const totalArea = areas.reduce((sum, area) => sum + area, 0);
+for (const area of areas) assert.ok(area / totalArea > .115 && area / totalArea < .135, 'Each hue occupies a comparable share of the folded silhouette, including red and magenta at its tapered ends.');
 for (let index = 0; index < 6; index += 1) {
   assert.equal(reflection(index).getAttribute('opacity'), '1');
-  assert.deepEqual(pigment(index), completedPigment, 'Every finished side must have exactly the same cool ink base, with no brown or stage-color patches.');
+  assert.deepEqual(pigment(index), completedPigment, 'Every finished side must have exactly the same neutral charcoal base, with no brown or stage-color patches.');
   assert.equal(reflection(index).getAttribute('points'), panel(index).children[0].getAttribute('points'), 'The reflection is clipped to its panel.');
   assert.equal(reflection(index).getAttribute('transform'), null, 'The shared field remains in one coordinate system across seams.');
 }
