@@ -7,7 +7,6 @@ import binascii
 import hmac
 import json
 import logging
-import mimetypes
 import secrets
 import socket
 import tempfile
@@ -43,6 +42,13 @@ STATIC_FILES = {
     "/geist.woff2": "geist.woff2",
     "/geist-mono.woff2": "geist-mono.woff2",
     "/font-license.txt": "font-license.txt",
+}
+STATIC_CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".woff2": "font/woff2",
+    ".txt": "text/plain; charset=utf-8",
 }
 
 
@@ -423,15 +429,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             path = "/" + "/".join(parts) if parts != [""] else "/"
             if path in STATIC_FILES:
                 raw = (UI_ROOT / STATIC_FILES[path]).read_bytes()
-                mime = (
-                    mimetypes.guess_type(STATIC_FILES[path])[0]
-                    or "application/octet-stream"
-                )
-                content_type = (
-                    mime + "; charset=utf-8"
-                    if mime.startswith("text/") or mime == "application/javascript"
-                    else mime
-                )
+                content_type = STATIC_CONTENT_TYPES[Path(STATIC_FILES[path]).suffix]
                 self._headers(200, content_type, len(raw))
                 self.wfile.write(raw)
             elif parts == ["api", "state"]:

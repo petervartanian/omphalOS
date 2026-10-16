@@ -1749,6 +1749,15 @@ body.object-mode {
     radial-gradient(at 70% 90%, #efc2d2 0%, transparent 65%), var(--face-light);
   color: #0b1420;
 }
+.cube-controls button[data-face='5'][data-complete='true'] .stage-number {
+  border-color: #56627e;
+  background:
+    repeating-radial-gradient(ellipse at 50% 50%, transparent 0 3px, #dae4ff26 3.5px 4px),
+    radial-gradient(at 15% 30%, #7468a7 0%, transparent 70%),
+    radial-gradient(at 85% 65%, #346e82 0%, transparent 70%),
+    radial-gradient(at 60% 90%, #9b617d 0%, transparent 65%), #293246;
+  color: #fff;
+}
 .cube-controls button:not(:disabled):hover {
   color: var(--color-text);
   background: transparent;

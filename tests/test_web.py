@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import http.client
 import json
+import mimetypes
 import shutil
 import subprocess
 import threading
@@ -380,30 +381,28 @@ def test_local_host_origin_token_and_path_boundaries(browser, tmp_path):
             create_server(tmp_path / "other", host=host, port=0)
 
 
-def test_no_cdn_and_assets_served_with_security_headers(browser):
+def test_no_cdn_and_assets_served_with_security_headers(browser, monkeypatch):
     _, request = browser
-    for asset in (
-        "/",
-        "/styles.css",
-        "/app.js",
-        "/box.js",
-        "/geist.woff2",
-        "/geist-mono.woff2",
-        "/font-license.txt",
-    ):
+    # Windows may not register web font types. Packaged assets must not depend
+    # on the host MIME registry, especially with nosniff enabled.
+    monkeypatch.setattr(mimetypes, "guess_type", lambda *_args, **_kwargs: (None, None))
+    for asset, mime in {
+        "/": "text/html; charset=utf-8",
+        "/styles.css": "text/css; charset=utf-8",
+        "/app.js": "application/javascript; charset=utf-8",
+        "/box.js": "application/javascript; charset=utf-8",
+        "/geist.woff2": "font/woff2",
+        "/geist-mono.woff2": "font/woff2",
+        "/font-license.txt": "text/plain; charset=utf-8",
+    }.items():
         status, contents, headers = request(asset)
         assert status == 200 and contents
+        assert headers["Content-Type"] == mime
         assert headers["X-Content-Type-Options"] == "nosniff"
         assert headers["Cache-Control"] == "no-store"
         assert headers["Cross-Origin-Resource-Policy"] == "same-origin"
         assert "script-src 'self'" in headers["Content-Security-Policy"]
         assert "Access-Control-Allow-Origin" not in headers
-    for script in ("/app.js", "/box.js"):
-        assert request(script)[2]["Content-Type"].split(";", 1)[0] in {
-            "text/javascript",
-            "application/javascript",
-        }
-    assert request("/geist.woff2")[2]["Content-Type"] == "font/woff2"
     assert request("/geist.woff2")[1][:4] == b"wOF2"
     html = request("/")[1].decode()
     assert 'src="https:' not in html and 'href="https:' not in html

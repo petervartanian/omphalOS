@@ -35,7 +35,7 @@ At widths of 960px and above, an open stage uses two columns: the box and naviga
 
 ### Panel colors
 
-Stages I–V retain their blue, teal, orange, yellow, and pink identities, with explicit light unfinished colors and deeper completed colors. Pigment follows its own hinge, so queued panels stay light until their fold starts. The Records base changes color when valid intake completes. VI uses a distinct pearl and rainbow material. The entire box adopts that material only after verified export completion.
+Stages I–V retain their blue, teal, orange, yellow, and pink identities, with explicit light unfinished colors and deeper completed colors. Pigment follows its own hinge, so queued panels stay light until their fold starts. The Records base changes color when valid intake completes. VI starts with a pearl and rainbow material. After verified export, the entire box becomes dark iridescent ink with an engraved pattern.
 
 | Panel | Identity | Unfinished | Complete |
 | --- | --- | --- | --- |
@@ -44,9 +44,9 @@ Stages I–V retain their blue, teal, orange, yellow, and pink identities, with 
 | III Plan | Orange | `#FFD4AF` | `#D88B49` |
 | IV Findings | Yellow | `#FFF1A8` | `#CCAE3B` |
 | V Assessment | Pink | `#F5BCD3` | `#CC7FA1` |
-| VI Package | Pearl with rainbow reflection | `#DCE4ED` | `#DCE4ED` |
+| VI Package | Rainbow reflection | Pearl `#DCE4ED` | Ink `#293246` |
 
-Package adds a fine interlaced engraving, an embossed border, and a soft rainbow reflection over a cool pearl base. Broad violet, cyan, rose, and gold pools form one continuous reflection field. Before completion, only VI carries that material. Verified export completion transforms every panel to the same pearl base and continuous reflection as the lid folds; no brown or other stage pigment remains underneath. Invalidation restores the I–V stage colors while VI stays pearl. The reflection is uninterrupted beneath the captions. Ink adapts to the reflected color, with a fine glyph outline only when needed for contrast. There is no idle animation or repeated rainbow painted independently on each panel. Changing the assessment removes the completed finish until a new matching package is created.
+Package adds a fine interlaced engraving, an embossed border, and a soft rainbow reflection over a cool pearl base before completion. Broad violet, cyan, rose, and gold pools form one continuous reflection field. Verified export transforms every panel to the same dark ink base (`#293246`), continuous rainbow sheen, and interlaced engraving as the lid folds; no brown or other stage pigment remains underneath. The completed weave uses pale relief and darker incisions. Invalidation restores the I–V stage colors and VI's light pearl finish. The reflection is uninterrupted beneath the captions. Caption ink adapts to the reflected color, with a fine glyph outline only when needed for contrast. There is no idle animation or repeated rainbow painted independently on each panel. Changing the assessment removes the completed finish until a new matching package is created.
 
 Completion adds a checkmark alongside the permanent Roman numeral. Panel titles start at 14 SVG units and fit down to 11; narrow folded walls retain the smaller circled numeral. Labels are clipped to their own panel. External controls retain every full name and numeral. Ink adapts to the actual reflected surface throughout folding; a fine glyph outline protects exceptional intermediate contrast crossings. Text states and accessible completion descriptions supplement color.
 

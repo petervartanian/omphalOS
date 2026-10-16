@@ -341,6 +341,7 @@ def test_redirects_are_rejected():
         b"[]",
         b"{}" + b" " * research.MAX_BYTES,
     ],
+    ids=["duplicate-keys", "non-finite-number", "non-object", "oversized"],
 )
 def test_invalid_provider_documents_are_bounded(raw):
     with pytest.raises(ValueError):

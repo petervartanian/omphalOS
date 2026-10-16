@@ -14,7 +14,7 @@
   const darkInk = [11, 20, 32];
   const white = [255, 255, 255];
   const black = [0, 0, 0];
-  const pearl = channels('#dce4ed');
+  const finishedBase = channels('#293246');
   const rainbow = [
     { color: '#aaa5ff', x: 430, y: 125, radius: 205 },
     { color: '#68dfea', x: 190, y: 265, radius: 205 },
@@ -145,10 +145,39 @@
     return { group, plane };
   }
 
+  function completionEngraving(defs, id) {
+    const weave = element('pattern', {
+      id: `${id}-completed-weave`,
+      width: 22,
+      height: 22,
+      patternUnits: 'userSpaceOnUse',
+    });
+    const thread = 'M-11,11 Q0,-5 11,11 T33,11 M-11,11 Q0,27 11,11 T33,11';
+    weave.append(
+      element('path', {
+        d: thread,
+        fill: 'none',
+        stroke: '#dae4ff',
+        'stroke-width': 0.8,
+        'stroke-opacity': 0.24,
+        transform: 'translate(0 0.65)',
+      }),
+      element('path', {
+        d: thread,
+        fill: 'none',
+        stroke: '#08111f',
+        'stroke-width': 0.55,
+        'stroke-opacity': 0.3,
+      }),
+    );
+    defs.append(weave);
+    return `url(#${id}-completed-weave)`;
+  }
+
   function paintMaterial(node, index, filled, finished) {
-    if (node.paintedFill === filled && node.paintedPearl === finished) return;
+    if (node.paintedFill === filled && node.paintedFinish === finished) return;
     node.paintedFill = filled;
-    node.paintedPearl = finished;
+    node.paintedFinish = finished;
     const face = palette[index];
     const base = mix(face.light, face.complete, filled);
     let reflection = face.sheen[0] + (face.sheen[1] - face.sheen[0]) * filled;
@@ -168,7 +197,7 @@
       highlight = mix(base, white, reflection);
     }
     node.materialColors = [highlight, mix(base, highlight, 0.28), base].map((color) =>
-      mix(color, pearl, finished),
+      mix(color, finishedBase, finished),
     );
     node.materialColors.forEach((color, stop) => {
       node.stops[stop].setAttribute('stop-color', rgb(color));
@@ -189,11 +218,19 @@
             reflected = mix(reflected, pool.channels, opacity);
           });
           const color = mix(base, reflected, amount);
-          backgrounds.push(color);
-          if (node.finish) {
-            backgrounds.push(mix(color, [248, 252, 255], 0.3));
-            backgrounds.push(mix(color, [101, 119, 137], 0.18));
+          let samples = [color];
+          if (node.finish && node.paintedFinish < 1) {
+            const strength = 1 - node.paintedFinish;
+            samples.push(mix(color, [248, 252, 255], 0.3 * strength));
+            samples.push(mix(color, [101, 119, 137], 0.18 * strength));
           }
+          if (node.paintedFinish > 0)
+            samples = samples.flatMap((sample) => [
+              sample,
+              mix(sample, [218, 228, 255], 0.24 * node.paintedFinish),
+              mix(sample, [8, 17, 31], 0.3 * node.paintedFinish),
+            ]);
+          backgrounds.push(...samples);
         }
       }
     }
@@ -309,6 +346,7 @@
     });
     svg.append(defs, shadow, panels);
     const reflection = reflectionField(defs, id);
+    const engravingFill = completionEngraving(defs, id);
     const nodes = palette.map((_, index) => {
       const gradient = element('radialGradient', {
         id: `${id}-face-${index}`,
@@ -393,10 +431,16 @@
         'pointer-events': 'none',
       });
       const finish = index === 5 ? packageFinish(defs, id) : null;
+      const engraving = element('polygon', {
+        class: 'box-completion-engraving',
+        fill: engravingFill,
+        'pointer-events': 'none',
+      });
       group.append(
         surface,
         iridescence,
         ...(finish ? [finish.group] : []),
+        engraving,
         sheen,
         score,
         marker,
@@ -417,6 +461,7 @@
         stops,
         finish,
         iridescence,
+        engraving,
       };
     });
     scene.append(svg);
@@ -496,14 +541,18 @@
         // Pigment follows the hinge, including reversals. Queued panels keep
         // their unfinished color until their own fold starts; the base has no hinge.
         const filled = index === 0 ? Number(currentFaces[index].complete) : folds[index];
-        const reflectionAmount = index === 5 ? 1 : currentFaces[5].complete ? folds[5] : 0;
-        paintMaterial(node, index, filled, reflectionAmount);
+        const finished = currentFaces[5].complete ? folds[5] : 0;
+        const reflectionAmount = index === 5 ? 1 : finished;
+        paintMaterial(node, index, filled, finished);
         const polygon = projected[index].map(position);
         const coordinates = polygon
           .map((point) => point.map((value) => value.toFixed(3)).join(','))
           .join(' ');
         node.surface.setAttribute('points', coordinates);
         node.iridescence.setAttribute('points', coordinates);
+        node.engraving.setAttribute('points', coordinates);
+        node.engraving.setAttribute('opacity', finished);
+        node.finish?.group.setAttribute('opacity', 1 - finished);
         // VI carries the reflection before export. A verified package shares
         // that one field across every visible panel as its lid closes.
         node.iridescence.setAttribute('opacity', reflectionAmount);

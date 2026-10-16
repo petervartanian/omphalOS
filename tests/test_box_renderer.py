@@ -66,6 +66,7 @@ function pigment(index) { return all(scene, 'radialGradient').find(node => node.
 function reflectedPigment(index, text) {
   const overlay = panel(index).children.find(node => node.getAttribute('class') === 'box-iridescence');
   const amount = Number(overlay.getAttribute('opacity'));
+  const finished = Number(panel(index).children.find(node => node.getAttribute('class') === 'box-completion-engraving').getAttribute('opacity'));
   const fields = all(scene, 'radialGradient').filter(node => /-reflection-\d+$/.test(node.getAttribute('id')));
   const x = Number(text.getAttribute('x')), y = Number(text.getAttribute('y'));
   const size = Number(text.getAttribute('font-size')), half = text.textContent.length * size * .54 / 2;
@@ -83,7 +84,9 @@ function reflectedPigment(index, text) {
       result = blend(result, color(from.getAttribute('stop-color')), opacity);
     }
     result = blend(base, result, amount);
-    return index === 5 ? [result, blend(result, [248,252,255], .3), blend(result, [101,119,137], .18)] : [result];
+    let samples = index === 5 && finished < 1 ? [result, blend(result, [248,252,255], .3 * (1 - finished)), blend(result, [101,119,137], .18 * (1 - finished))] : [result];
+    if (finished > 0) samples = samples.flatMap(sample => [sample, blend(sample, [218,228,255], .24 * finished), blend(sample, [8,17,31], .3 * finished)]);
+    return samples;
   })));
 }
 __SCENARIO__
@@ -191,7 +194,7 @@ for (let index = 0; index < 6; index += 1) {
   assert.ok(label.getAttribute('clip-path'), 'Labels stay within their own folded panels.');
   if (index > 0 && index < 5) assert.notDeepEqual(pigment(index), initial[index]);
 }
-assert.deepEqual(pigment(5), initial[5], 'VI remains pearl before and after completion.');
+assert.notDeepEqual(pigment(5), initial[5], 'VI changes from light pearl to dark iridescence only with the finished package.');
 controller.destroy(); assertReleased();
 """)
 
@@ -309,11 +312,12 @@ for (let index = 0; index < 5; index += 1) assert.equal(reflection(index).getAtt
 controller.update(faces(6), 5); advance(5);
 assert.ok(Number(reflection(0).getAttribute('opacity')) > 0 && Number(reflection(0).getAttribute('opacity')) < 1);
 assert.notDeepEqual(pigment(0), stagePigments[0], 'The last fold transitions the stage pigment into pearl.');
-assert.notDeepEqual(pigment(0), stagePigments[5], 'The whole-box material transitions rather than jumping to its finished base.');
+const completedPigment = [[41,50,70], [41,50,70], [41,50,70]];
+assert.notDeepEqual(pigment(0), completedPigment, 'The whole-box material transitions rather than jumping to its finished base.');
 finish();
 for (let index = 0; index < 6; index += 1) {
   assert.equal(reflection(index).getAttribute('opacity'), '1');
-  assert.deepEqual(pigment(index), stagePigments[5], 'Every finished side must have exactly the same cool pearl base, with no stage-color patches.');
+  assert.deepEqual(pigment(index), completedPigment, 'Every finished side must have exactly the same cool ink base, with no brown or stage-color patches.');
   assert.equal(reflection(index).getAttribute('points'), panel(index).children[0].getAttribute('points'), 'The reflection is clipped to its panel.');
   assert.equal(reflection(index).getAttribute('transform'), null, 'The shared field remains in one coordinate system across seams.');
 }
@@ -321,6 +325,37 @@ controller.update(faces(5), 4);
 assert.deepEqual([0,1,2,3,4,5].map(pigment), stagePigments, 'Invalidating the export restores the stage pigments while VI stays pearl.');
 for (let index = 0; index < 5; index += 1) assert.equal(reflection(index).getAttribute('opacity'), '0', 'An invalidated export must remove the whole-box finish.');
 assert.equal(reflection(5).getAttribute('opacity'), '1');
+finish(); controller.destroy(); assertReleased();
+""")
+
+
+def test_completed_package_adds_a_shared_engraved_pattern_to_every_side() -> None:
+    run_scenario(r"""
+const controller = mount(5);
+const engraving = index => panel(index).children.find(node => node.getAttribute('class') === 'box-completion-engraving');
+const fill = engraving(5).getAttribute('fill');
+const weave = all(scene, 'pattern').find(node => node.getAttribute('id') === fill.slice(5, -1));
+assert.equal(weave.getAttribute('patternUnits'), 'userSpaceOnUse');
+assert.equal(weave.getAttribute('width'), '22');
+assert.equal(weave.getAttribute('height'), '22');
+assert.equal(weave.children.length, 2, 'Fine relief and incision lines create a structured engraved weave.');
+for (let index = 0; index < 6; index += 1) assert.equal(engraving(index).getAttribute('opacity'), '0');
+controller.update(faces(5), 5);
+for (let index = 0; index < 6; index += 1) assert.equal(engraving(index).getAttribute('opacity'), '0', 'Opening Package cannot apply the finished material.');
+controller.update(faces(6), 5); finish();
+for (let index = 0; index < 6; index += 1) {
+  assert.equal(engraving(index).getAttribute('fill'), fill);
+  assert.equal(engraving(index).getAttribute('opacity'), '1');
+  assert.equal(engraving(index).getAttribute('points'), panel(index).children[0].getAttribute('points'));
+  assert.equal(engraving(index).getAttribute('transform'), null, 'The completed engraving spans one coordinate field across seams.');
+}
+const lidFinish = all(panel(5), 'g').find(node => node.getAttribute('class') === 'box-package-finish');
+assert.equal(lidFinish.getAttribute('opacity'), '0', 'The light lid treatment must not double up over the finished engraving.');
+assert.equal(pending.size, 0, 'The finished texture has no idle animation.');
+controller.update(faces(5), 5);
+for (let index = 0; index < 6; index += 1) assert.equal(engraving(index).getAttribute('opacity'), '0');
+assert.equal(lidFinish.getAttribute('opacity'), '1');
+assert.deepEqual(pigment(5).at(-1), [220,228,237], 'Invalidation restores VI to light pearl.');
 finish(); controller.destroy(); assertReleased();
 """)
 

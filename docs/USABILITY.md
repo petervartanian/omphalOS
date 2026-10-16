@@ -22,16 +22,16 @@ These sources informed specific decisions, rather than supplying a visual theme 
 | Is the next action clear? | Six named stages follow Records, Sources, Plan, Findings, Assessment, and Package. A stage becomes available when its inputs exist. |
 | Does completion mean something real? | A saved, verified result completes Findings. An explicit saved decision completes Assessment. An actual matching export closes Package. Merely opening a panel does not complete it. |
 | Can someone read and act without scrolling past decoration? | The overview fits one page at tested sizes. Opening a stage places work beside the box on desktop and uses compact stage navigation on narrow screens. |
-| Can someone distinguish unfinished from finished without relying on red and green? | Stages I–V have light and deeper pigments. Every stage retains a numeral, name, completion check, and fold state; the completed package gains the shared pearl finish. |
+| Can someone distinguish unfinished from finished without relying on red and green? | Stages I–V have light and deeper pigments. Every stage retains a numeral, name, completion check, and fold state; the completed package gains a shared dark rainbow finish and engraved pattern. |
 | Is an error recoverable? | Invalid imports retain a preview with correction actions. Failed or lost-response execution can resume the exact approved plan. Evidence-page retries retain the requested page. |
 | Does the application preserve ownership of the work? | Late responses cannot replace newer work. Drafts survive in-page navigation. New and Open remain available. Retained runs keep their original dataset identity. |
 | Can the output be inspected independently? | Packages retain inputs, analysis, provenance, and the actual saved review. Verification and replay show readable outcomes and preserve the download. |
 
 ## Color and motion
 
-Stages I–V use blue, teal, peach, yellow, and pink, with their own light and completed colors. VI is pearl with a rainbow reflection. The completed package uses the same continuous pearl material across every panel. There is no diagonal stripe or black overlay. Exact values are in [DESIGN.md](DESIGN.md).
+Stages I–V use blue, teal, peach, yellow, and pink, with their own light and completed colors. VI is pearl with a rainbow reflection before completion. The completed package uses the same dark ink and continuous rainbow material across every panel. There is no diagonal stripe. Exact values are in [DESIGN.md](DESIGN.md).
 
-The Package lid has an engraved weave, an embossed border, and a restrained rainbow sheen. VI uses a cool pearl base from the start. After verified export, every panel takes on that same pearl base and continuous rainbow reflection; no stage pigment remains underneath. Caption ink adapts to the reflected color, without a blank patch in the finish. The finish adds no idle motion. Changing the assessment removes the completed finish until a new matching export is created.
+The Package lid has an engraved weave, an embossed border, and a restrained rainbow sheen. VI uses a cool pearl base before completion. After verified export, every panel takes on a dark ink base, continuous rainbow reflection, and fine engraved weave; no stage pigment remains underneath. Caption ink adapts to the reflected color, without a blank patch in the finish. The finish adds no idle motion. Changing the assessment removes the completed finish until a new matching export is created.
 
 Tests check text contrast across gradient stops and intermediate folds, and completion lightness changes under normal and simulated red-green vision. Simulations cannot establish what any individual sees. Full names, Roman numerals, checkmarks, and geometry remain necessary cues.
 
