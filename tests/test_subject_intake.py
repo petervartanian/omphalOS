@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from test_guided_web import run_payload
 from test_web import browser as browser
 from test_web import upload
 
@@ -185,11 +186,7 @@ def test_subject_screening_runs_and_replays_without_fabricating_review(
     assert status == 200 and proposed["can_run"], proposed
     status, executed, _ = request(
         "/api/workflow/run",
-        {
-            **inputs,
-            "plan_id": proposed["plan_id"],
-            "case_id": proposed["case"]["case_id"],
-        },
+        run_payload(request, inputs, proposed),
     )
     assert status == 200, executed
     run_id = executed["run_id"]

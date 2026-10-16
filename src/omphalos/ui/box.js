@@ -332,6 +332,53 @@
     ];
   }
 
+  function containsPoint(polygon, point) {
+    let direction = 0;
+    for (let index = 0; index < polygon.length; index += 1) {
+      const start = polygon[index],
+        end = polygon[(index + 1) % polygon.length];
+      const cross =
+        (end[0] - start[0]) * (point[1] - start[1]) - (end[1] - start[1]) * (point[0] - start[0]);
+      if (Math.abs(cross) < 0.0001) continue;
+      const sign = Math.sign(cross);
+      if (direction && sign !== direction) return false;
+      direction = sign;
+    }
+    return true;
+  }
+
+  function polygonsOverlap(left, right) {
+    for (const polygon of [left, right]) {
+      for (let index = 0; index < polygon.length; index += 1) {
+        const point = polygon[index],
+          next = polygon[(index + 1) % polygon.length];
+        const axis = [point[1] - next[1], next[0] - point[0]];
+        if (Math.hypot(...axis) < 0.0001) continue;
+        const a = left.map((vertex) => vertex[0] * axis[0] + vertex[1] * axis[1]);
+        const b = right.map((vertex) => vertex[0] * axis[0] + vertex[1] * axis[1]);
+        if (Math.max(...a) <= Math.min(...b) || Math.max(...b) <= Math.min(...a)) return false;
+      }
+    }
+    return true;
+  }
+
+  function rectangle(left, top, right, bottom) {
+    return [
+      [left, top],
+      [right, top],
+      [right, bottom],
+      [left, bottom],
+    ];
+  }
+
+  function markerOutline(x, y) {
+    const radius = 10 / Math.cos(Math.PI / 16);
+    return Array.from({ length: 16 }, (_, index) => {
+      const angle = (index * Math.PI) / 8;
+      return [x + radius * Math.cos(angle), y + radius * Math.sin(angle)];
+    });
+  }
+
   function mount(scene, { faces = [], selected = 0 } = {}) {
     instances.get(scene)?.destroy();
     if (!scene) return { update() {}, destroy() {} };
@@ -546,20 +593,21 @@
       };
       reflection.field.setAttribute('x1', spectrum.left);
       reflection.field.setAttribute('x2', spectrum.right);
+      const polygons = projected.map((panel) => panel.map(position));
       const ordered = projected
         .map((panel, index) => ({
           index,
           depth: panel.reduce((sum, point) => sum + point[2], 0) / 4,
         }))
         .sort((left, right) => left.depth - right.depth);
-      ordered.forEach(({ index }) => {
+      ordered.forEach(({ index }, order) => {
         const node = nodes[index];
         // Pigment follows the hinge, including reversals. Queued panels keep
         // their unfinished color until their own fold starts; the base has no hinge.
         const filled = index === 0 ? Number(currentFaces[index].complete) : folds[index];
         const finished = currentFaces[5].complete ? folds[5] : 0;
         paintMaterial(node, index, filled, finished);
-        const polygon = projected[index].map(position);
+        const polygon = polygons[index];
         const coordinates = polygon
           .map((point) => point.map((value) => value.toFixed(3)).join(','))
           .join(' ');
@@ -637,8 +685,8 @@
         node.ring.setAttribute('cy', markerY.toFixed(3));
         node.numeral.setAttribute('x', markerX.toFixed(3));
         node.numeral.setAttribute('y', markerY.toFixed(3));
-        node.check.setAttribute('x', (markerX + 8).toFixed(3));
-        node.check.setAttribute('y', (markerY + 8).toFixed(3));
+        node.check.setAttribute('x', (markerX + 6).toFixed(3));
+        node.check.setAttribute('y', (markerY + 6).toFixed(3));
         const area =
           Math.abs(
             polygon.reduce((sum, point, offset) => {
@@ -646,10 +694,45 @@
               return sum + point[0] * next[1] - next[0] * point[1];
             }, 0),
           ) / 2;
-        node.label.setAttribute('x', (center[0] + (stacked ? 0 : 12)).toFixed(3));
-        node.label.setAttribute('y', (center[1] + (stacked ? 12 : 0)).toFixed(3));
-        node.label.setAttribute('opacity', area > 850 ? '1' : '0');
-        node.marker.setAttribute('opacity', area > 850 && labelRoom >= 22 ? '1' : '0');
+        const titleX = center[0] + (stacked ? 0 : 12);
+        const titleY = center[1] + (stacked ? 12 : 0);
+        node.label.setAttribute('x', titleX.toFixed(3));
+        node.label.setAttribute('y', titleY.toFixed(3));
+        const showMarker = area > 850 && labelRoom >= 22;
+        const captionBounds = [];
+        if (showTitle && area > 850) {
+          const halfWidth = (node.labelWidth * labelSize) / labelFontSize / 2 + 2;
+          const halfHeight = labelSize * 0.65 + 1;
+          captionBounds.push(
+            rectangle(
+              titleX - halfWidth,
+              titleY - halfHeight,
+              titleX + halfWidth,
+              titleY + halfHeight,
+            ),
+          );
+        }
+        if (showMarker) {
+          captionBounds.push(markerOutline(markerX, markerY));
+          if (currentFaces[index].complete)
+            captionBounds.push(
+              rectangle(markerX + 0.5, markerY + 0.5, markerX + 11.5, markerY + 11.5),
+            );
+        }
+        // Painter order is also the SVG's actual occlusion order. Keep a
+        // caption whole: never leave half a name or a clipped step/check behind
+        // a nearer wall. The external navigation retains every stage name.
+        const captionVisible =
+          captionBounds.length > 0 &&
+          captionBounds.every(
+            (bounds) =>
+              bounds.every((point) => containsPoint(polygon, point)) &&
+              ordered
+                .slice(order + 1)
+                .every((nearer) => !polygonsOverlap(bounds, polygons[nearer.index])),
+          );
+        node.label.setAttribute('opacity', captionVisible && showTitle ? '1' : '0');
+        node.marker.setAttribute('opacity', captionVisible && showMarker ? '1' : '0');
         const hingeEnd = index === 1 ? 3 : 1;
         node.score.setAttribute(
           'd',

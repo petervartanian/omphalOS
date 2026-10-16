@@ -260,6 +260,13 @@ def _semantic_issues(contents: dict[str, bytes], manifest: dict[str, Any]) -> li
     case = Case.model_validate(_json_bytes(contents["case.json"]))
     if case.case_id != manifest["case_id"]:
         issues.append("case_id differs between manifest and case")
+    if case.workflow is not None:
+        entries = _entries(manifest)
+        if case.workflow.dataset_sha256 != entries["data/dataset.json"]["sha256"]:
+            issues.append("Recorded workflow approval differs from retained dataset")
+        source_digest = entries.get("sources/source.json", {}).get("sha256")
+        if case.workflow.source_sha256 != source_digest:
+            issues.append("Recorded workflow approval differs from retained source")
     selected = set(case.investigations)
     if selected != {row["investigation_id"] for row in analysis["coverage"]}:
         issues.append(
@@ -543,6 +550,17 @@ def _reports(
         + escape(json.dumps(analysis["coverage"], indent=2, ensure_ascii=False))
         + "</pre>",
     ]
+    workflow = case.get("workflow")
+    workflow_note = (
+        "Records selected and source choices accepted at "
+        f"{workflow['source_accepted_at']}. Plan approved for execution at "
+        f"{workflow['plan_approved_at']}. These are recorded local user actions, "
+        "not authenticated identity or regulatory clearance."
+        if workflow
+        else "Earlier stage approvals were not recorded for this run."
+    )
+    blocks.append("<h2>Workflow record</h2><p>" + escape(workflow_note) + "</p>")
+    lines.extend(["", "## Workflow record", "", escape(workflow_note), ""])
     if case_review:
         context = (
             "The observations, unknowns, alternative explanations, and evidence "

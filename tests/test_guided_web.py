@@ -76,12 +76,20 @@ def plan(
     return payload, result
 
 
-def run_payload(payload: dict, proposed: dict) -> dict:
-    return {
+def run_payload(request, payload: dict, proposed: dict) -> dict:
+    execution = {
         **payload,
         "plan_id": proposed["plan_id"],
         "case_id": proposed["case"]["case_id"],
     }
+    if not proposed["can_run"]:
+        return {**execution, "approval": {}, "acknowledge_plan": True}
+    status, result, _ = request(
+        "/api/workflow/approve",
+        {**execution, "acknowledge_records": True, "acknowledge_source": True},
+    )
+    assert status == 200, result
+    return {**execution, "approval": result["approval"], "acknowledge_plan": True}
 
 
 def test_guided_import_preserves_original_bytes_and_separate_same_name_rows(browser):
@@ -192,12 +200,18 @@ def test_guided_run_preserves_plan_and_evidence_without_fabricating_review(brows
     assert "threshold_cluster" not in proposed["case"]["investigations"]
     assert not list((server.root / "cases").glob("*.json"))
 
-    status, summary, _ = request("/api/workflow/run", run_payload(payload, proposed))
+    status, summary, _ = request(
+        "/api/workflow/run", run_payload(request, payload, proposed)
+    )
     assert status == 200, summary
     run_id = summary["run_id"]
     status, run, _ = request(f"/api/runs/{run_id}")
     assert status == 200 and run["verification"]["ok"], run
-    assert run["case"] == proposed["case"]
+    assert run["case"]["schema_version"] == "2.1"
+    restored = {key: value for key, value in run["case"].items() if key != "workflow"}
+    restored["schema_version"] = "2.0"
+    assert restored == proposed["case"]
+    assert run["workflow"]["status"] == "recorded"
     assert run["latest_review"] is None
     assert run["review_validation"]["ok"] is False
     assert request(f"/api/runs/{run_id}/export", {})[0] == 400
@@ -212,7 +226,7 @@ def test_changed_plan_inputs_and_repeated_case_cannot_replace_approved_work(brow
     status, imported, _ = import_preview(request, preview(request))
     assert status == 200, imported
     payload, proposed = plan(request, imported["dataset_id"])
-    approved = run_payload(payload, proposed)
+    approved = run_payload(request, payload, proposed)
     for changed in [
         {**approved, "as_of": "2025-01-01"},
         {**approved, "case_id": "different-case"},
@@ -256,7 +270,9 @@ def test_guided_local_import_plan_and_run_make_no_external_connections(
     status, imported, _ = import_preview(request, preview(request))
     assert status == 200, imported
     payload, proposed = plan(request, imported["dataset_id"])
-    status, summary, _ = request("/api/workflow/run", run_payload(payload, proposed))
+    status, summary, _ = request(
+        "/api/workflow/run", run_payload(request, payload, proposed)
+    )
     assert status == 200, summary
     assert attempted
     assert all(address[:2] == ("127.0.0.1", server.port) for address in attempted)
@@ -302,6 +318,7 @@ def test_valid_replacement_under_same_identifier_invalidates_prior_plan(
         ),
         snapshot_id="official-fixture" if replacement == "source" else None,
     )
+    approved = run_payload(request, payload, proposed)
     if replacement == "dataset":
         # Keep the dataset ID, label, number of records, and analytical eligibility.
         # Replace it with another fully valid import, rather than corrupting hashes.
@@ -330,7 +347,7 @@ def test_valid_replacement_under_same_identifier_invalidates_prior_plan(
         import_source("csl", upload_path, destination)
         assert load_source(destination)["snapshot_id"] == "official-fixture"
 
-    status, result, _ = request("/api/workflow/run", run_payload(payload, proposed))
+    status, result, _ = request("/api/workflow/run", approved)
     assert status == 409, result
     assert not list((server.root / "runs").iterdir())
     assert not list((server.root / "cases").glob("*.json"))
@@ -356,6 +373,8 @@ def test_screening_plan_exposes_missing_source_and_cannot_run_anyway(browser):
         check["id"] == "screening_candidates" and check["status"] == "not_evaluable"
         for check in proposed["unavailable_checks"]
     )
-    status, result, _ = request("/api/workflow/run", run_payload(payload, proposed))
+    status, result, _ = request(
+        "/api/workflow/run", run_payload(request, payload, proposed)
+    )
     assert status == 400, result
     assert not list((server.root / "runs").iterdir())

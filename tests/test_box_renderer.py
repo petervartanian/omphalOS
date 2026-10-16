@@ -260,6 +260,87 @@ controller.destroy(); assertReleased();
 """)
 
 
+def test_open_box_hides_the_obscured_base_caption_and_keeps_side_markers_whole() -> (
+    None
+):
+    run_scenario(r"""
+const controller = mount(5);
+const visible = [0,1,2,3,4,5].map(index => {
+  const label = panel(index).children.at(-1);
+  const marker = panel(index).children.find(child => child.getAttribute('class') === 'box-panel-step');
+  return [titles[index], label.getAttribute('opacity'), marker.getAttribute('opacity')];
+});
+assert.deepEqual(visible, [
+  ['Records', '0', '0'], ['Sources', '0', '1'], ['Plan', '1', '1'],
+  ['Findings', '0', '1'], ['Assessment', '1', '1'], ['Package', '1', '1'],
+]);
+assert.equal(panel(0).children.at(-1).textContent, 'Records', 'Culling must not erase the retained stage identity.');
+for (const title of titles) assert.ok(all(scene, 'svg')[0].getAttribute('aria-label').includes(title));
+controller.update(faces(0), 0); finish();
+assert.equal(panel(0).children.at(-1).getAttribute('opacity'), '1', 'The base caption returns when its covering wall unfolds.');
+controller.destroy(); assertReleased();
+""")
+
+
+def test_visible_captions_stay_whole_inside_panels_and_clear_of_nearer_walls() -> None:
+    run_scenario(r"""
+const controller = mount(0);
+const signedArea = polygon => polygon.reduce((sum, point, index) => { const next = polygon[(index+1)%polygon.length]; return sum + point[0]*next[1] - next[0]*point[1]; }, 0) / 2;
+function clippedArea(subject, boundary) {
+  let output = subject;
+  const orientation = Math.sign(signedArea(boundary));
+  for (let edge = 0; edge < boundary.length && output.length; edge += 1) {
+    const a = boundary[edge], b = boundary[(edge+1)%boundary.length];
+    const side = point => orientation * ((b[0]-a[0])*(point[1]-a[1]) - (b[1]-a[1])*(point[0]-a[0]));
+    const input = output; output = [];
+    for (let index = 0; index < input.length; index += 1) {
+      const previous = input[(index+input.length-1)%input.length], current = input[index];
+      const from = side(previous), to = side(current);
+      if ((from >= 0) !== (to >= 0)) {
+        const t = from / (from-to);
+        output.push([previous[0] + t*(current[0]-previous[0]), previous[1] + t*(current[1]-previous[1])]);
+      }
+      if (to >= 0) output.push(current);
+    }
+  }
+  return Math.abs(signedArea(output));
+}
+function textFootprint(text) {
+  const x = Number(text.getAttribute('x')), y = Number(text.getAttribute('y')), size = Number(text.getAttribute('font-size'));
+  const halfWidth = text.textContent.length * size * .54 / 2 + .6, halfHeight = size * .55 + .6;
+  return [[x-halfWidth,y-halfHeight],[x+halfWidth,y-halfHeight],[x+halfWidth,y+halfHeight],[x-halfWidth,y+halfHeight]];
+}
+function checkCaptions() {
+  const order = panel(0).parent.children.map(group => Number(group.getAttribute('data-face')));
+  let visible = 0;
+  order.forEach((index, position) => {
+    const group = panel(index), label = group.children.at(-1), shapes = [];
+    if (label.getAttribute('opacity') === '1' && label.textContent) shapes.push(textFootprint(label));
+    const marker = group.children.find(child => child.getAttribute('class') === 'box-panel-step');
+    if (marker.getAttribute('opacity') === '1') {
+      const [ring, numeral, check] = marker.children;
+      const x = Number(ring.getAttribute('cx')), y = Number(ring.getAttribute('cy'));
+      shapes.push(Array.from({length:32}, (_, step) => [x + 9.4*Math.cos(step*Math.PI/16), y + 9.4*Math.sin(step*Math.PI/16)]));
+      shapes.push(textFootprint(numeral));
+      if (check.getAttribute('opacity') === '1') shapes.push(textFootprint(check));
+    }
+    visible += shapes.length;
+    for (const shape of shapes) {
+      assert.ok(Math.abs(clippedArea(shape, points(index)) - Math.abs(signedArea(shape))) < .05, `Visible stage ${index} caption must fit entirely inside its own panel.`);
+      for (const nearer of order.slice(position+1))
+        assert.ok(clippedArea(shape, points(nearer)) < .02, `Visible stage ${index} caption must not be partly covered by stage ${nearer}.`);
+    }
+  });
+  assert.ok(visible > 0, 'Occlusion handling must not hide every caption.');
+}
+checkCaptions(); controller.update(faces(6), 5);
+while (pending.size) { advance(1, 1000/60); checkCaptions(); }
+controller.update(faces(0), 0);
+while (pending.size) { advance(1, 1000/60); checkCaptions(); }
+controller.destroy(); assertReleased();
+""")
+
+
 def test_package_finish_stays_on_its_plane_without_cutting_out_the_caption() -> None:
     run_scenario(r"""
 const controller = mount(0);

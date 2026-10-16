@@ -29,6 +29,7 @@ CASE_REVIEW_SETUP = GUIDED_SETUP + r"""
   };
   run(`model.run = ${JSON.stringify(retainedCase)}; model.selectedRun = 'runA'; model.flow.stage = 'review'; model.flow.reviewIndex = 0; model.flow.inspectionFace = 4; model.reviewDrafts = {};`);
   navigate('investigate');
+  click(flowButton('findings-reviewed'));
   function caseReviewForm(overrides = {}, dirty = false) {
     const fields = {reviewer: '', decision: '', summary: '', ...overrides};
     const controls = Object.fromEntries(Object.keys(fields).map((name) => {

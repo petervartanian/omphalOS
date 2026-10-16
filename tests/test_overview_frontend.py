@@ -27,6 +27,7 @@ OVERVIEW_SETUP = GUIDED_SETUP + r"""
     await overviewIntercept(url, body);
     if (url === '/api/state') return jsonResponse(state);
     if (url === '/api/workflow/plan') return jsonResponse(planned());
+    if (url === '/api/workflow/approve') return jsonResponse({approval: approvedSources});
     if (url === '/api/workflow/run') return jsonResponse({run_id: 'runA'});
     if (url === '/api/runs/runA') return jsonResponse(retainedOverview);
     if (url.startsWith('/api/runs/runA/finding-evidence?'))
@@ -81,19 +82,19 @@ def test_screening_explanation_opens_from_a_labeled_information_control() -> Non
 """)
 
 
-def test_automatic_completion_returns_to_overview_without_focusing_hidden_details() -> (
-    None
-):
+def test_preparation_opens_sources_without_executing_or_creating_a_review() -> None:
     run_overview(r"""
   let scrolls = 0;
   node('.object-surface').scrollIntoView = () => {scrolls += 1;};
   click(flowButton('investigate-dataset', {id: 'datasetA'}));
   await settle();
-  assert.equal(overviewRequests.filter(item => item.url === '/api/workflow/run').length, 1);
-  assert.equal(run('model.flow.stage'), 'review');
+  assert.equal(overviewRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(overviewRequests.filter(item => item.url === '/api/workflow/approve').length, 0);
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
   assert.equal(run('model.selectedRun'), 'runA');
   assert.equal(run('model.flow.datasetId'), 'datasetA');
-  assert.equal(run('model.flow.surfaceOpen'), false);
+  assert.equal(run('model.flow.surfaceOpen'), true);
   assert.equal(node('.object-surface').focusCount, 0);
   assert.equal(scrolls, 0);
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
@@ -131,6 +132,10 @@ def test_resuming_a_case_opens_overview_and_preserves_recorded_review(
 def test_selecting_a_face_opens_details_and_return_keeps_the_case(face: int) -> None:
     run_overview(r"""
   showRetainedOverview();
+  if (FACE === 4) {
+    click(flowButton('findings-reviewed'));
+    click(flowButton('overview'));
+  }
   click(flowButton('cube', {face: String(FACE)}));
   assert.equal(run('model.flow.surfaceOpen'), true);
   assert.equal(run('model.flow.inspectionFace'), FACE);
@@ -151,7 +156,7 @@ def test_selecting_a_face_opens_details_and_return_keeps_the_case(face: int) -> 
 def test_return_to_overview_captures_unsaved_case_decision_and_reopens_it() -> None:
     run_overview(r"""
   showRetainedOverview();
-  click(flowButton('review-summary'));
+  click(flowButton('findings-reviewed'));
   assert.equal(run('model.flow.surfaceOpen'), true);
   const note = '<Supplier ledger> still needs reconciliation.';
   pendingCaseForm({reviewer: 'Analyst Example', decision: 'keep_open', summary: note, acknowledge_limitations: 'on'});
@@ -196,7 +201,7 @@ def test_saved_work_selection_dispatches_once_from_its_dialog(selection: str) ->
     run_overview(r"""
   state.runs = [{run_id: 'runA', case_id: 'caseA', dataset_id: 'datasetA', status: 'awaiting_review', findings_count: 1}];
   state.datasets[0].counts.shipments = 2;
-  run(`model.state = ${JSON.stringify(state)}; model.flow = newFlow(); renderGuided();`);
+  run(`model.state = ${JSON.stringify(state)}; model.flow = newFlow(); model.run = null; model.selectedRun = ''; renderGuided();`);
   let closes = 0;
   node('#evidence-dialog').close = () => {closes += 1;};
   click(flowButton('open-work'));
@@ -210,21 +215,30 @@ def test_saved_work_selection_dispatches_once_from_its_dialog(selection: str) ->
   node('#evidence-dialog').emit('click', {target: selected, preventDefault() {}});
   await settle();
   assert.equal(closes, 1);
-  assert.equal(run('model.selectedRun'), 'runA');
+  assert.equal(run('model.selectedRun'), SELECTION === 'resume' ? 'runA' : '');
   assert.equal(run('model.flow.datasetId'), 'datasetA');
-  assert.equal(run('model.flow.surfaceOpen'), false);
-  assert.equal(overviewRequests.filter(item => item.url === '/api/runs/runA').length, 1);
-  assert.equal(overviewRequests.filter(item => item.url === '/api/workflow/run').length, SELECTION === 'resume' ? 0 : 1);
+  assert.equal(run('model.flow.surfaceOpen'), SELECTION !== 'resume');
+  assert.equal(overviewRequests.filter(item => item.url === '/api/runs/runA').length, SELECTION === 'resume' ? 1 : 0);
+  assert.equal(overviewRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(overviewRequests.filter(item => item.url === '/api/workflow/plan').length, SELECTION === 'resume' ? 0 : 1);
+  if (SELECTION !== 'resume') assert.equal(run('model.flow.cubeFace'), 1);
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
   assert.notEqual(notice.className, 'notice error');
 """.replace("SELECTION", repr(selection)))
 
 
 @pytest.mark.parametrize("return_to_overview", [False, True])
-def test_automatic_completion_respects_the_view_chosen_while_running(
+def test_explicit_execution_respects_the_view_chosen_while_running(
     return_to_overview: bool,
 ) -> None:
     run_overview(r"""
+  run('model.run = null; model.selectedRun = "";');
+  click(flowButton('investigate-dataset', {id: 'datasetA'}));
+  await settle();
+  assert.equal(overviewRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  click(flowButton('approve-sources'));
+  await settle();
+  assert.equal(run('model.flow.cubeFace'), 2);
   let release;
   let waiting = false;
   overviewIntercept = async url => {
@@ -232,15 +246,16 @@ def test_automatic_completion_respects_the_view_chosen_while_running(
     waiting = true;
     await new Promise(resolve => {release = resolve;});
   };
-  click(flowButton('investigate-dataset', {id: 'datasetA'}));
+  click(flowButton('run'));
   await until(() => waiting);
   click(flowButton('cube', {face: '1'}));
   assert.equal(run('model.flow.surfaceOpen'), true);
   if (RETURN) click(flowButton('overview'));
   release();
   await settle();
-  assert.equal(run('model.selectedRun'), 'runA');
-  assert.equal(run('model.flow.stage'), 'review');
+  assert.equal(run('model.selectedRun'), '', 'An execution response cannot replace the view after the user moved elsewhere.');
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(overviewRequests.filter(item => item.url === '/api/runs/runA').length, 0);
   assert.equal(run('model.flow.surfaceOpen'), !RETURN);
   assert.equal(run('model.flow.inspectionFace'), 1);
   assert.equal(overviewRequests.filter(item => item.url === '/api/workflow/run').length, 1);

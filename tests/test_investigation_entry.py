@@ -43,6 +43,7 @@ ENTRY_SETUP = GUIDED_SETUP + r"""
       const snapshot = state.sources.find(item => item.snapshot_id === body.watchlist_snapshot_id);
       return jsonResponse({...planned(), can_run: body.goal_id !== 'counterparty_screening' || Boolean(snapshot), source_status: snapshot ? {...snapshot, selected: true} : {selected: false}});
     }
+    if (url === '/api/workflow/approve') return jsonResponse({approval: approvedSources});
     if (url === '/api/workflow/run') return jsonResponse({run_id: 'subject-run'});
     if (url === '/api/runs/subject-run') {
       const execution = entryRequests.find(item => item.url === '/api/workflow/run').body;
@@ -50,6 +51,16 @@ ENTRY_SETUP = GUIDED_SETUP + r"""
     }
     throw new Error('Unexpected request: ' + url);
   };
+  async function approveAndRun() {
+    const previousRuns = entryRequests.filter(item => item.url === '/api/workflow/run').length;
+    assert.equal(run('model.flow.cubeFace'), 1);
+    click(flowButton('approve-sources'));
+    await settle();
+    assert.equal(run('model.flow.cubeFace'), 2);
+    assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, previousRuns);
+    click(flowButton('run'));
+    await settle();
+  }
   function subjectForm(name) {
     const form = new Element('#flow-subject-form');
     form.id = 'flow-subject-form';
@@ -100,13 +111,11 @@ def test_findings_present_screening_before_gaps_and_keep_original_evidence_indic
   assert.match(markup, /1 candidate for identity review/);
   assert.ok(markup.indexOf('Candidate to examine') < markup.indexOf('Missing context'));
   assert.match(markup, /data-index="1"[^>]*>[\s\S]*?Candidate to examine/);
-  assert.match(markup, /data-flow="review-summary">Case assessment/);
+  assert.match(markup, /data-flow="findings-reviewed">Mark results reviewed/);
 """)
 
 
-def test_name_only_continuation_runs_screening_without_a_file_or_recorded_judgment() -> (
-    None
-):
+def test_name_only_continuation_requires_approval_before_screening_and_review() -> None:
     run_entry(r"""
   assert.ok(main.innerHTML.includes('id="flow-subject-form"'));
   const event = submitSubject();
@@ -122,6 +131,8 @@ def test_name_only_continuation_runs_screening_without_a_file_or_recorded_judgme
   const acquisition = entryRequests.filter(item => item.url === '/api/sources/fetch');
   assert.equal(acquisition.length, 1);
   assert.deepEqual(acquisition[0].body, {source_id: 'csl'}, 'Public-list acquisition must not transmit the subject name.');
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  await approveAndRun();
   const executions = entryRequests.filter(item => item.url === '/api/workflow/run');
   assert.equal(executions.length, 1);
   assert.equal(executions[0].body.dataset_id, nameOnlyDataset.dataset_id);
@@ -138,7 +149,9 @@ def test_name_only_continuation_runs_screening_without_a_file_or_recorded_judgme
   assert.ok(main.innerHTML.includes('class="finding-detail"'));
   assert.ok(!main.innerHTML.includes('name="disposition"'));
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
-  click(flowButton('review-summary'));
+  assert.equal(run('flowResultsReviewed(model.run)'), false);
+  click(flowButton('findings-reviewed'));
+  assert.equal(run('flowResultsReviewed(model.run)'), true);
   assert.ok(main.innerHTML.includes('data-review-scope="case"'));
   assert.ok(!/name="decision"[^>]*checked/.test(main.innerHTML));
   assert.ok(!/name="acknowledge_limitations"[^>]*checked/.test(main.innerHTML));
@@ -196,8 +209,9 @@ def test_source_failure_preserves_subject_records_for_retry() -> None:
   click(flowButton('investigate-dataset', {id: nameOnlyDataset.dataset_id}));
   await settle();
   assert.equal(entryRequests.filter(item => item.url === '/api/workflow/subject').length, 1, 'Retry should reuse the retained subject, not create it again.');
-  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 1);
-  assert.equal(run('model.flow.stage'), 'review');
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
 """)
 
 
@@ -213,14 +227,15 @@ def test_saved_records_reuse_only_a_fresh_official_source_by_default(kind: str) 
   const downloads = entryRequests.filter(item => item.url === '/api/sources/fetch');
   assert.equal(downloads.length, KIND === 'fresh_official' ? 0 : 1);
   const executions = entryRequests.filter(item => item.url === '/api/workflow/run');
-  assert.equal(executions.length, 1);
-  assert.equal(executions[0].body.watchlist_snapshot_id, KIND === 'fresh_official' ? retained.snapshot_id : freshSource.snapshot_id);
-  assert.equal(run('model.flow.stage'), 'review');
+  assert.equal(executions.length, 0);
+  assert.equal(run('model.flow.planInputs.watchlist_snapshot_id'), KIND === 'fresh_official' ? retained.snapshot_id : freshSource.snapshot_id);
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
 """.replace("KIND", repr(kind)))
 
 
 @pytest.mark.parametrize("preserve", ["explicit_source", "historical_date"])
-def test_automatic_execution_preserves_deliberate_source_or_date(preserve: str) -> None:
+def test_preparation_preserves_deliberate_source_or_date(preserve: str) -> None:
     run_entry(r"""
   const retained = {...freshSource, snapshot_id: 'historical-csl', fetched_at: '2020-01-01T00:00:00Z'};
   state.datasets.push(subjectDataset);
@@ -230,11 +245,11 @@ def test_automatic_execution_preserves_deliberate_source_or_date(preserve: str) 
   click(flowButton('investigate-dataset', {id: subjectDataset.dataset_id}));
   await settle();
   assert.ok(!entryRequests.some(item => item.url === '/api/sources/fetch'));
-  const execution = entryRequests.find(item => item.url === '/api/workflow/run');
-  assert.ok(execution);
-  assert.equal(execution.body.watchlist_snapshot_id, retained.snapshot_id);
-  assert.equal(execution.body.as_of, assessmentDate);
-  assert.equal(execution.body.goal_id, 'counterparty_screening');
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  const preparation = entryRequests.filter(item => item.url === '/api/workflow/plan').at(-1);
+  assert.equal(preparation.body.watchlist_snapshot_id, retained.snapshot_id);
+  assert.equal(preparation.body.as_of, assessmentDate);
+  assert.equal(preparation.body.goal_id, 'counterparty_screening');
 """.replace("PRESERVE", repr(preserve)))
 
 
@@ -301,7 +316,8 @@ def test_duplicate_subject_submission_cannot_start_a_second_intake() -> None:
   assert.equal(run('model.flow.stage'), 'identity');
   click(flowButton('identity-skip'));
   await settle();
-  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 1);
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(run('model.flow.cubeFace'), 1);
   assert.equal(run('flowDataset().label'), subject);
 """)
 
@@ -327,8 +343,8 @@ def test_subject_draft_survives_cube_navigation_and_is_escaped() -> None:
 """)
 
 
-@pytest.mark.parametrize("phase", ["source", "plan", "run"])
-def test_available_stage_inspection_does_not_cancel_automatic_work_or_steal_the_view(
+@pytest.mark.parametrize("phase", ["source", "plan"])
+def test_available_stage_inspection_does_not_cancel_preparation_or_steal_the_view(
     phase: str,
 ) -> None:
     run_entry(r"""
@@ -353,9 +369,9 @@ def test_available_stage_inspection_does_not_cancel_automatic_work_or_steal_the_
   assert.equal(scrollCount, 1, 'The selected working surface is brought into view.');
   release();
   await settle();
-  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 1);
-  assert.equal(run('model.selectedRun'), 'subject-run');
-  assert.equal(run('model.flow.stage'), 'review');
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(run('model.selectedRun'), '');
+  assert.equal(run('model.flow.stage'), 'plan');
   assert.equal(run('model.flow.cubeFace'), 1);
   assert.equal(run('model.flow.inspectionFace'), 1);
   assert.equal(run('model.flow.sourceRetry'), false);

@@ -2,6 +2,16 @@
 
 Executed October 13–16, 2026 (America/New_York), on an Apple Silicon Mac. Each dated section records its own checkpoint; earlier counts and interface descriptions are historical. These results describe actual checks, not a claim that the system is perfect, legally certified, or operationally calibrated.
 
+## Explicit stage review, October 16
+
+A later workflow correction separates automated preparation from user review. The integrated suite passed 787 tests and 37 subtests on Python 3.13/macOS; Ruff, Black, ESLint, Prettier, and whitespace checks passed. The actual WebAssembly runtime also passed approval, execution, review, export, verification, replay, reopening, and backup/restore with network access disabled.
+
+An isolated Playwright MCP browser exercised live public identity lookup and the official CSL. Selecting a public profile completed only Records. Accepting sources completed only Sources; executing the reviewed plan completed Plan while Findings remained unreviewed. Marking results reviewed opened Assessment; the explicit saved test decision enabled Package. Changing the assessment date reopened Sources and Plan. Reloading the browser recovered recorded approvals, the review, and the package. The test decision was expressly for interface validation, not an operational conclusion.
+
+The resulting browser package passed file verification and reproduced its findings and coverage on replay. Independent native verification of the downloaded ZIP checked 42 payload files with no integrity issues; authenticity was not assessed. The clean 390×844 overview had no document overflow, and the reviewed name-screening plan and execution action fit within 1280×900. Narrow working views omit the duplicate overview heading. Renderer regressions check caption occlusion throughout folding and reversal; near walls no longer leave partially visible names or checks.
+
+Backend regressions reject omitted, false, altered, or stale approvals; bind approvals to the precise case, dataset, and source; preserve idempotent retries; and retain legacy case 2.0 serialization. Frontend regressions distinguish prepared, accepted, approved, reviewed, recorded, and exported states. Earlier runs remain usable without invented source or plan approvals. Failed integrity is shown separately from missing history.
+
 ## Browser edition, October 16
 
 The static website build runs the same Python investigation engine in a module Web Worker with Pyodide 314.0.7, CPython 3.14.2, and the pinned Pydantic 2.14.1 dependencies. The approximately 16 MB deployment contains application code and runtime assets only. A manifest verifies every deployed file; no retained workspace, subject, source snapshot, credential, or example investigation is included.

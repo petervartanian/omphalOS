@@ -362,6 +362,19 @@ class Workspace:
                     staging / "sources",
                 )
                 watchlist = load_source(staging / "sources")
+            workflow = case.get("workflow")
+            if workflow and (
+                workflow["dataset_sha256"] != sha256_file(staging / "data/dataset.json")
+                or workflow["source_sha256"]
+                != (
+                    sha256_file(staging / "sources/source.json")
+                    if watchlist is not None
+                    else None
+                )
+            ):
+                raise OmphalOSError(
+                    "Approved inputs changed. Review a new plan before running."
+                )
             write_json(staging / "case.json", case)
             inventory_before = PROCESS_ENGINE_INVENTORY.copy()
             write_json(staging / "catalog.json", catalog())
@@ -542,11 +555,27 @@ class Workspace:
                         "effective_date_issue_count",
                     }
                 }
+        retained_case = read_json(safe_child(path, "case.json"))
+        recorded_workflow = (
+            retained_case.get("workflow") if verification["ok"] else None
+        )
+        workflow_state = {
+            "status": (
+                "recorded"
+                if recorded_workflow
+                else "not_recorded" if verification["ok"] else "invalid"
+            ),
+            "records_selected": bool(recorded_workflow),
+            "source_accepted": bool(recorded_workflow),
+            "plan_approved": bool(recorded_workflow),
+            **(recorded_workflow or {}),
+        }
         return {
+            "workflow": workflow_state,
             "entity_names": entity_names,
             "screening_source": screening_source,
             "manifest": read_json(safe_child(path, "manifest.json")),
-            "case": read_json(safe_child(path, "case.json")),
+            "case": retained_case,
             "analysis": read_json(safe_child(path, "analysis.json")),
             "latest_review": latest_review,
             "review_validation": review_validation,

@@ -152,6 +152,8 @@ def test_transaction_records_after_a_named_subject_infer_transaction_checks() ->
   click(flowButton('investigate-dataset', {id: transactions.dataset_id}));
   await settle();
   const plan = entryRequests.filter(item => item.url === '/api/workflow/plan').at(-1).body;
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, priorExecutions);
+  await approveAndRun();
   const execution = entryRequests.filter(item => item.url === '/api/workflow/run').at(-1).body;
   assert.equal(plan.goal_id, 'transaction_review');
   assert.equal(execution.goal_id, 'transaction_review');
@@ -185,10 +187,11 @@ def test_reopening_an_explicit_name_only_choice_does_not_repeat_identity_setup()
   run(`model.state = ${JSON.stringify(state)};`);
   click(flowButton('investigate-dataset', {id: nameOnlyDataset.dataset_id}));
   await settle();
-  assert.equal(run('model.flow.stage'), 'review');
+  assert.equal(run('model.flow.stage'), 'plan');
+  assert.equal(run('model.flow.cubeFace'), 1);
   assert.ok(!entryRequests.some(item => item.url === '/api/workflow/identity-research'));
-  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 1);
-  assert.equal(entryRequests.find(item => item.url === '/api/workflow/run').body.dataset_id, nameOnlyDataset.dataset_id);
+  assert.equal(entryRequests.filter(item => item.url === '/api/workflow/run').length, 0);
+  assert.equal(run('model.flow.planInputs.dataset_id'), nameOnlyDataset.dataset_id);
 """)
 
 
