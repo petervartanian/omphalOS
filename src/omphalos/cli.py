@@ -100,6 +100,24 @@ def parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--open", action="store_true", dest="open_browser")
+    team = commands.add_parser(
+        "team", help="Manage an optional authenticated team server"
+    )
+    team_actions = team.add_subparsers(dest="team_action", required=True)
+    team_init = team_actions.add_parser(
+        "init", help="Create the first team administrator"
+    )
+    team_init.add_argument("--username", required=True)
+    team_init.add_argument("--name", required=True)
+    team_serve = team_actions.add_parser(
+        "serve", help="Serve the shared team workspace"
+    )
+    team_serve.add_argument("--host", default="127.0.0.1")
+    team_serve.add_argument("--port", type=int, default=8770)
+    team_serve.add_argument("--origin", default=None)
+    team_serve.add_argument("--certfile", type=Path)
+    team_serve.add_argument("--keyfile", type=Path)
+    team_serve.add_argument("--behind-proxy", action="store_true")
     return app
 
 
@@ -133,6 +151,34 @@ def dispatch(args: argparse.Namespace) -> dict | list | None:
             )
     if args.command == "sources" and args.source_action == "catalog":
         return source_catalog()
+    if args.command == "team":
+        if args.team_action == "init":
+            import getpass
+
+            from .team_store import TeamStore
+
+            store = TeamStore(args.workspace)
+            if store.initialized():
+                raise OmphalOSError(
+                    "This team is already initialized. Use its administrator account."
+                )
+            password = getpass.getpass("Administrator passphrase (14–256 characters): ")
+            repeated = getpass.getpass("Repeat passphrase: ")
+            if password != repeated:
+                raise OmphalOSError("The passphrases did not match.")
+            return store.create_user(args.username, args.name, password, is_admin=True)
+        from .team import serve_team
+
+        serve_team(
+            args.workspace,
+            host=args.host,
+            port=args.port,
+            origin=args.origin,
+            certfile=args.certfile,
+            keyfile=args.keyfile,
+            behind_proxy=args.behind_proxy,
+        )
+        return None
     workspace = Workspace(args.workspace)
     if args.command == "init":
         return {"workspace": str(workspace.root), "version": __version__}

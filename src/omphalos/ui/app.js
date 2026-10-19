@@ -179,6 +179,8 @@ function announce(message, kind = 'success') {
 }
 
 function storageExplanation() {
+  if (model.state?.mode === 'team')
+    return 'Files and results are stored on your team server and accessible to assigned members of this workspace.';
   if (model.state?.storage?.mode === 'browser')
     return 'Files and results stay in this browser. Clearing website data or browser storage eviction can remove them. Download an evidence package to keep a permanent copy.';
   return 'Original files and results stay in this local workspace.';
@@ -192,11 +194,24 @@ function updateStorageLabels() {
   const browser = model.state?.storage?.mode === 'browser';
   const label = document.querySelector('.session-label');
   const note = document.querySelector('#storage-note');
-  if (label) label.textContent = browser ? 'Browser workspace' : 'Local session';
-  if (note) note.textContent = browser ? 'Browser storage' : 'Stored on this device';
+  if (label)
+    label.textContent =
+      model.state?.mode === 'team'
+        ? 'Shared workspace'
+        : browser
+          ? 'Browser workspace'
+          : 'Local session';
+  if (note)
+    note.textContent =
+      model.state?.mode === 'team'
+        ? 'Stored on the team server'
+        : browser
+          ? 'Browser storage'
+          : 'Stored on this device';
 }
 
 async function api(path, body) {
+  if (window.omphalosTeam) return window.omphalosTeam.request(path, body);
   if (window.omphalosBrowser) return window.omphalosBrowser.request(path, body);
   let response;
   try {
@@ -558,7 +573,7 @@ function parameterInput(investigation, name, spec, value, selected) {
 
 function investigationCard(item, draft) {
   const selected = draft.investigations.includes(item.id);
-  const parameters = Object.entries(item.parameters || {});
+  const parameters = Object.entries(item.parameters || {}).filter(([, spec]) => !spec.deprecated);
   const missingRequired = parameters.some(
     ([name, spec]) => spec.required && !draft.parameters?.[item.id]?.[name],
   );
@@ -851,6 +866,13 @@ function candidateFacts(finding) {
       ${keyValues({
         'Entity name compared': metrics.entity_name_compared,
         'Source name compared': metrics.source_name_compared,
+        ...(metrics.name_transformation
+          ? {
+              'Name transformation': metrics.name_transformation,
+              'Entity comparison form': metrics.entity_comparison_form,
+              'Source comparison form': metrics.source_comparison_form,
+            }
+          : {}),
         'Underlying list': metrics.list_name,
         'Name similarity': metrics.name_similarity,
         'Country comparison': metrics.country_context,
@@ -1949,11 +1971,19 @@ function flowGuide() {
   return `<div class="flow-guide">${title ? `<p class="overview-case-title">${esc(title)}</p>` : ''}${status ? `<p class="guide-status" role="status">${esc(status)}</p>` : ''}<div class="actions">${action}</div>${flow.busyStep ? '' : flowWorkActions()}</div>`;
 }
 
+function teamReadOnly() {
+  return ['reviewer', 'viewer'].includes(window.omphalosTeam?.state.matter?.role);
+}
+
 function flowWorkActions() {
+  if (teamReadOnly())
+    return '<div class="entry-tools"><button type="button" class="text-button" data-flow="open-work">Open</button></div>';
   return '<div class="entry-tools" role="group" aria-label="Other investigations"><button type="button" class="text-button" data-flow="restart" aria-label="Start a new investigation">New</button><button type="button" class="text-button" data-flow="open-work" aria-label="Open saved work" aria-haspopup="dialog">Open</button></div>';
 }
 
 function flowStartView() {
+  if (teamReadOnly())
+    return `<div class="flow-guide flow-start"><p>${array(model.state?.runs).length ? 'Open an investigation to review the retained evidence.' : 'An analyst has not added an investigation to this workspace yet.'}</p>${flowWorkActions()}</div>`;
   const flow = flowState();
   return `<div class="flow-guide flow-start">
     <form id="flow-subject-form" class="subject-start">
@@ -2392,6 +2422,8 @@ function caseReviewView() {
     return `<div class="flow-intro"><h1>Assessment unavailable</h1></div><div class="callout error"><p>The retained files did not pass verification. Existing decision drafts are kept.</p>${list(run.verification?.issues)}</div><button type="button" class="secondary" data-action="verify">Verify files again</button>`;
   const draft = caseReviewDraft();
   const saved = run.latest_review?.review;
+  if (teamReadOnly())
+    return `<div class="flow-intro"><h1>Recorded assessment</h1><p>${esc(run.dataset_metadata?.label || run.case?.question || '')}</p></div>${saved ? `<h2>${esc(caseDecisionStatus(saved.decision) || 'Earlier review')}</h2><p>${esc(saved.summary)}</p><p class="small muted">Recorded by ${esc(saved.reviewer)}</p>` : '<p>The analyst has not recorded an assessment yet.</p>'}<div class="actions"><button type="button" class="text-button" data-flow="finding-list">Review findings ↗</button>${supportingRecordsAction(run)}<button type="button" class="text-button" data-flow="coverage">Checks and sources ↗</button></div>${independentReviewActions(run)}`;
   const coverage = array(run.analysis?.coverage);
   const complete = coverage.filter((row) => row.status === 'executed').length;
   const gaps = coverage.length - complete;
@@ -2415,13 +2447,14 @@ function caseReviewView() {
           .join('')}
       </fieldset>
       <div class="field"><label for="review-summary">Reason and next step</label><textarea id="review-summary" name="summary" rows="3" required minlength="12" maxlength="10000" placeholder="Explain the evidence, remaining uncertainty, and what happens next.">${esc(draft.summary || '')}</textarea></div>
-      <div class="field case-reviewer"><label for="reviewer">Your name</label><input id="reviewer" name="reviewer" value="${esc(draft.reviewer || '')}" required minlength="2" maxlength="200" autocomplete="name"></div>
+      <div class="field case-reviewer"><label for="reviewer">Your name</label><input id="reviewer" name="reviewer" value="${esc(window.omphalosTeam?.state.user?.display_name || draft.reviewer || '')}" ${window.omphalosTeam ? 'readonly' : ''} required minlength="2" maxlength="200" autocomplete="name"></div>
       <label class="inline-check"><input type="checkbox" name="acknowledge_limitations" required ${draft.acknowledge_limitations ? 'checked' : ''}><span>I reviewed the findings and coverage, including missing evidence.</span></label>
       <div class="form-actions"><button type="submit" ${run.verification?.ok ? '' : 'disabled'}>Record case decision →</button></div>
     </form>`;
 }
 
 function flowReviewView() {
+  if (teamReadOnly()) return caseReviewView();
   // Preserve unfinished legacy drafts in their original contract, never silently convert them.
   if (model.reviewDrafts[model.selectedRun]?.schema_version === '2.0')
     return legacyFlowReviewView();
@@ -2429,6 +2462,8 @@ function flowReviewView() {
 }
 
 function renderReview() {
+  if (teamReadOnly())
+    return `<section class="panel case-review-panel">${caseReviewView()}</section>`;
   if (model.reviewDrafts[model.selectedRun]?.schema_version === '2.0') return renderLegacyReview();
   return `<section class="panel case-review-panel">${caseReviewView()}</section>`;
 }
@@ -2646,6 +2681,8 @@ function independentReceiptSummary(context) {
 function independentReviewActions(run) {
   const context = packageReviewContext(run);
   if (!context) return '';
+  if (window.omphalosTeam)
+    return '<div class="actions"><button type="button" class="secondary" data-flow="team-review" aria-haspopup="dialog">Team review ↗</button></div>';
   return '<div class="actions"><button type="button" class="secondary" data-flow="independent-review" aria-haspopup="dialog">Independent review ↗</button></div>';
 }
 
@@ -3757,6 +3794,11 @@ function handleFlowClick(button) {
       true,
     );
   }
+  if (action === 'team-review' && window.omphalosTeam)
+    task('Opening team review…', async () => {
+      await window.omphalosTeam.review(packageReviewContext());
+      notice.hidden = true;
+    });
   if (action === 'independent-review') task('Opening signed review tools…', openIndependentReview);
   if (action === 'handoff-import') task('Adding the verified case package…', importHandoff);
   if (action === 'handoff-preview' && model.handoff)
@@ -3848,7 +3890,7 @@ function handleFlowClick(button) {
   if (action === 'screening-info')
     showFlowDocument(
       'Name screening',
-      `<p>The entered name is sent to GLEIF and Wikidata to find public identity records. Choose a profile to use its sourced details, or continue with the name alone.</p><p>The official U.S. screening list is downloaded separately and compared locally. Your case records are not sent with that download.</p>${model.state?.storage ? `<p>${esc(storageExplanation())}</p>` : ''}`,
+      `<p>The entered name is sent to GLEIF and Wikidata to find public identity records. Choose a profile to use its sourced details, or continue with the name alone.</p><p>The official U.S. screening list is downloaded separately and compared ${window.omphalosTeam ? 'on your team server' : 'locally'}. Your case records are not sent with that download.</p>${model.state?.storage ? `<p>${esc(storageExplanation())}</p>` : ''}`,
     );
   if (action === 'identity-info') {
     const research =
@@ -4639,7 +4681,44 @@ if (window.ResizeObserver) {
   headerSize.observe(document.querySelector('.topbar'));
 }
 model.page = Object.hasOwn(titles, location.hash.slice(1)) ? location.hash.slice(1) : 'investigate';
-refresh().catch((error) => {
+(window.omphalosTeam
+  ? window.omphalosTeam.init().then(async () => {
+      await refresh(false);
+      const latest = array(model.state.runs).find((run) => run.status !== 'invalid');
+      if (latest) await resumeFlowRun(latest.run_id);
+      else render();
+    })
+  : refresh()
+).catch((error) => {
   main.innerHTML = empty('Unable to load workspace', error.message);
   announce(error.message, 'error');
 });
+
+window.addEventListener('omphalos-team-save-draft', () => {
+  preserveDrafts();
+  downloadReviewJson(
+    {
+      kind: 'omphalos-unsaved-draft',
+      saved_at: new Date().toISOString(),
+      matter: window.omphalosTeam?.state.matter?.id,
+      base_revision: window.omphalosTeam?.state.revision,
+      case: model.caseDraft,
+      reviews: model.reviewDrafts,
+      team_reviews: window.omphalosTeam?.drafts?.() || [],
+      run_id: model.selectedRun,
+    },
+    'omphalos-unsaved-draft.json',
+  );
+});
+
+if (window.omphalosTeam)
+  window.omphalosTeam.canLeave = () => {
+    preserveDrafts();
+    return (
+      !(
+        model.caseDirty ||
+        Object.keys(model.reviewDrafts).length ||
+        window.omphalosTeam?.drafts?.().length
+      ) || window.confirm('This tab has unsaved edits. Leave without saving them?')
+    );
+  };

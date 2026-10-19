@@ -43,14 +43,15 @@ def test_full_catalog_contracts_and_capability_gaps_are_separately_measured():
         assert result["unavailable_cases"] > 0
     by_id = {row["id"]: row for row in report["cases"]}
     cap = by_id["screening_candidates-approximate-display-limit-challenge"]
-    assert cap["counts"]["tp"] == 5 and cap["counts"]["fn"] == 2
-    assert by_id["screening_candidates-cross-script-challenge"]["counts"]["fn"] == 1
+    assert cap["counts"]["tp"] == 7 and cap["counts"]["fn"] == 0
+    assert by_id["screening_candidates-cross-script-challenge"]["counts"]["tp"] == 1
+    assert by_id["screening_candidates-cross-script-challenge"]["counts"]["fn"] == 0
     assert by_id["screening_candidates-exact-matches-beyond-limit"]["counts"]["tp"] == 7
     assert (
         by_id["screening_candidates-cross-script-supplied-alias"]["counts"]["tp"] == 1
     )
     assert report["summary"]["counts"]["unavailable_positive"] > 0
-    assert report["summary"]["rates"]["recall"]["value"] < 1
+    assert report["summary"]["counts"]["fn"] == 0
     assert all(
         row["input_sha256"] and row["analysis_sha256"] for row in report["cases"]
     )

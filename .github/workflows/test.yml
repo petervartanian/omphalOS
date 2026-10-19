@@ -55,6 +55,20 @@ jobs:
       - run: poetry run ruff check src tests
       - run: poetry run black --check src tests tools
       - run: poetry build
+  team:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m pip install poetry==2.5.1
+      - run: poetry install --extras team --no-interaction
+      - run: poetry run pytest -q tests/test_team_server.py tests/test_team_frontend.py
+      - run: poetry run python -m omphalos team serve --help
   native:
     strategy:
       fail-fast: false

@@ -35,6 +35,12 @@ Enter a company or person's name and choose **Find records**. omphalOS looks up 
 
 Records is the base. Sources, Plan, Findings, and Assessment form the walls, folding one at a time as each stage completes. Package is the lid; it closes only after the matching evidence package is created. Unfinished panels retain a muted version of their own color. Completion strengthens that color and adds a checkmark to the matching control. Editing a saved decision reopens Assessment and Package. Color and folding indicate completed work, not clearance or risk.
 
+## Shared team workspaces
+
+An optional [team server](docs/TEAM_SERVER.md) adds authenticated accounts, separate workspace membership, analyst/reviewer/viewer roles, live change notifications, and versioned saves that reject conflicting edits. Supervisor decisions bind the authenticated reviewer to the exact submitted package; the author and submitter cannot approve their own work. Imported assessments need a new authenticated team assessment before team approval.
+
+This mode can run on an existing computer or institution's server without an application subscription. It requires a running host and HTTPS for access beyond that computer. The public GitHub Pages application continues to run entirely in the browser; it is not a centrally hosted team service. Both modes use the same investigation engine. See the [setup and operating boundaries](docs/TEAM_SERVER.md).
+
 ## The complete workflow
 
 1. **Records.** Start with a name, import files, or select retained records. A counterparty CSV opens a mapping preview; **Investigate these records** confirms it and prepares the sources. Linked transaction files preserve their explicit relationships. Original inputs and row provenance are retained. Selected public profiles produce a new dataset with attributed fields; selecting a profile does not verify its identity.
@@ -77,18 +83,18 @@ All commands return JSON. Verification failure exits 1; invalid input exits 2. `
 
 - **Integrity:** the complete file inventory and hashes match; required content is present and structurally valid.
 - **Replay:** the same installed engine and dependencies recompute the normalized findings and coverage from archived inputs. Execution timestamps and ZIP bytes need not match.
-- **Review:** the required named assessment is recorded against the exact run manifest. Reviewer names are self-asserted, not verified account identities. Review timestamps preserve revision order but are not trusted time.
+- **Review:** the required named assessment is recorded against the exact run manifest. In local and public browser modes, reviewer names are self-asserted. Team mode binds new assessments to authenticated server accounts. Review timestamps preserve revision order but are not trusted time.
 - **Authenticity:** ordinary hashes do not establish who supplied evidence. Optional detached Ed25519 verification requires a separately trusted public key. A key bundled by an unknown sender is not independently trusted.
 
 A passed check does not establish the truth of source records, the quality of a human explanation, legal clearance, or admissibility. The application never automatically merges identities, blocks funds, submits reports to authorities, or calculates a probability of wrongdoing.
 
 ## Scope and operating limits
 
-Local mode serves one analyst on their computer. The website edition saves one workspace in each browser. It supports verified case-package import, separate continuation, and signed reviewer receipts through [case handoffs and independent review](docs/TEAM_REVIEW.md). It does not provide organization accounts, simultaneous editing, a central case database, cross-device synchronization, or role-based access. Download evidence packages for durable copies. It is not a collaborative case-management service. It does not provide a complete beneficial-ownership graph, automatic jurisdiction/license decisions, document OCR, international rule coverage, institution-specific retention enforcement, or legal conclusions. Ownership and diligence rows preserve supplied evidence; they do not establish completeness or an automatic 50 Percent Rule decision.
+Local mode serves one analyst on their computer. The website edition saves one workspace in each browser. It supports verified case-package import, separate continuation, and signed reviewer receipts through [case handoffs and independent review](docs/TEAM_REVIEW.md). Those modes do not synchronize participants. The optional team server adds centrally enforced membership and shared state, with conflicts requiring explicit review rather than simultaneous text merging. Download evidence packages and back up the complete team directory as appropriate. It does not provide a complete beneficial-ownership graph, automatic jurisdiction/license decisions, document OCR, international rule coverage, institution-specific retention enforcement, or legal conclusions. Ownership and diligence rows preserve supplied evidence; they do not establish completeness or an automatic 50 Percent Rule decision.
 
 Do not interpret an expired listing retained by a publisher as an active restriction, or a later snapshot as a complete historical list. Review source dates and the underlying agency guidance. Public aggregate trade statistics cannot supply the company-level shipment and payment evidence this application needs.
 
-Synthetic regression tests demonstrate implementation behavior; they do not establish operational detection accuracy. Domain-expert review and an authorized, representative held-out case set are still needed to measure useful findings and false-positive burden. Current validation results distinguish checks actually executed from configured future CI.
+Synthetic regression tests and [frozen public-source cases](docs/PUBLIC_CASE_VALIDATION.md) demonstrate behavior on their stated examples; they do not establish operational detection accuracy. Domain-expert review and an authorized, representative held-out case set are still needed to measure useful findings and false-positive burden. Current validation results distinguish checks actually executed from configured future CI.
 
 ## Development
 

@@ -1,6 +1,6 @@
 # Case handoffs and independent review
 
-omphalOS supports case exchange without an application server or subscription. Each participant works in their own browser or local workspace. It does not provide simultaneous editing, a central case database, organization accounts, or centrally enforced supervisor roles.
+This guide covers portable case exchange without an application server or subscription. In this mode, each participant works in their own browser or local workspace, without a central case database, organization accounts, or centrally enforced supervisor roles. The separate [team server](TEAM_SERVER.md) provides authenticated shared workspaces and centrally enforced reviewer roles.
 
 ## Receive and continue a case
 
