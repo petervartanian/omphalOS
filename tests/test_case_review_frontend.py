@@ -68,7 +68,7 @@ CASE_REVIEW_SETUP = GUIDED_SETUP + r"""
   }
   function assertCasePayload(review) {
     assert.deepEqual(Object.keys(review).sort(), ['schema_version', 'run_id', 'reviewer', 'decision', 'summary', 'scope_finding_ids', 'acknowledge_limitations'].sort());
-    assert.equal(review.schema_version, '2.1');
+    assert.equal(review.schema_version, '2.2');
     assert.equal(review.run_id, 'runA');
     assert.deepEqual(review.scope_finding_ids, ['context-A', 'volume-B']);
     assert.ok(!Object.hasOwn(review, 'findings'), 'A case decision must not manufacture individual finding reviews.');
@@ -88,6 +88,8 @@ def test_new_reviews_show_one_case_decision_without_the_questionnaire(
   const markup = run('VIEW()');
   assert.match(markup, /data-review-scope="case"/);
   assert.match(markup, /name="decision"/);
+  assert.match(markup, /Reason and next step/);
+  assert.match(markup, /<textarea[^>]*name="summary"[^>]*required/);
   for (const retired of ['Proposed follow-up', 'Edit this proposal', 'Use these review prompts', 'Questions to carry into the assessment', 'Write my own', 'Use this summary', 'all assessment fields filled']) {
     assert.ok(!markup.includes(retired), 'New case reviews must not expose the old questionnaire: ' + retired);
   }
@@ -179,7 +181,7 @@ def test_edited_case_decision_survives_navigation_and_escapes_authored_text() ->
 """)
 
 
-def test_editing_a_retained_case_review_keeps_its_schema_and_explicit_fields() -> None:
+def test_editing_a_retained_case_review_upgrades_only_the_authored_revision() -> None:
     run_case_review(r"""
   const retained = {schema_version: '2.1', run_id: 'runA', reviewer: 'Earlier Analyst', decision: 'keep_open', summary: 'Awaiting the complete ledger from the supplier.', scope_finding_ids: ['context-A', 'volume-B'], acknowledge_limitations: true};
   run(`model.run.latest_review = {review_id: 'case-reviewA', review: ${JSON.stringify(retained)}};`);
@@ -190,13 +192,17 @@ def test_editing_a_retained_case_review_keeps_its_schema_and_explicit_fields() -
   assert.equal(draft.decision, 'escalate');
   assert.equal(draft.reviewer, retained.reviewer);
   assert.equal(run('model.run.latest_review.review.decision'), 'keep_open', 'Editing must not mutate the saved review.');
+  assert.equal(run('model.run.latest_review.review.schema_version'), '2.1');
 """)
 
 
-@pytest.mark.parametrize("decision", ["keep_open", "escalate"])
-def test_open_case_decision_can_save_without_an_invented_note(decision: str) -> None:
+@pytest.mark.parametrize("decision", ["keep_open", "escalate", "conclude"])
+def test_case_decision_saves_only_the_authored_reason_and_next_step(
+    decision: str,
+) -> None:
     run_case_review(r"""
-  const {form} = caseReviewForm({reviewer: 'Analyst Example', decision: DECISION, acknowledge_limitations: 'on'});
+  const note = 'The supplier invoice is retained; request the missing shipment ledger next.';
+  const {form} = caseReviewForm({reviewer: 'Analyst Example', decision: DECISION, summary: note, acknowledge_limitations: 'on'});
   const posted = [];
   fetchImplementation = async (url, options) => {
     if (url === '/api/runs/runA/review') {
@@ -213,16 +219,16 @@ def test_open_case_decision_can_save_without_an_invented_note(decision: str) -> 
   assert.equal(posted.length, 1);
   assertCasePayload(posted[0]);
   assert.equal(posted[0].decision, DECISION);
-  assert.equal(posted[0].summary, '');
+  assert.equal(posted[0].summary, note);
   assert.equal(posted[0].acknowledge_limitations, true);
   assert.equal(run('Object.keys(model.reviewDrafts).length'), 0);
-  assert.equal(run('model.run.latest_review.review.schema_version'), '2.1');
+  assert.equal(run('model.run.latest_review.review.schema_version'), '2.2');
   assert.notEqual(notice.className, 'notice error');
 """.replace("DECISION", repr(decision)))
 
 
-@pytest.mark.parametrize("decision", ["", "conclude"])
-def test_save_requires_a_decision_and_conclusion_requires_an_authored_note(
+@pytest.mark.parametrize("decision", ["", "keep_open", "escalate", "conclude"])
+def test_save_requires_a_decision_and_an_authored_reason_and_next_step(
     decision: str,
 ) -> None:
     run_case_review(r"""
@@ -236,6 +242,7 @@ def test_save_requires_a_decision_and_conclusion_requires_an_authored_note(
   assert.equal(readCaseDraft().summary, '');
   assert.equal(readCaseDraft().decision, DECISION);
   assert.equal(run('model.run.latest_review'), null);
+  if (DECISION) assert.match(notice.textContent, /specific reason and next step/);
 """.replace("DECISION", repr(decision)))
 
 
@@ -261,7 +268,7 @@ def test_delayed_case_save_cannot_discard_a_newer_authored_note() -> None:
   release(jsonResponse({review_id: 'case-reviewA'}));
   await settle();
   assert.equal(readCaseDraft().summary, later);
-  assert.equal(readCaseDraft().schema_version, '2.1');
+  assert.equal(readCaseDraft().schema_version, '2.2');
   assert.notEqual(notice.className, 'notice error');
 """)
 

@@ -41,8 +41,8 @@ Records is the base. Sources, Plan, Findings, and Assessment form the walls, fol
 2. **Sources.** Screening obtains or reuses an eligible official-list snapshot automatically. Review its dates and limitations, then choose **Use these sources**. Shipment and payment checks use the actual records supplied for the case. Acquisition alone does not complete this stage.
 3. **Plan.** Inspect the proposed question, assessment date, checks, and missing prerequisites. **Run reviewed plan** records the approval and executes the checks. Changing the dataset, source, purpose, or date invalidates the previous acceptance and requires review again.
 4. **Findings.** Inspect the results and coverage. Select an observation for its computed values, cited-record tables, and analytical limits. Evidence pages contain up to 40 references; each record opens with its provenance. Choose **Mark results reviewed** to proceed to Assessment. Identity candidates remain candidates, and zero findings do not establish clearance.
-5. **Assessment.** Review the findings and coverage, then choose **Keep open**, **Escalate**, or **Conclude**. Record your name and acknowledge the coverage. A case note is optional except when concluding. The decision covers the case; it does not require a questionnaire for each observation or invent individual judgments.
-6. **Package.** A valid recorded decision and verified run enable an evidence ZIP containing the readable report, original and normalized inputs, code snapshot, settings, results, decision, and checksums. The report separates the analyst's decision from generated analytical context. Open questions can remain unresolved in an exported package.
+5. **Assessment.** Review the findings and coverage, then choose **Keep open**, **Escalate**, or **Conclude**. Enter one concise **Reason and next step** note, record your name, and acknowledge the coverage. Every new decision requires a substantive note of at least 12 characters. The decision covers the case; it does not require a questionnaire for each observation or invent individual judgments.
+6. **Package.** A valid recorded decision and verified run enable an evidence ZIP containing the readable report, original and normalized inputs, code snapshot, settings, results, decision, and checksums. The report separates the analyst's decision from generated analytical context, names checks from the archived catalog, and states that separate supervisory approval is not recorded. Package creation remains separate from the recorded decision; an exported investigation can still be open or escalated.
 
 The box and its working surface form the main application. **Open** lists saved investigations and records. Supporting record and case screens provide inventory and editing controls within the same application. See the [investigation guide](docs/WORKBENCH.md) and [evidence format](docs/EVIDENCE.md).
 
@@ -69,7 +69,7 @@ poetry run omphalos --workspace ./workspace replay RUN_ID
 poetry run omphalos verify /path/to/export.zip
 ```
 
-Use the case and run IDs returned by the commands. Review schema 2.1 records the explicit case decision, reviewer, optional note, complete observation scope, and coverage acknowledgment. Concluding requires a substantive note. Legacy schema 2.0 individual reviews remain supported. No command silently completes a human decision.
+Use the case and run IDs returned by the commands. New interface decisions use review schema 2.2: the explicit decision, reviewer, required reason and next-step note, complete observation scope, and coverage acknowledgment. Earlier schema 2.1 decisions remain readable and exportable under their original rules, including optional notes for open or escalated cases. Opening one in the interface leaves it unchanged; saving an interface revision uses 2.2. Schema 2.0 individual reviews also remain supported. No command silently completes a human decision.
 
 All commands return JSON. Verification failure exits 1; invalid input exits 2. `--debug` includes diagnostic tracebacks. Put the global `--workspace` option before the subcommand.
 
@@ -77,7 +77,7 @@ All commands return JSON. Verification failure exits 1; invalid input exits 2. `
 
 - **Integrity:** the complete file inventory and hashes match; required content is present and structurally valid.
 - **Replay:** the same installed engine and dependencies recompute the normalized findings and coverage from archived inputs. Execution timestamps and ZIP bytes need not match.
-- **Review:** the required named assessment is recorded against the exact run manifest. Reviewer names are self-asserted, not verified account identities.
+- **Review:** the required named assessment is recorded against the exact run manifest. Reviewer names are self-asserted, not verified account identities. Review timestamps preserve revision order but are not trusted time.
 - **Authenticity:** ordinary hashes do not establish who supplied evidence. Optional detached Ed25519 verification requires a separately trusted public key. A key bundled by an unknown sender is not independently trusted.
 
 A passed check does not establish the truth of source records, the quality of a human explanation, legal clearance, or admissibility. The application never automatically merges identities, blocks funds, submits reports to authorities, or calculates a probability of wrongdoing.
@@ -105,5 +105,7 @@ For interface development, use Node.js 24 or newer and run `npm ci --ignore-scri
 [Security boundaries](SECURITY.md), [contribution guide](CONTRIBUTING.md), [data schema](docs/DATA.md), and [independent verifiers](native/README.md).
 
 Application code retains the original **CC0-1.0** license. Packaged Geist and Geist Mono fonts come from `geist@1.7.2` and retain the **SIL Open Font License 1.1**, copied in [font-license.txt](src/omphalos/ui/font-license.txt). Fonts load from the local application, with no third-party font request. Imported data and publisher snapshots retain their own terms and provenance.
+
+The [investigator simulations](docs/SIMULATION_RESULTS.md) document the defects found, fixes, executed scenarios, and remaining limits. Their [research basis](docs/SIMULATION_RESEARCH.md) links the public guidance and operational manuals.
 
 The [usability review](docs/USABILITY.md) records the design research, workflow decisions, and boundaries behind the current interface.

@@ -98,9 +98,12 @@ approval = request('/api/workflow/approve', {**run_payload, 'acknowledge_records
 run_payload.update({'approval': approval['approval'], 'acknowledge_plan': True})
 run_id = request('/api/workflow/run', run_payload)['run_id']
 run = request('/api/runs/' + run_id)
+supporting = request('/api/runs/' + run_id + '/supporting-records?offset=0&limit=40')
+assert supporting['scope'] == 'all_retained_diligence'
+assert supporting['total'] == 0 and supporting['rows'] == []
 review = {
-    'schema_version': '2.1', 'run_id': run_id, 'reviewer': 'Fictional WASM validation',
-    'decision': 'keep_open', 'summary': 'Runtime test only.',
+    'schema_version': '2.2', 'run_id': run_id, 'reviewer': 'Fictional WASM validation',
+    'decision': 'keep_open', 'summary': 'Synthetic identity remains unresolved. Obtain registration records before deciding whether this is the listed organization.',
     'scope_finding_ids': [row['finding_id'] for row in run['analysis']['findings']],
     'acknowledge_limitations': True,
 }
@@ -114,8 +117,13 @@ assert hashlib.sha256(archive).hexdigest() == package['sha256']
 with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
     assert bundle.testzip() is None
     assert {'run/analysis.json', 'review.json', 'report.html'} <= set(bundle.namelist())
+    archived_review = json.loads(bundle.read('review.json'))['review']
+    assert archived_review['schema_version'] == '2.2'
+    assert archived_review['summary'] == review['summary']
 app = BrowserApp('/workspace')
 assert request('/api/state')['token'] == state['token']
+assert request('/api/runs/' + run_id)['latest_review']['review']['decision'] == 'keep_open'
+assert request('/api/state')['runs'][0]['case_decision'] == 'keep_open'
 assert request('/api/workflow/run', run_payload)['run_id'] == run_id
 assert request('/api/runs/' + run_id + '/replay', {})['ok']
 backup = app.backup_bytes()
@@ -126,6 +134,8 @@ assert request('/api/state')['token'] == empty_token
 restored = app.restore_bytes(memoryview(backup))
 assert restored['status'] == 200, restored
 assert request('/api/state')['token'] == state['token']
+assert request('/api/runs/' + run_id)['latest_review']['review']['decision'] == 'keep_open'
+assert request('/api/state')['runs'][0]['case_decision'] == 'keep_open'
 assert request('/api/workflow/run', run_payload)['run_id'] == run_id
 assert request('/api/runs/' + run_id + '/replay', {})['ok']
 assert app.export_bytes(package['download_url']) == archive
@@ -143,6 +153,7 @@ json.dumps({
     'javascript_bytes_preserved': True,
     'workspace_reopened': True,
     'backup_restored_and_reopened': True,
+    'case_decision_and_reason_preserved': True,
     'export_bytes': len(archive),
 })
 `),

@@ -268,4 +268,80 @@ def test_review_schema_advertises_both_contracts(tmp_path: Path) -> None:
         argparse.Namespace(command="schema", kind="review", workspace=tmp_path)
     )
     assert schema["discriminator"]["propertyName"] == "schema_version"
-    assert set(schema["discriminator"]["mapping"]) == {"2.0", "2.1"}
+    assert set(schema["discriminator"]["mapping"]) == {"2.0", "2.1", "2.2"}
+
+
+@pytest.mark.parametrize("decision", ["keep_open", "escalate", "conclude"])
+@pytest.mark.parametrize("note", [None, "", "Too short", "TODO TODO TODO"])
+def test_current_case_decision_requires_an_explained_next_step(
+    workspace: Workspace, decision: str, note: str | None
+) -> None:
+    run_id = workspace.run_case("case-1")["run_id"]
+    payload = case_review(workspace.get_run(run_id), decision)
+    payload["schema_version"] = "2.2"
+    if note is None:
+        del payload["summary"]
+    else:
+        payload["summary"] = note
+    with pytest.raises(ValueError):
+        workspace.save_review(run_id, payload)
+    assert workspace.get_run(run_id)["latest_review"] is None
+
+
+@pytest.mark.parametrize(
+    ("decision", "note"),
+    [
+        ("keep_open", "Obtain the full ledger before evaluating the volume change."),
+        (
+            "escalate",
+            "Ask the identity specialist to reconcile the conflicting registry IDs.",
+        ),
+        (
+            "conclude",
+            "The retained invoices reconcile; this concludes only the sampled review.",
+        ),
+    ],
+)
+def test_current_decision_retains_reason_through_reopen_and_handoff(
+    workspace: Workspace, decision: str, note: str
+) -> None:
+    run_id = workspace.run_case("case-1")["run_id"]
+    payload = {
+        **case_review(workspace.get_run(run_id), decision, note),
+        "schema_version": "2.2",
+    }
+    saved = workspace.save_review(run_id, payload)
+    reopened = Workspace(workspace.root)
+    assert reopened.get_run(run_id)["latest_review"]["review"] == payload
+    exported = reopened.export_run(run_id)
+    assert exported["verification"]["ok"]
+    with zipfile.ZipFile(exported["path"]) as archive:
+        assert json.loads(archive.read("review.json"))["review"] == payload
+        assert saved["review_id"] in archive.read("report.html").decode()
+        assert note in archive.read("report.md").decode()
+
+
+def test_new_decision_keeps_legacy_empty_note_review_exportable(
+    workspace: Workspace,
+) -> None:
+    run_id = workspace.run_case("case-1")["run_id"]
+    run = workspace.get_run(run_id)
+    old = workspace.save_review(run_id, case_review(run))
+    old_bytes = Path(old["path"]).read_bytes()
+    payload = {
+        **case_review(
+            run,
+            "escalate",
+            "Reconcile the unresolved identifier before any further action.",
+        ),
+        "schema_version": "2.2",
+    }
+    current = workspace.save_review(run_id, payload)
+    assert Path(old["path"]).read_bytes() == old_bytes
+    assert (
+        workspace.get_run(run_id)["latest_review"]["review_id"] == current["review_id"]
+    )
+    for revision in (old, current):
+        assert workspace.export_run(run_id, review_id=revision["review_id"])[
+            "verification"
+        ]["ok"]

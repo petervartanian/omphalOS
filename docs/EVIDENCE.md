@@ -18,13 +18,17 @@ Earlier case schema 2.0 remains supported with its original serialization. Its a
 
 ## Review
 
-A case decision (review schema 2.1) records a named reviewer, a decision to keep the investigation open, escalate it, or conclude it, and an acknowledgment of the coverage limitations. Its scope includes every retained finding exactly once. This scope identifies the observations included in the decision; it does not assert that the reviewer individually assessed each observation. A case note is optional when keeping the investigation open or escalating it and required when concluding it. Supplied notes must be substantive. A zero-findings result still requires an explicit named decision and acknowledgment.
+A new interface decision uses review schema 2.2. It records a named reviewer, a decision to keep the investigation open, escalate it, or conclude it, one substantive reason and next-step note of at least 12 characters, and an acknowledgment of the coverage limitations. Its scope includes every retained finding exactly once. This scope identifies the observations included in the decision; it does not assert that the reviewer individually assessed each observation. A zero-findings result requires the same explicit decision, note, and acknowledgment.
+
+Review schema 2.1 remains readable and exportable under its original rules: notes are optional for open or escalated cases and required for conclusions; any supplied note must be substantive. Opening a retained 2.1 decision leaves its content and schema unchanged. Explicitly saving a revision in the interface creates a 2.2 decision with the required note.
 
 Existing individual reviews (schema 2.0) remain supported. They cover every finding exactly once and supply a disposition, rationale, unknowns, alternatives, and falsifiers. Merely copying all generated uncertainty sections does not complete an individual review. Both formats require dataset and source references to resolve to preserved records.
 
-Case-decision reports retain every original observation and its evidence, unknowns, alternatives, and evidence requests as analytical output. They identify the case decision separately and do not manufacture individual dispositions or attribute generated reasoning to the reviewer. `omphalos schema review` describes both review formats.
+Case-decision reports retain every original observation and its evidence, unknowns, alternatives, and evidence requests as analytical output. They identify the case decision separately and do not manufacture individual dispositions or attribute generated reasoning to the reviewer. `omphalos schema review` describes the supported review formats.
 
 The immutable review wrapper records its own ID and timestamp and the SHA-256 of the exact run manifest reviewed. A review against a different manifest cannot authorize export. Review identities are self-asserted; text validation cannot establish the adequacy or truth of the reasoning.
+
+New review timestamps preserve saved revision order within a run. The application uses the current UTC clock value unless it is no later than the previous revision; in that case it uses the previous timestamp plus one microsecond. Earlier wrappers remain unchanged, and comparison accounts for differing timestamp precision and UTC offsets. These are logical ordering timestamps, not trusted time or proof of when a person acted.
 
 The workbench shows a review as recorded only after checking its anchor and completeness. A damaged latest revision blocks the default export instead of silently selecting an older review. An explicitly selected, intact earlier revision can still be exported with its own attribution. Unreadable stored review records are reported for inspection.
 
@@ -60,7 +64,11 @@ omphalos verify /absolute/path/to/run-directory
 
 The bundle verifier reads bounded archive members without extracting them or executing archived code. Its default limits are 20,000 payload files, 256 MiB for one file, and 1 GiB total. Duplicate members, encrypted members, special-file members, unsupported paths, incorrect sizes, incomplete inventories, and changed digests fail verification. Passing ZIP CRC checks alone is insufficient.
 
-Export first validates the run and exact review anchor, then builds and verifies a new bundle. Existing exports are never overwritten. Report HTML escapes supplied text; it contains no remote dependencies. Reports identify review attribution as self-asserted and report actual byte checks without claiming independent review or authenticated publication.
+Export first validates the run and exact review anchor, then builds and verifies a new bundle. Existing exports are never overwritten. Report HTML escapes supplied text; it contains no remote dependencies. Reports identify review attribution as self-asserted and explicitly state **Separate supervisory approval: not recorded.** They report actual byte checks without claiming independent review or authenticated publication.
+
+HTML and Markdown reports include a readable coverage table with check, status, evaluated-record count, observation count, reason, and limitations. Check titles come from the run's archived `catalog.json`; missing or ambiguous titles fall back to the archived check ID. Package creation is independent of the recorded decision: an exported case can remain open or escalated.
+
+The **Supplied supporting records** section includes every diligence row in the retained dataset, independently of generated findings. It preserves the record and entity IDs, title, date, attributed text, source URL as text, and available original-file provenance. These are supplied claims, not automatically corroborated or adopted by the analyst. The report states that records outside the selected entity or date scope may be included; their presence does not establish relevance. Original input bytes remain unchanged in the package.
 
 ## Credential scan
 

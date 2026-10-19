@@ -354,7 +354,7 @@ class Review(Contract):
 class CaseReview(Contract):
     """An explicit decision about a case, without inferred finding judgments."""
 
-    schema_version: Literal["2.1"] = "2.1"
+    schema_version: Literal["2.1", "2.2"] = "2.1"
     run_id: Identifier
     reviewer: Annotated[
         str,
@@ -382,8 +382,11 @@ class CaseReview(Contract):
             raise ValueError(
                 "A reviewer must acknowledge the coverage and data limitations"
             )
-        if self.decision == "conclude" and not self.summary:
-            raise ValueError("Concluding a case requires a substantive case note")
+        if not self.summary:
+            if self.schema_version == "2.2":
+                raise ValueError("A case decision requires a reason and next-step note")
+            if self.decision == "conclude":
+                raise ValueError("Concluding a case requires a substantive case note")
         if len(self.scope_finding_ids) != len(set(self.scope_finding_ids)):
             raise ValueError("Assessment scope must not repeat finding IDs")
         return self

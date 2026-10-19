@@ -474,13 +474,94 @@ def validate_review(run_dir: Path, review: dict) -> dict:
 
 
 def _reports(
-    case: dict, analysis: dict, wrapper: dict, verification: dict
+    case: dict,
+    analysis: dict,
+    wrapper: dict,
+    verification: dict,
+    catalog: list[dict] | None = None,
+    dataset: dict | None = None,
 ) -> tuple[bytes, bytes]:
     review = wrapper["review"]
-    case_review = review.get("schema_version") == "2.1"
+    case_review = review.get("schema_version") in {"2.1", "2.2"}
 
     def escape(value: Any) -> str:
         return html.escape(str(value), quote=True)
+
+    def table_cell(value: Any, *, markdown: bool = False) -> str:
+        text = escape(value).replace("\r\n", "\n").replace("\r", "\n")
+        if markdown:
+            text = text.translate(
+                {ord(character): f"&#{ord(character)};" for character in "\\|`*_[]{}"}
+            )
+        return text.replace("\n", "<br>")
+
+    # Use the retained catalog only: installed definitions may have changed since
+    # this run. Ambiguous or missing titles fall back to the archived check ID.
+    titles: dict[str, str] = {}
+    ambiguous_titles: set[str] = set()
+    for definition in catalog if isinstance(catalog, list) else []:
+        if not isinstance(definition, dict):
+            continue
+        check_id, title = definition.get("id"), definition.get("title")
+        if not isinstance(check_id, str) or not isinstance(title, str) or not title:
+            continue
+        if check_id in titles:
+            ambiguous_titles.add(check_id)
+        titles[check_id] = title
+
+    coverage_headers = (
+        "Check",
+        "Status",
+        "Records evaluated",
+        "Observations",
+        "Reason",
+        "Limitations",
+    )
+    coverage_blocks = [
+        "<div class='coverage-table'><table><thead><tr>"
+        + "".join(f"<th scope='col'>{label}</th>" for label in coverage_headers)
+        + "</tr></thead><tbody>"
+    ]
+    coverage_lines = [
+        "| " + " | ".join(coverage_headers) + " |",
+        "| " + " | ".join("---" for _ in coverage_headers) + " |",
+    ]
+    for row in analysis["coverage"]:
+        check_id = row["investigation_id"]
+        title = titles.get(check_id) if check_id not in ambiguous_titles else None
+        cells = [
+            f"{title} ({check_id})" if title else check_id,
+            {"executed": "Completed", "not_evaluable": "Not evaluated"}.get(
+                row["status"], row["status"]
+            ),
+            row["records_evaluated"],
+            row["findings_count"],
+            row.get("reason") or "—",
+        ]
+        limitations = row.get("limitations") or ["None recorded"]
+        coverage_blocks.append(
+            "<tr>"
+            + "".join(f"<td>{table_cell(cell)}</td>" for cell in cells)
+            + "<td>"
+            + "<br>".join(table_cell(value) for value in limitations)
+            + "</td></tr>"
+        )
+        coverage_lines.append(
+            "| "
+            + " | ".join(table_cell(cell, markdown=True) for cell in cells)
+            + " | "
+            + "<br>".join(table_cell(value, markdown=True) for value in limitations)
+            + " |"
+        )
+    if not analysis["coverage"]:
+        coverage_blocks.append("<tr><td colspan='6'>No checks recorded.</td></tr>")
+        coverage_lines.append("| No checks recorded. | — | — | — | — | — |")
+    coverage_blocks.append("</tbody></table></div>")
+    coverage_note = (
+        "Completed means the check ran on evaluable records. Not evaluated means "
+        "the check could not run with the supplied evidence or settings. Zero "
+        "observations do not establish clearance."
+    )
 
     if case_review:
         decision = {
@@ -520,14 +601,15 @@ def _reports(
     blocks = [
         "<!doctype html><html lang='en'><meta charset='utf-8'>",
         "<meta name='viewport' content='width=device-width,initial-scale=1'>",
-        "<title>omphalOS evidence record</title><style>body{font:16px/1.6 system-ui;max-width:1000px;margin:3rem auto;padding:0 1.5rem;color:#152b3c}h1,h2{line-height:1.2}article{border-top:1px solid #cad6df;margin-top:2rem;padding-top:1rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6f8;padding:1rem}dt{font-weight:700}dd{margin-bottom:.8rem}</style>",
+        "<title>omphalOS evidence record</title><style>body{font:16px/1.6 system-ui;max-width:1000px;margin:3rem auto;padding:0 1.5rem;color:#152b3c}h1,h2{line-height:1.2}article{border-top:1px solid #cad6df;margin-top:2rem;padding-top:1rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6f8;padding:1rem}dt{font-weight:700}dd{margin-bottom:.8rem}.coverage-table{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.9rem}th,td{padding:.6rem;text-align:left;vertical-align:top;border-bottom:1px solid #cad6df;overflow-wrap:anywhere}th{background:#f3f6f8;overflow-wrap:normal}.coverage-table table{min-width:56rem}th:nth-child(2),td:nth-child(2){white-space:nowrap}th:nth-child(3),th:nth-child(4){min-width:6rem}</style>",
         f"<h1>Evidence record: {escape(case['case_id'])}</h1><p>{escape(case['question'])}</p>",
         f"<p>Run: {escape(review['run_id'])}<br>Review: {escape(wrapper['review_id'])}<br>Reviewer: {escape(review['reviewer'])} (self-asserted identity)</p>",
+        "<p>Separate supervisory approval: not recorded.</p>",
         f"<p>File integrity checked at export: {verification['files_checked']} files. Publisher identity was not assessed. Analytical conclusions remain subject to review.</p>",
         *assessment_blocks,
-        "<h2>Coverage and limitations</h2><pre>"
-        + escape(json.dumps(analysis["coverage"], indent=2, ensure_ascii=False))
-        + "</pre>",
+        "<h2>Coverage and limitations</h2>",
+        f"<p>{coverage_note}</p>",
+        *coverage_blocks,
         "<h2>Warnings</h2><pre>"
         + escape(json.dumps(analysis.get("warnings", []), indent=2, ensure_ascii=False))
         + "</pre>",
@@ -540,15 +622,16 @@ def _reports(
         f"Run: {escape(review['run_id'])}",
         f"Review: {escape(wrapper['review_id'])}",
         f"Reviewer: {escape(review['reviewer'])} (self-asserted identity)",
+        "Separate supervisory approval: not recorded.",
         "",
         f"File integrity checked at export: {verification['files_checked']} files. Publisher identity was not assessed.",
         "",
         *assessment_lines,
-        "## Coverage",
+        "## Coverage and limitations",
         "",
-        "<pre>"
-        + escape(json.dumps(analysis["coverage"], indent=2, ensure_ascii=False))
-        + "</pre>",
+        coverage_note,
+        "",
+        *coverage_lines,
     ]
     workflow = case.get("workflow")
     workflow_note = (
@@ -561,6 +644,67 @@ def _reports(
     )
     blocks.append("<h2>Workflow record</h2><p>" + escape(workflow_note) + "</p>")
     lines.extend(["", "## Workflow record", "", escape(workflow_note), ""])
+    if dataset is not None:
+        supplied_note = (
+            "These are supplied claims, not automatically corroborated or adopted "
+            "by the analyst. All diligence records in the retained dataset appear "
+            "here, including any outside the selected entity or date scope. "
+            "Inclusion does not establish relevance to the decision."
+        )
+        blocks.extend(
+            ["<h2>Supplied supporting records</h2>", f"<p>{supplied_note}</p>"]
+        )
+        lines.extend(["", "## Supplied supporting records", "", supplied_note, ""])
+        diligence = dataset.get("tables", {}).get("diligence", [])
+        metadata = dataset.get("metadata", {})
+        origins = metadata.get("provenance", {}).get("diligence", {})
+        source_files = {
+            item["path"]: item
+            for item in metadata.get("source_files", [])
+            if isinstance(item, dict) and isinstance(item.get("path"), str)
+        }
+        for record in diligence:
+            fields = [
+                ("Diligence ID", record["evidence_id"]),
+                ("Associated entity ID", record["entity_id"]),
+                ("Date", record.get("date") or "Not supplied"),
+                ("Source URL", record.get("source_url") or "Not supplied"),
+            ]
+            origin = origins.get(record["evidence_id"], {})
+            if origin:
+                if origin.get("source_file"):
+                    fields.append(("Original source file", origin["source_file"]))
+                if origin.get("source_row") is not None:
+                    fields.append(("Source row", origin["source_row"]))
+                source = source_files.get(f"originals/{origin.get('source_file')}")
+                if source and source.get("sha256"):
+                    fields.append(("Original file SHA-256", source["sha256"]))
+            else:
+                fields.append(("Row provenance", "Not recorded"))
+            blocks.append(f"<article><h3>{escape(record['title'])}</h3><p>")
+            lines.extend(["", "### " + table_cell(record["title"], markdown=True), ""])
+            for label, value in fields:
+                blocks.append(f"{label}: {table_cell(value)}<br>")
+                # An attributed URL is text, not an instruction to follow a link.
+                rendered = table_cell(value, markdown=True).replace(":", "&#58;")
+                lines.append(f"{label}: {rendered}<br>")
+            blocks.append(
+                "</p><h4>Supplied text</h4><blockquote><p>"
+                + table_cell(record["text"])
+                + "</p></blockquote></article>"
+            )
+            lines.extend(
+                [
+                    "",
+                    "Supplied text:",
+                    "",
+                    "<pre>" + escape(record["text"]) + "</pre>",
+                ]
+            )
+        if not diligence:
+            empty_note = "No diligence records were supplied in the retained dataset."
+            blocks.append(f"<p>{empty_note}</p>")
+            lines.extend([empty_note, ""])
     if case_review:
         context = (
             "The observations, unknowns, alternative explanations, and evidence "
@@ -728,6 +872,8 @@ def export_bundle(run_dir: Path, review_path: Path, dest: Path) -> dict:
         _json_bytes(contents["analysis.json"]),
         wrapper,
         verification,
+        _json_bytes(contents["catalog.json"]),
+        _json_bytes(contents["data/dataset.json"]),
     )
     payload = {"run/" + name: content for name, content in contents.items()}
     payload.update(
