@@ -51,6 +51,10 @@ STATIC_FILES = {
     "/geist.woff2": "geist.woff2",
     "/geist-mono.woff2": "geist-mono.woff2",
     "/font-license.txt": "font-license.txt",
+    "/logo.svg": "logo.svg",
+    "/logo-512.png": "logo-512.png",
+    "/apple-touch-icon.png": "apple-touch-icon.png",
+    "/favicon.ico": "favicon.ico",
 }
 STATIC_CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -58,6 +62,9 @@ STATIC_CONTENT_TYPES = {
     ".css": "text/css; charset=utf-8",
     ".woff2": "font/woff2",
     ".txt": "text/plain; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/vnd.microsoft.icon",
 }
 
 

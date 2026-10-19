@@ -36,6 +36,10 @@ UI_FILES = {
     "geist.woff2",
     "geist-mono.woff2",
     "font-license.txt",
+    "logo.svg",
+    "logo-512.png",
+    "apple-touch-icon.png",
+    "favicon.ico",
 }
 
 
@@ -145,7 +149,11 @@ def pinned_package_lock(upstream: dict, wheels: list[dict]) -> dict:
 def browser_asset(name: str, raw: bytes) -> bytes:
     if name == "index.html":
         text = raw.decode("utf-8")
-        text = re.sub(r'(\b(?:src|href)=")/([^"/]+\.(?:js|css))"', r'\1./\2"', text)
+        text = re.sub(
+            r'(\b(?:src|href)=")/([^"/]+\.(?:js|css|svg|png|ico))"',
+            r'\1./\2"',
+            text,
+        )
         needle = '<script src="./app.js" defer></script>'
         if text.count(needle) != 1:
             raise ValueError("Expected one application script in the interface.")
@@ -158,7 +166,13 @@ def browser_asset(name: str, raw: bytes) -> bytes:
     <meta property="og:title" content="omphalOS: the center of the investigation" />
     <meta property="og:description" content="Investigate records, review sources, and retain evidence. Runs in your browser." />
     <meta property="og:url" content="https://petervartanian.xyz/omphalos/" />
+    <meta property="og:image" content="https://petervartanian.xyz/omphalos/logo-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="omphalOS ribbon logo" />
     <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image" content="https://petervartanian.xyz/omphalos/logo-512.png" />
+    <meta name="twitter:image:alt" content="omphalOS ribbon logo" />
 """
         text = text.replace("  </head>", metadata + "  </head>")
         return text.encode("utf-8")
