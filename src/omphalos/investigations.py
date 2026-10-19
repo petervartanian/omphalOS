@@ -195,12 +195,15 @@ DEFINITIONS = [
                 "Minimum character/token-order name similarity; not a probability",
                 "1",
             ),
-            "max_candidates": integer(
-                5,
-                1,
-                "Maximum additional approximate-name candidates per entity; exact normalized-name and typed-ID candidates are retained in completed screening",
-                100,
-            ),
+            "max_candidates": {
+                **integer(
+                    5,
+                    1,
+                    "Deprecated compatibility value; all qualifying candidates are retained regardless of this value",
+                    100,
+                ),
+                "deprecated": True,
+            },
         },
         [
             "Candidate scores are string similarities, not calibrated confidence or legal conclusions.",
@@ -806,8 +809,8 @@ def _execute(
         )
         limitations += [
             f"Compared against {counts['source_records_considered']} source records; excluded {counts['source_records_excluded_by_dates']} outside explicit effective dates.",
-            f"Retained {counts['candidates_retained_exact_or_identifier']} exact normalized-name or typed-identifier candidates without applying the approximate-name limit.",
-            f"Omitted {counts['candidates_omitted_by_display_limit']} approximate-name candidates beyond the per-entity display limit.",
+            f"Retained {counts['candidates_retained_exact_or_identifier']} exact normalized-name or typed-identifier candidates, {counts['candidates_retained_approximate']} approximate-name candidates, and {counts['candidates_retained_transliterated']} romanization candidates; no qualifying candidates were omitted.",
+            "Supplementary cross-script matching uses exact normalized modern Russian ALA-LC romanization only. It does not translate names, infer language, cover all Cyrillic alphabets or transliteration variants, or resolve identity. Supply authoritative aliases for other forms.",
         ]
         if counts["source_records_with_inconsistent_dates"]:
             limitations.append(

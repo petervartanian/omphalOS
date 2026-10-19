@@ -13,7 +13,7 @@ from difflib import SequenceMatcher
 from .sources import effective_date_issues
 from .util import canonical_json, sha256_bytes
 
-# Keep pathological exact-name collisions from exhausting a browser workspace.
+# Keep large candidate sets from exhausting a browser workspace.
 # Crossing this limit yields unavailable coverage, never a truncated clean result.
 MAX_RETAINED_CANDIDATES = 10_000
 
@@ -77,6 +77,67 @@ _ORGANIZATION_FORMS = frozenset(
         "ао",
     }
 )
+
+
+# ALA-LC Russian (2012), modern alphabet only. This is a supplementary
+# *candidate* path, not Unicode normalization or identity equivalence. Its
+# normalized search form drops diacritics and hard/soft signs. Historical and
+# other Cyrillic alphabets deliberately need an explicit supplied alias.
+_RUSSIAN_ROMANIZATION = dict(
+    zip(
+        "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
+        (
+            "a",
+            "b",
+            "v",
+            "g",
+            "d",
+            "e",
+            "ë",
+            "zh",
+            "z",
+            "i",
+            "ĭ",
+            "k",
+            "l",
+            "m",
+            "n",
+            "o",
+            "p",
+            "r",
+            "s",
+            "t",
+            "u",
+            "f",
+            "kh",
+            "ts",
+            "ch",
+            "sh",
+            "shch",
+            "",
+            "y",
+            "",
+            "ė",
+            "iu",
+            "ia",
+        ),
+        strict=True,
+    )
+)
+_ROMANIZATION_METHOD = "russian_ala_lc_2012_normalized"
+
+
+def _romanized_russian(value: str) -> str | None:
+    # NFC preserves ё and й; compatibility decomposition before mapping would
+    # silently replace them with е and и. Reject mixed-script words/names and
+    # unsupported letters instead of treating visual confusables as equivalents.
+    text = unicodedata.normalize("NFC", value).casefold()
+    letters = [char for char in text if char.isalpha()]
+    if not letters or any(char not in _RUSSIAN_ROMANIZATION for char in letters):
+        return None
+    if any(unicodedata.category(char).startswith("M") for char in text):
+        return None
+    return "".join(_RUSSIAN_ROMANIZATION.get(char, char) for char in text)
 
 
 def normalized_name(value: str) -> str:
@@ -158,16 +219,35 @@ class _CandidateName:
     full: _PreparedName
     distinctive: _PreparedName
     primary: bool
+    romanized: _PreparedName | None
+    romanized_distinctive: str
+    latin: bool
+
+
+def _distinctive_name(normalized: str) -> str:
+    return " ".join(
+        token
+        for token in _ORGANIZATION_WORDING.sub(" ", normalized).split()
+        if token not in _ORGANIZATION_FORMS
+    )
 
 
 def _prepare_candidate_name(value: str, *, primary: bool = False) -> _CandidateName:
     full = _prepare_name(value)
-    distinct = " ".join(
-        token
-        for token in _ORGANIZATION_WORDING.sub(" ", full.normalized).split()
-        if token not in _ORGANIZATION_FORMS
+    distinct = _distinctive_name(full.normalized)
+    romanization = _romanized_russian(value)
+    romanized = _prepare_name(romanization) if romanization is not None else None
+    return _CandidateName(
+        full,
+        _prepare_name(distinct),
+        primary,
+        romanized,
+        normalized_name(_romanized_russian(distinct) or "") if romanized else "",
+        bool(full.normalized)
+        and all(
+            char in "abcdefghijklmnopqrstuvwxyz0123456789 " for char in full.normalized
+        ),
     )
-    return _CandidateName(full, _prepare_name(distinct), primary)
 
 
 def _organization_comparison(
@@ -212,11 +292,74 @@ def _candidate_name_score(
         b.distinctive.normalized if organization else b.full.normalized,
         distinctive,
         organization,
+        "normalized",
+        a.full.normalized,
+        b.full.normalized,
     )
+
+
+def _romanized_comparison(a: _CandidateName, b: _CandidateName) -> tuple | None:
+    if a.romanized and b.latin:
+        left, right = a.romanized, b.full
+        left_core, right_core = a.romanized_distinctive, b.distinctive.normalized
+    elif a.latin and b.romanized:
+        left, right = a.full, b.romanized
+        left_core, right_core = a.distinctive.normalized, b.romanized_distinctive
+    else:
+        return None
+    # No fuzzy expansion of a lossy transformation. Require the complete token
+    # multiset, including organizational forms, and at least three distinctive
+    # letters on each side. Single-letter lookalikes and generic forms alone do
+    # not create new candidates. Explicit supplied aliases still compare normally.
+    if left.ordered != right.ordered or any(
+        sum(char.isalpha() for char in core) < 3 for core in (left_core, right_core)
+    ):
+        return None
+    raw = _score_prepared(a.full, b.full)
+    return (
+        Decimal(1),
+        a.full.original,
+        b.full.original,
+        raw,
+        a.full.normalized,
+        b.full.normalized,
+        raw,
+        False,
+        _ROMANIZATION_METHOD,
+        left.normalized,
+        right.normalized,
+    )
+
+
+def _comparison_rank(comparison: tuple) -> tuple:
+    # Supplied exact names/aliases take precedence over a derived search form.
+    return comparison[0], comparison[8] == "normalized", comparison
 
 
 def _identifier(value: str) -> str:
     return "".join(c for c in value.upper() if c.isalnum())
+
+
+_IDENTIFIER_FIELDS = {
+    "lei": "lei",
+    "legal entity identifier": "lei",
+    "legal entity identifier lei": "lei",
+    "legal entity number": "lei",
+    "registration": "registration_id",
+    "registration id": "registration_id",
+    "registration number": "registration_id",
+    "company number": "registration_id",
+    "company registration number": "registration_id",
+    "business registration number": "registration_id",
+    "commercial registry number": "registration_id",
+}
+
+
+def _identifier_field(kind: str) -> str | None:
+    # Type labels identify a namespace. OFAC uses Company Number and Legal
+    # Entity Number as well as Registration Number and LEI. Never infer a
+    # corporate registration from substrings in Alien/Tax/Vehicle Registration.
+    return _IDENTIFIER_FIELDS.get(normalized_name(kind))
 
 
 def _entity_category(value: str | None) -> str | None:
@@ -277,12 +420,16 @@ def candidate_findings(
     minimum_score: Decimal = Decimal("0.90"),
     max_candidates: int = 5,
 ) -> tuple[list[dict], dict]:
+    # Retained for archived case compatibility. A presentation preference must
+    # never suppress qualifying source records from analytical output.
+    del max_candidates
     entries = snapshot["entries"]
     considered, inconsistent_dates = applicable_source_records(snapshot, as_of)
     eligible_entities = eligible_screening_entities(entities)
     findings = []
-    omitted = 0
     retained_exact_or_identifier = 0
+    retained_approximate = 0
+    retained_transliterated = 0
     total_retained = 0
     entities_compared = 0
     # Prepare Unicode, sorted tokens, and character counts only once per source name.
@@ -320,9 +467,26 @@ def candidate_findings(
             )
             known_organization = "organization" in categories and not non_organization
             infer_organization = all(category is None for category in categories)
-            best = (Decimal(0), "", "", Decimal(0), "", "", Decimal(0), False)
+            best = (
+                Decimal(0),
+                "",
+                "",
+                Decimal(0),
+                "",
+                "",
+                Decimal(0),
+                False,
+                "normalized",
+                "",
+                "",
+            )
             for name in names:
                 for source_name in source_names:
+                    romanized = _romanized_comparison(name, source_name)
+                    if romanized is not None and _comparison_rank(
+                        romanized
+                    ) > _comparison_rank(best):
+                        best = romanized
                     if not _can_reach(
                         name.full,
                         source_name.full,
@@ -341,7 +505,7 @@ def candidate_findings(
                     ):
                         continue
                     score = _candidate_name_score(name, source_name, organization)
-                    if score > best:
+                    if _comparison_rank(score) > _comparison_rank(best):
                         best = score
             matched_ids = []
             identifier_comparisons = []
@@ -352,13 +516,7 @@ def candidate_findings(
                 kind = str(ident.get("idType") or ident.get("type") or "")
                 if not isinstance(number, str):
                     continue
-                # Registration IDs cannot safely be cross-matched to arbitrary passport/tax IDs.
-                field = (
-                    "lei"
-                    if "legal entity identifier" in kind.lower()
-                    or kind.lower() == "lei"
-                    else "registration_id" if "registration" in kind.lower() else None
-                )
+                field = _identifier_field(kind)
                 if field and entity.get(field):
                     source_identifier = _identifier(number)
                     entity_identifier = _identifier(entity[field])
@@ -414,20 +572,22 @@ def candidate_findings(
                 )
             )
         candidates.sort(key=lambda item: (not bool(item[4]), -item[0], item[1]))
-        # An approximate-name display limit must not hide a source entry with
-        # an exact normalized-name or typed-identifier match. Those entries can
-        # carry different list categories, dates, or programs and need review.
-        retained = []
-        approximate_count = 0
-        for candidate in candidates:
-            if candidate[4] or candidate[0] == 1:
-                retained.append(candidate)
-                retained_exact_or_identifier += 1
-            elif approximate_count < max_candidates:
-                retained.append(candidate)
-                approximate_count += 1
-        entity_omitted = len(candidates) - len(retained)
-        omitted += entity_omitted
+        # Every qualifying source record is retained. Sorting is presentation,
+        # never a top-N analytical cutoff; source records can represent different
+        # lists or programs even when their names and scores are identical.
+        retained = candidates
+        retained_exact_or_identifier += sum(
+            bool(candidate[4])
+            or (candidate[0] == 1 and candidate[3][8] == "normalized")
+            for candidate in retained
+        )
+        retained_transliterated += sum(
+            not candidate[4] and candidate[3][8] == _ROMANIZATION_METHOD
+            for candidate in retained
+        )
+        retained_approximate += sum(
+            not candidate[4] and candidate[0] < 1 for candidate in retained
+        )
         total_retained += len(retained)
         if total_retained > MAX_RETAINED_CANDIDATES:
             # Check before building findings for this entity. Drop earlier
@@ -441,8 +601,10 @@ def candidate_findings(
                 "source_records_considered": len(considered),
                 "source_records_excluded_by_dates": len(entries) - len(considered),
                 "source_records_with_inconsistent_dates": len(inconsistent_dates),
-                "candidates_omitted_by_display_limit": omitted,
+                "candidates_omitted_by_display_limit": 0,
                 "candidates_retained_exact_or_identifier": 0,
+                "candidates_retained_approximate": 0,
+                "candidates_retained_transliterated": 0,
                 "candidate_output_limit_exceeded": True,
                 "candidate_output_limit": MAX_RETAINED_CANDIDATES,
                 "candidate_count_at_least": total_retained,
@@ -478,13 +640,17 @@ def candidate_findings(
                             "typed_identifier"
                             if ids
                             else (
-                                "exact_normalized_name"
-                                if best[0] == 1
-                                else "approximate_name"
+                                "transliterated_name"
+                                if best[8] == _ROMANIZATION_METHOD
+                                else (
+                                    "exact_normalized_name"
+                                    if best[0] == 1
+                                    else "approximate_name"
+                                )
                             )
                         ),
                         "candidates_for_entity": len(candidates),
-                        "approximate_candidates_omitted_for_entity": entity_omitted,
+                        "approximate_candidates_omitted_for_entity": 0,
                         "name_similarity": format(
                             best[0].quantize(Decimal("0.0001")), "f"
                         ),
@@ -505,10 +671,17 @@ def candidate_findings(
                             if best[7]
                             else {}
                         ),
+                        "name_transformation": best[8],
+                        "entity_comparison_form": best[9],
+                        "source_comparison_form": best[10],
                         "name_comparison_method": (
-                            "Organization similarity is the lower of full-name similarity and the mean of full-name and distinctive-name similarities. Shared organizational wording is downweighted."
-                            if best[7]
-                            else "Full normalized name comparison."
+                            "Exact full-token comparison after modern Russian ALA-LC (2012) romanization and search normalization; diacritics and hard/soft signs are omitted. This lossy search form is a candidate aid, not identity equivalence. Original-script full-name similarity is reported separately."
+                            if best[8] == _ROMANIZATION_METHOD
+                            else (
+                                "Organization similarity is the lower of full-name similarity and the mean of full-name and distinctive-name similarities. Shared organizational wording is downweighted."
+                                if best[7]
+                                else "Full normalized name comparison."
+                            )
                         ),
                         "identifier_matches": ids,
                         "identifier_comparisons": id_comparisons,
@@ -516,7 +689,7 @@ def candidate_findings(
                         "entity_type_supplied": entity.get("entity_type"),
                         "source_entity_type": entry.get("entity_type"),
                         "country_context": country_context,
-                        "source_countries": countries,
+                        "source_countries": entry.get("countries", []),
                         "alias_quality": alias_quality,
                         "listing_start_date": entry.get("start_date"),
                         "listing_end_date": entry.get("end_date"),
@@ -535,6 +708,13 @@ def candidate_findings(
                         "Identity equivalence and the legal effect of this specific listing require independent review.",
                         "Missing listing dates do not establish membership on the case's historical as-of date.",
                     ]
+                    + (
+                        [
+                            "The candidate uses a lossy Russian romanization search form. Language, spelling variants, and identity must be checked against original-script records and authoritative identifiers."
+                        ]
+                        if best[8] == _ROMANIZATION_METHOD
+                        else []
+                    )
                     + (
                         [
                             "The source end date precedes its start date. Listing applicability on the case's as-of date cannot be evaluated; both supplied dates are retained without correction."
@@ -563,8 +743,10 @@ def candidate_findings(
         "source_records_considered": len(considered),
         "source_records_excluded_by_dates": len(entries) - len(considered),
         "source_records_with_inconsistent_dates": len(inconsistent_dates),
-        "candidates_omitted_by_display_limit": omitted,
+        "candidates_omitted_by_display_limit": 0,
         "candidates_retained_exact_or_identifier": retained_exact_or_identifier,
+        "candidates_retained_approximate": retained_approximate,
+        "candidates_retained_transliterated": retained_transliterated,
         "candidate_output_limit_exceeded": False,
         "candidate_output_limit": MAX_RETAINED_CANDIDATES,
         "candidate_count_at_least": total_retained,

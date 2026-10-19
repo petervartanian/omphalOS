@@ -12,6 +12,9 @@ dependencies = [
     "truststore>=0.10,<1"
 ]
 
+[project.optional-dependencies]
+team = ["uvicorn>=0.54,<0.55", "h11>=0.16,<1"]
+
 [project.scripts]
 omphalos = "omphalos.cli:main"
 

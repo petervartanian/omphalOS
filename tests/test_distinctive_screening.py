@@ -166,11 +166,13 @@ def test_meaningful_names_and_known_person_comparison_are_not_blanket_stopwords(
     assert findings[0]["metrics"]["name_similarity"] == "1.0000"
 
 
-def test_no_transliteration_or_cross_script_identity_is_inferred():
+def test_exact_romanization_is_a_disclosed_candidate_without_identity_inference():
     findings, _ = screen(
         {"name": "Москва НПО", "entity_type": "organization"}, [{"name": "Moskva NPO"}]
     )
-    assert findings == []
+    assert len(findings) == 1
+    assert findings[0]["metrics"]["candidate_selection"] == "transliterated_name"
+    assert "requires identity review" in findings[0]["observation"]
 
 
 @pytest.mark.parametrize("category", ["Individual", "Vessel", "Aircraft"])

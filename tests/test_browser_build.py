@@ -26,6 +26,8 @@ def test_engine_archive_is_deterministic_and_excludes_user_data_and_hosted_backe
     (package / "__init__.py").write_text('__version__ = "2.0.0"\n')
     (package / "models.py").write_text('value = "retained engine"\n')
     (package / "hosted.py").write_text('raise Exception("not a browser transport")\n')
+    (package / "team.py").write_text('raise Exception("server-only")\n')
+    (package / "team_store.py").write_text('raise Exception("server-only")\n')
     (package / "private.json").write_text("secret")
     (package / "workspace").mkdir()
     (package / "workspace" / "private.py").write_text("secret")

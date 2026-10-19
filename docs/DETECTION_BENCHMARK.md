@@ -2,7 +2,7 @@
 
 The offline benchmark evaluates which **observations** the current engine produces for a predeclared set of labeled subjects. It measures missed observations, unexpected observations, unavailable comparisons, and review burden. It does not classify legal violations, confirm identities, or establish clearance.
 
-The checked-in corpus contains 91 invented cases covering all 12 current checks. It is authored by the software developers, not independently adjudicated by investigators. Its positive/negative balance and repeated boundary cases are deliberate test design, not representative prevalence. No operational accuracy claim follows from its rates.
+The checked-in corpus contains 104 invented cases covering all 12 current checks. It is authored by the software developers, not independently adjudicated by investigators. Its positive/negative balance and repeated boundary cases are deliberate test design, not representative prevalence. No operational accuracy claim follows from its rates.
 
 ## Run and reproduce
 
@@ -20,7 +20,7 @@ To require every positive target, including challenges and unavailable inputs, t
 python tools/detection_benchmark.py --require-complete --output evaluation.json
 ```
 
-That command currently exits **1**, deliberately. Two approximate candidates exceed the selected candidate limit, one cross-script candidate lacks a supplied alias, and several fixtures intentionally lack necessary inputs. A successful contract check must not be presented as complete investigative coverage.
+That command currently exits **1**, deliberately. Several fixtures intentionally lack necessary inputs. The three previously measured executed-check misses now produce candidates; unavailable inputs remain unavailable. A successful contract check must not be presented as complete investigative coverage.
 
 For an authorized, locally held evaluation corpus:
 
@@ -52,7 +52,7 @@ Precision is TP/(TP+FP), recall is TP/(TP+FN), and false-positive rate is FP/(FP
 
 An ordinary explanation does not make a correctly reported pattern a false positive. For example, three scheduled installments genuinely satisfy a three-payment rule. The benchmark separately counts observations whose synthetic facts supply an ordinary explanation, exposing the work imposed on a reviewer without asking the detector to adjudicate the explanation.
 
-## Executed synthetic baseline — October 18, 2026
+## Executed synthetic evaluation — October 18, 2026
 
 | Check | Cases | TP | FP | FN | TN | Unavailable targets | Ordinary-explanation observations |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -62,29 +62,35 @@ An ordinary explanation does not make a correctly reported pattern a false posit
 | `mixed_payment_methods` | 6 | 2 | 0 | 0 | 3 | 1 | 1 |
 | `multi_domain` | 6 | 2 | 0 | 0 | 3 | 1 | 1 |
 | `payment_fragmentation` | 6 | 3 | 0 | 0 | 3 | 1 | 1 |
-| `screening_candidates` | 15 | 26 | 0 | 3 | 3 | 2 | 1 |
+| `screening_candidates` | 28 | 33 | 0 | 0 | 12 | 2 | 2 |
 | `shared_address` | 7 | 3 | 0 | 0 | 3 | 1 | 1 |
 | `threshold_cluster` | 8 | 3 | 0 | 0 | 4 | 1 | 1 |
 | `unit_price_outlier` | 9 | 4 | 0 | 0 | 27 | 15 | 1 |
 | `volume_spike` | 8 | 4 | 0 | 0 | 2 | 2 | 1 |
 | `weekend_shipments` | 7 | 3 | 0 | 0 | 2 | 2 | 1 |
-| **Total** | **91** | **60** | **0** | **3** | **116** | **29** | **11** |
+| **Total** | **104** | **67** | **0** | **0** | **125** | **29** | **12** |
 
-The 29 unavailable targets comprise 17 positive and 12 negative targets. The 60 emitted observations cite 196 record occurrences and 180 distinct records summed within cases; they do not contain duplicate observations. These are workload proxies, not measured review times.
+The 29 unavailable targets comprise 17 positive and 12 negative targets. The 67 emitted observations cite 203 record occurrences and 185 distinct records summed within cases; they do not contain duplicate observations. These are workload proxies, not measured review times.
 
 Boundary variations include exact decimal limits, inclusive/exclusive comparison bands, currency separation, case-sensitive units, true even-cohort medians, insufficient cohorts, different suites and countries, repeated counterparties, shared invoice prefixes, unavailable methods/domains, valid `NA` and `nA` values, future and undated records, partial months, zero-count months, explicit source dates, contradictory dates, conflicting identity context, aliases, and typed identifiers.
 
-### Correction found by the benchmark
+### Corrections found by the benchmark
 
-The old per-entity candidate cap could hide exact names and typed-identifier candidates behind earlier source records. Different entries can carry distinct list categories, dates, and programs. The engine now retains all exact normalized-name and typed-ID candidates. `max_candidates` limits only **additional approximate-name** candidates. Finding metrics show the total candidate count and omitted approximate candidates for that entity; coverage shows aggregate retained exact/ID and omitted approximate counts.
+The old per-entity candidate cap could hide qualifying source records behind earlier matches. Different entries can carry distinct list categories, dates, and programs. The engine now retains **every qualifying candidate**, whether based on an exact name, approximate name, supported romanization, or typed identifier. The archived `max_candidates` parameter remains accepted for compatibility but no longer truncates output. Legacy omission metrics remain present with zero values. Coverage separately counts exact/ID, approximate, and romanization candidates. Sorting does not affect which records are retained.
 
-Seven exact entries now produce seven observations even with a smaller approximate-match limit. Separate tests exercise seven typed-ID matches with unrelated names, mixed exact/approximate candidates, and weak aliases that remain explicitly qualified. All still require identity review. A total output bound of 10,000 retained candidates protects browser memory. The engine checks it before building findings for an entity; if exceeded, it discards prior partial findings and returns **not evaluable**, an observed candidate-count lower bound, and a scope-narrowing instruction. It does not label the result clean. Targeted tests lower the bound to exercise both its inclusive boundary and accumulation across entities without creating a huge fixture. Replaying an archived run under the new engine may produce more candidates; archived inputs and outputs are not rewritten.
+The original 91-case labels have not changed. On that unchanged subset, the previous 60 TP / 3 FN / 116 TN / 0 FP result becomes **63 TP / 0 FN / 116 TN / 0 FP**. Thirteen additional cases add four positive targets and nine negative controls. The original two challenge IDs remain in the corpus to expose regressions; they are not relabeled as negatives or removed. The expanded corpus is versioned `synthetic-detection-v2`.
 
-### Remaining measured boundaries
+A separate exact-match path retrieves the original `NPO Astra` / `НПО Астра` candidate using a normalized modern Russian ALA-LC romanization. It compares complete token multisets, preserves repeated tokens and organizational wording, and requires at least three distinctive letters on each side. It never applies approximate matching to the romanized form. Supplied exact names or aliases take precedence. The original strings, transformed comparison forms, transformation method, original-script similarity, alias quality, and conflicting context remain visible. The candidate is not an identity conclusion.
 
-Two of seven approximate-name candidates exceed the default five-candidate limit. They remain FNs in the challenge case, with omission counts available in coverage and finding metrics. Increasing the approximate limit restores eligible candidates; the built-in parameter maximum remains 100. This is a bounded presentation/observation policy, not evidence that omitted candidates are unimportant.
+The added controls cover dissimilar distinctive names, near misses that would match under loose fuzzy transliteration, generic organization forms, short lookalikes, mixed scripts, unsupported letters, visual confusables, translation rather than transliteration, repeated tokens, reordered names, multigraphs, and conflicting identity context. Targeted tests additionally cover diacritics, hard/soft signs, source aliases, typed-ID precedence, dates, compatibility parameter values, and the total output bound. A separate regression fixes each candidate's source-country list being taken from the last compared record instead of its own retained entry.
 
-One fixture stipulates that `NPO Astra` and `НПО Астра` identify the same invented organization. Without an explicit alias, the engine does not perform transliteration and misses the candidate. The corresponding supplied-alias case succeeds. Arbitrary cross-script identity resolution, ownership-based restrictions, unlisted parties, complete official-address screening, licensing, and transaction clearance are not measured capabilities of this engine.
+A total output bound of 10,000 candidates protects browser memory. If exceeded, the engine discards prior partial findings and returns **not evaluable**, an observed candidate-count lower bound, and a scope-narrowing instruction. It does not label the result clean. Tests lower the bound to exercise its inclusive boundary, accumulation across entities, and approximate/romanized output without creating huge fixtures. The existing 20-million entity/list-record comparison bound also remains. Romanization is prepared once per name and adds at most one exact token comparison per name/alias pair; it does not generate combinatorial spellings. Replaying an archived run under the new engine may produce more candidates; archived inputs and outputs are not rewritten.
+
+### Remaining boundaries
+
+Zero measured misses on this developer-authored corpus is not evidence of complete detection or operational accuracy. Romanization is deliberately narrow: modern Russian letters only, exact normalized token equality only, and no mixed alphabet or unsupported combining-mark conversion. Other Cyrillic languages, historical characters, alternative spelling conventions, transliteration ambiguity, translations, and other scripts require authoritative supplied aliases or a separate validated matching capability. A lossy search form cannot establish the language or identity of the original record.
+
+The engine still does not comprehensively resolve identity across scripts, screen ownership-based restrictions or unlisted parties, perform complete official-address screening, determine licensing, or establish transaction clearance. Seventeen positive and twelve negative targets lack evaluable inputs by design and are never counted as completed negative comparisons. Practitioner judgments and independently adjudicated operational outcomes are not replaced by these fixtures.
 
 ## External corpus contract
 
@@ -109,3 +115,8 @@ For external corpora the report retains the supplied provenance and explicitly s
 The International Trade Administration describes CSL results as screening aids, calls for additional due diligence on apparent matches, and directs users to the applicable official publications and agency lists. Keeping distinct exact candidate entries visible is an engineering inference from those distinctions; it is not a government-prescribed matching algorithm. [ITA, Consolidated Screening List](https://www.trade.gov/consolidated-screening-list)
 
 OFAC describes its scores as name similarity, leaves threshold selection to the user's risk assessment and compliance practices, and recommends repeating baseline checks after search changes. Its own search uses algorithms different from omphalOS; this benchmark does not claim equivalence to that service. Historical membership also cannot be established from a current list alone. These points support explicit thresholds, retained source dates, disclosed omissions, and regression evaluation. [OFAC, How to Search OFAC's Sanctions Lists, FAQs 247, 250, 467, and 892](https://ofac.treasury.gov/faqs/topic/1636)
+
+
+The supplementary character mapping follows the modern Russian letters in the Library of Congress's 2012 table. Removing its diacritics and hard/soft signs creates a lossy search form; exact-only comparison, minimum distinctive length, unsupported-script rejection, and candidate qualification are omphalOS engineering safeguards, not a government screening algorithm. [Library of Congress, Russian Romanization Table](https://www.loc.gov/catdir/cpso/romanization/russian.pdf)
+
+OFAC's September 21, 2021 announcement uses the explicit organization identifier labels “Company Number” and “Legal Entity Number.” The matcher maps these to registration ID and LEI respectively, with a small explicit allowlist of equivalent labels. It does not infer an organization identifier from arbitrary substrings such as tax, alien, aircraft, or vehicle registration. The separately authored public-source corpus exposed these previously missed label forms. [OFAC, September 21, 2021 designation announcement](https://ofac.treasury.gov/recent-actions/20210921)

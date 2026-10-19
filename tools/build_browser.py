@@ -99,7 +99,7 @@ def package_engine(package: Path, destination: Path) -> dict:
         destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
     ) as archive:
         for source in sorted(package.glob("*.py")):
-            if source.name == "hosted.py":
+            if source.name in {"hosted.py", "team.py", "team_store.py"}:
                 continue
             if source.is_symlink() or not source.is_file():
                 raise ValueError("Application modules must be regular files.")

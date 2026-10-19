@@ -1,0 +1,106 @@
+/* Shared workspace controls; the investigation design remains unchanged. */
+.team-welcome {
+  width: min(28rem, 100%);
+  margin: auto;
+  padding: 2rem 1.25rem;
+}
+.team-welcome h1 {
+  margin-bottom: 1.5rem;
+}
+.team-welcome form {
+  display: grid;
+  gap: 1rem;
+}
+.team-matters {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.team-matter {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  color: var(--ink, #171717);
+  background: transparent;
+  border: 1px solid var(--line, #ddd);
+  padding: 1rem;
+}
+.team-matter strong {
+  flex: 1;
+}
+.team-matter span {
+  font-size: 0.85rem;
+  color: var(--muted, #666);
+}
+.team-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line, #ddd);
+}
+.team-user-row small {
+  display: block;
+  color: var(--muted, #666);
+}
+#team-dialog {
+  width: min(42rem, calc(100% - 2rem));
+}
+#team-dialog form {
+  display: grid;
+  gap: 0.75rem;
+}
+#team-dialog .flow-section {
+  margin-block: 1.5rem;
+}
+#team-status {
+  color: #9c2935;
+}
+#team-account {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-update {
+  margin: 1rem auto;
+  padding: 1rem;
+  width: min(56rem, calc(100% - 2rem));
+  border: 1px solid #a67132;
+  border-radius: 8px;
+  background: #fffaf2;
+}
+.team-update p {
+  margin: 0 0 0.75rem;
+}
+.team-update small {
+  display: block;
+  margin-top: 0.75rem;
+}
+@media (max-width: 640px) {
+  #team-account {
+    max-width: 8rem;
+  }
+  .team-update .actions {
+    flex-wrap: wrap;
+  }
+}
+
+body:is([data-team-role='viewer'], [data-team-role='reviewer'])
+  :is(
+    [data-flow='restart'],
+    [data-flow='choose-file'],
+    [data-flow='handoff-import'],
+    [data-flow='approve-sources'],
+    [data-flow='run'],
+    [data-flow='fetch-run'],
+    [data-flow='continue-handoff'],
+    [data-flow='review-summary'],
+    [data-action='export'],
+    [data-handoff-file]
+  ) {
+  display: none;
+}

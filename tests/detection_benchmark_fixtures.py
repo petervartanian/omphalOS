@@ -699,7 +699,7 @@ def benchmark_suite():
         [{"name": "Fictional Aster Instrument"} for _ in range(7)],
         [f"L{i}" for i in range(1, 8)],
         kind="challenge",
-        rationale="Seven approximate candidate matches exceed the configured default five. Two omitted candidates remain measured misses and are disclosed in coverage and emitted-candidate metrics.",
+        rationale="All seven approximate candidates qualify. The original positive labels stay fixed; a presentation limit must not remove any candidate from the analysis.",
     )
     screening(
         "display-limit-expanded",
@@ -707,7 +707,7 @@ def benchmark_suite():
         [{"name": "Fictional Aster Instruments"} for _ in range(7)],
         [f"L{i}" for i in range(1, 8)],
         case={"parameters": {check: {"max_candidates": 7}}},
-        rationale="An explicit larger cap should recover all seven otherwise identical candidate targets.",
+        rationale="An archived explicit cap remains accepted for compatibility but cannot suppress otherwise qualifying candidate targets.",
     )
     screening(
         "cross-script-challenge",
@@ -715,22 +715,62 @@ def benchmark_suite():
         [{"name": "НПО Астра"}],
         ["L1"],
         kind="challenge",
-        rationale="The fixture author stipulates the names refer to the same invented organization. Without a supplied alias the engine lacks transliteration; the missed candidate is recorded, not relabeled negative.",
+        rationale="The fixture author stipulates the names refer to the same invented organization. The original positive label stays fixed; exact romanization can retrieve a candidate without adjudicating identity.",
     )
     screening(
         "cross-script-supplied-alias",
         {"name": "NPO Astra", "aliases": ["НПО Астра"]},
         [{"name": "НПО Астра"}],
         ["L1"],
-        rationale="Supplying the actual cross-script alias restores the candidate without guessing transliteration.",
+        rationale="An authoritative supplied alias takes precedence over a derived romanization search form.",
+    )
+
+    for label, left, right, positive in (
+        ("romanization-reversed", "НПО Астра", "NPO Astra", True),
+        ("romanization-multigraphs", "Shchukin Zhirnov", "Щукин Жирнов", True),
+        ("romanization-distinctive-mismatch", "NPO Astra", "НПО Орион", False),
+        ("romanization-no-fuzzy-expansion", "NPO Astra", "НПО Астр", False),
+        ("romanization-generic-only", "NPO", "НПО", False),
+        ("romanization-single-letter", "A", "А", False),
+        ("romanization-mixed-script", "Astra", "Аstра", False),
+        ("romanization-unsupported-letter", "Galina", "Ґалина", False),
+        ("romanization-confusable-not-sound", "Poccia", "Россия", False),
+        (
+            "romanization-no-translation",
+            "Scientific Production Association Astra",
+            "НПО Астра",
+            False,
+        ),
+        ("romanization-repeated-token", "Astra Astra", "Астра", False),
+        ("romanization-reordered-tokens", "Zhigulin Fedor", "Фёдор Жигулин", True),
+    ):
+        screening(
+            label,
+            {"name": left},
+            [{"name": right}],
+            ["L1"] if positive else [],
+            [] if positive else ["L1"],
+            rationale=(
+                "Exact modern Russian romanization supports a review candidate; it does not establish that the names identify the same subject."
+                if positive
+                else "No candidate relationship is stipulated. Dissimilar, generic, ambiguous, unsupported, translated, or mixed-script strings must not acquire a candidate through loose romanization."
+            ),
+        )
+    screening(
+        "romanization-conflicting-context",
+        {"name": "NPO Astra", "entity_type": "organization", "country": "US"},
+        [{"name": "НПО Астра", "entity_type": "individual", "countries": ["RU"]}],
+        ["L1"],
+        ordinary=True,
+        rationale="An exact romanization candidate retains explicit type and country conflicts for review; context differences do not erase the candidate or confirm identity.",
     )
 
     return {
         "schema_version": "1.0",
-        "suite_id": "synthetic-detection-v1",
+        "suite_id": "synthetic-detection-v2",
         "synthetic": True,
         "provenance": {
-            "corpus_id": "omphalos-authored-synthetic-v1",
+            "corpus_id": "omphalos-authored-synthetic-v2",
             "label_provenance": "Software-author labels from explicit fixture facts and published detector contracts; no independent human adjudication.",
             "scope": "Twelve observation checks on invented records, boundary conditions, unavailable inputs, ordinary explanations, and declared capability challenges. Not a legal or wrongdoing classification task.",
         },
