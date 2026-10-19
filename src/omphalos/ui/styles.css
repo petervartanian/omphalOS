@@ -1511,15 +1511,13 @@ body.object-mode {
   letter-spacing: -0.8px;
   text-decoration: none;
 }
-.object-brand::before {
+.object-brand-mark {
+  display: block;
   align-self: center;
   flex-shrink: 0;
-  width: 15px;
-  height: 15px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  background: radial-gradient(currentColor 0 1.6px, transparent 1.9px);
-  content: '';
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
 }
 .object-brand .brand-subtitle {
   font-family: var(--font-sans);
@@ -2873,9 +2871,11 @@ button.dataset-option:hover,
 @media (max-width: 400px) {
   .object-mode .object-brand {
     display: grid;
-    grid-template-columns: 17px minmax(0, 1fr);
+    grid-template-columns: 24px minmax(0, 1fr);
   }
-  .object-brand::before {
+  .object-brand-mark {
+    width: 24px;
+    height: 24px;
     grid-column: 1;
     grid-row: 1 / span 2;
   }

@@ -1,3 +1,5 @@
+<img src="src/omphalos/ui/logo.svg" width="72" height="72" alt="omphalOS ribbon mark" />
+
 # omphalOS: the center of the investigation
 
 **Start with a name or records. Follow the evidence. Record the decision.**

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 0 392 392" role="img" aria-labelledby="title">
+  <title id="title">omphalOS ribbon mark</title>
+  <defs>
+    <linearGradient id="spectrum" x1="0" y1="18" x2="0" y2="370" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#CB5867"/>
+      <stop offset=".166667" stop-color="#E28B4C"/>
+      <stop offset=".333333" stop-color="#D5B64C"/>
+      <stop offset=".5" stop-color="#62A67E"/>
+      <stop offset=".666667" stop-color="#429CAC"/>
+      <stop offset=".833333" stop-color="#677BC0"/>
+      <stop offset="1" stop-color="#A96DAC"/>
+    </linearGradient>
+    <g id="back">
+      <path d="M44 122C52 109 64 101 78 93C75 104 96 114 130 115L64 135C51 141 42 135 44 122Z"/>
+      <path d="M305 130C335 133 368 141 377 155C383 167 355 176 331 181C308 170 273 160 240 156Z"/>
+      <path d="M68 201C98 217 126 226 155 234L116 246C93 251 53 244 34 233C28 222 46 210 68 201Z"/>
+      <path d="M234 251C277 250 348 274 348 292C348 305 327 315 302 321C304 308 272 296 240 288C232 284 226 277 234 251Z"/>
+    </g>
+    <path id="cap" d="M44 121C67 68 118 28 179 18L230 18C259 21 289 34 309 49C318 58 315 68 299 73C260 41 158 46 78 93C64 102 53 111 44 121Z"/>
+  </defs>
+  <g fill="url(#spectrum)">
+    <use href="#back"/>
+    <use href="#back" fill="#fff" opacity=".28"/>
+    <g opacity=".28">
+      <path d="M143 184C143 200 148 214 155 222L166 220C155 211 152 194 153 181Z"/>
+      <path d="M241 158C250 172 251 188 247 200L257 197C263 184 261 171 251 155Z"/>
+    </g>
+    <use href="#cap"/>
+    <use href="#cap" fill="#132137" opacity=".07"/>
+    <path d="M309 49C329 64 348 85 356 101C365 124 295 141 240 157L75 203C50 211 32 220 34 233C26 218 25 188 30 165C32 142 46 135 83 123L274 78C304 69 323 62 309 49Z"/>
+    <path d="M377 155C384 171 384 207 376 227C371 242 349 248 308 260L135 306C99 317 90 325 100 337C82 324 57 305 56 287C55 262 106 246 151 233L331 181C359 173 381 166 377 155Z"/>
+    <path d="M98 320C152 347 242 349 302 322C325 315 340 308 347 298C322 337 272 366 227 370C175 375 125 356 98 335C94 331 93 324 98 320Z"/>
+  </g>
+</svg>
