@@ -191,10 +191,22 @@ def browser_interface(directory: Path) -> dict[str, bytes]:
             raise ValueError(f"Required browser interface asset is missing: {name}")
         assets[name] = browser_asset(name, source.read_bytes())
     index = assets["index.html"].decode("utf-8")
-    for name in ("styles.css", "box.js", "reviewer.js", "browser.js", "app.js"):
+    references = {
+        "styles.css": 1,
+        "box.js": 1,
+        "reviewer.js": 1,
+        "browser.js": 1,
+        "app.js": 1,
+        "logo.svg": 2,
+        "favicon.ico": 1,
+        "apple-touch-icon.png": 1,
+    }
+    for name, expected in references.items():
         reference = f'="./{name}"'
-        if index.count(reference) != 1:
-            raise ValueError(f"Expected one browser entry-point reference: {name}")
+        if index.count(reference) != expected:
+            raise ValueError(
+                f"Expected {expected} browser entry-point references: {name}"
+            )
         version = digest(assets[name])[:16]
         index = index.replace(reference, f'="./{name}?v={version}"')
     assets["index.html"] = index.encode("utf-8")
