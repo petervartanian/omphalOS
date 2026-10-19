@@ -11,6 +11,7 @@ import sys
 import tempfile
 import uuid
 import zipfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +119,14 @@ def _analysis(value: dict[str, Any], case: dict[str, Any]) -> dict[str, Any]:
 
     check_numbers(validated)
     return validated
+
+
+def _review_timestamp(value: str) -> datetime:
+    """Compare recorded instants even when legacy precision differs."""
+    timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if timestamp.tzinfo is None:
+        raise ValueError("Review timestamps must include a time and UTC offset.")
+    return timestamp.astimezone(timezone.utc)
 
 
 class Workspace:
@@ -289,6 +298,13 @@ class Workspace:
                             if review
                             else "awaiting_review"
                         ),
+                        "case_decision": (
+                            review["review"].get("decision") if review else None
+                        ),
+                        "reviewed_by": (
+                            review["review"]["reviewer"] if review else None
+                        ),
+                        "reviewed_at": review["created_at"] if review else None,
                         "review_validation": review_validation,
                         "verification_status": "not_checked",
                     }
@@ -473,16 +489,21 @@ class Workspace:
                         raise OmphalOSError(
                             "Stored review ID differs from its filename."
                         )
+                    _review_timestamp(wrapper["created_at"])
+                    parsed = parse_review(wrapper["review"])
+                    if parsed.run_id != run_id:
+                        raise OmphalOSError("Stored review refers to a different run.")
                     candidates.append({**wrapper, "path": str(path)})
             if not candidates:
                 return None, {"ok": False, "issues": [], "status": "awaiting_review"}
             latest = max(
-                candidates, key=lambda row: (row["created_at"], row["review_id"])
+                candidates,
+                key=lambda row: (
+                    _review_timestamp(row["created_at"]),
+                    row["review_id"],
+                ),
             )
             if not verify_reviews:
-                parsed = parse_review(latest["review"])
-                if parsed.run_id != run_id:
-                    raise OmphalOSError("Stored review refers to a different run.")
                 return latest, {
                     "ok": False,
                     "issues": [],
@@ -657,10 +678,31 @@ class Workspace:
             raise OmphalOSError(
                 "Review is incomplete: " + "; ".join(assessment["issues"])
             )
+        previous, previous_validation = self._review_state(run_id)
+        if previous is None and previous_validation.get("status") != "awaiting_review":
+            raise OmphalOSError(
+                "Stored review history could not be validated: "
+                + "; ".join(previous_validation["issues"])
+            )
+        recorded_at = _review_timestamp(utc_now())
+        if previous:
+            # Web and browser mutations are serialized. A logical timestamp
+            # preserves their saved revision order if the wall clock repeats or
+            # moves backward, without changing existing review wrappers.
+            prior_timestamp = _review_timestamp(previous["created_at"])
+            if recorded_at <= prior_timestamp:
+                try:
+                    recorded_at = prior_timestamp + timedelta(microseconds=1)
+                except OverflowError as exc:
+                    raise OmphalOSError(
+                        "Stored review timestamp leaves no room for a new revision."
+                    ) from exc
         review_id = "review-" + uuid.uuid4().hex
         wrapper = {
             "review_id": review_id,
-            "created_at": utc_now(),
+            "created_at": recorded_at.isoformat(timespec="microseconds").replace(
+                "+00:00", "Z"
+            ),
             "run_manifest_sha256": sha256_file(path / "manifest.json"),
             "review": review,
         }

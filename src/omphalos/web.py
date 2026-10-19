@@ -154,6 +154,66 @@ def _record_research(metadata: dict, table: str, record_id: str) -> dict | None:
     )
 
 
+def _record_evidence(metadata: dict, table: str, record: dict) -> dict[str, Any]:
+    """Keep retained record rows and their original provenance together."""
+    record_id = record[TABLES[table][1]]
+    origin = metadata.get("provenance", {}).get(table, {}).get(record_id)
+    return {
+        "kind": "record",
+        "ref": {"table": table, "record_id": record_id},
+        "table": table,
+        "id": record_id,
+        "record": record,
+        "origin": origin,
+        "identity_research": _record_research(metadata, table, record_id),
+        "source_files": [
+            item
+            for item in metadata.get("source_files", [])
+            if origin and item["path"] == f"originals/{origin['source_file']}"
+        ],
+        "synthetic": metadata.get("synthetic", False),
+    }
+
+
+def _supporting_records(
+    workspace: Workspace, run_id: str, offset: int, limit: int
+) -> dict[str, Any]:
+    """Page all retained diligence, without inferring relevance or filtering scope."""
+    root = safe_child(workspace.root, f"runs/{run_id}")
+    if not root.is_dir():
+        raise RequestError("Run not found.", 404)
+    if not workspace.verify_run(run_id)["ok"]:
+        raise RequestError(
+            "Run integrity failed. Supporting records cannot be presented as verified.",
+            409,
+        )
+    data = read_json(safe_child(root, "data/dataset.json"))
+    if data.get("metadata", {}).get("identity_research"):
+        try:
+            data = load_dataset(root / "data")
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            raise RequestError(
+                "Retained identity research failed validation.", 409
+            ) from exc
+    records = data["tables"].get("diligence", [])
+    if offset > len(records):
+        raise RequestError(
+            "Supporting-record offset exceeds the retained record count."
+        )
+    return {
+        "run_id": run_id,
+        "table": "diligence",
+        "scope": "all_retained_diligence",
+        "total": len(records),
+        "offset": offset,
+        "limit": limit,
+        "rows": [
+            _record_evidence(data.get("metadata", {}), "diligence", record)
+            for record in records[offset : offset + limit]
+        ],
+    }
+
+
 def _finding_evidence(
     workspace: Workspace, run_id: str, finding_id: str, offset: int
 ) -> dict[str, Any]:
@@ -214,25 +274,7 @@ def _finding_evidence(
             record = records.get(table, {}).get(record_id)
             if record is None:
                 raise RequestError("Cited record is absent from the retained run.", 409)
-            origin = metadata.get("provenance", {}).get(table, {}).get(record_id)
-            rows.append(
-                {
-                    "kind": kind,
-                    "ref": ref,
-                    "table": table,
-                    "id": record_id,
-                    "record": record,
-                    "origin": origin,
-                    "identity_research": _record_research(metadata, table, record_id),
-                    "source_files": [
-                        item
-                        for item in metadata.get("source_files", [])
-                        if origin
-                        and item["path"] == f"originals/{origin['source_file']}"
-                    ],
-                    "synthetic": metadata.get("synthetic", False),
-                }
-            )
+            rows.append(_record_evidence(metadata, table, record))
         else:
             record = listings.get(record_id)
             if record is None or any(
@@ -491,6 +533,39 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 self._json(self.server.workspace.get_case(safe_id(parts[2])))
             elif len(parts) == 3 and parts[:2] == ["api", "runs"]:
                 self._json(self.server.workspace.get_run(safe_id(parts[2])))
+            elif (
+                len(parts) == 4
+                and parts[:2] == ["api", "runs"]
+                and parts[3] == "supporting-records"
+            ):
+                query = parse_qs(
+                    urlsplit(self.path).query, keep_blank_values=True, max_num_fields=10
+                )
+                if set(query) - {"offset", "limit"} or any(
+                    len(value) != 1 for value in query.values()
+                ):
+                    raise RequestError(
+                        "Supporting records accept one optional offset and limit."
+                    )
+                offset = query.get("offset", ["0"])[0]
+                limit = query.get("limit", ["40"])[0]
+                for value in (offset, limit):
+                    if not value.isascii() or not value.isdigit() or len(value) > 10:
+                        raise RequestError(
+                            "Supporting-record offset and limit must be nonnegative integers."
+                        )
+                if not 1 <= int(limit) <= 40:
+                    raise RequestError(
+                        "Supporting-record limit must be between 1 and 40."
+                    )
+                self._json(
+                    _supporting_records(
+                        self.server.workspace,
+                        safe_id(parts[2]),
+                        int(offset),
+                        int(limit),
+                    )
+                )
             elif (
                 len(parts) == 4
                 and parts[:2] == ["api", "runs"]

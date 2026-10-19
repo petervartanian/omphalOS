@@ -3,6 +3,7 @@
 const main = document.querySelector('#main');
 const notice = document.querySelector('#notice');
 let cubeMaterial = null;
+let dialogRevision = 0;
 const model = {
   state: null,
   page: 'investigate',
@@ -154,10 +155,15 @@ function reviewRecorded(status) {
   return status === 'reviewed' || status === 'review_recorded';
 }
 
-function reviewStatus(status) {
+function reviewStatus(status, decision) {
   if (status === 'invalid') return badge('Invalid run', 'red');
+  const disposition = caseDecisionStatus(decision);
   return badge(
-    reviewRecorded(status) ? 'Review recorded' : 'Needs review',
+    reviewRecorded(status)
+      ? disposition
+        ? `Recorded: ${disposition}`
+        : 'Review recorded'
+      : 'Needs review',
     reviewRecorded(status) ? '' : 'amber',
   );
 }
@@ -306,7 +312,7 @@ function runTable(runs) {
                 <small>${esc(displayDate(run.created_at))}</small></td>
               <td class="numeric">${esc(formatNumber(run.findings_count))}
                 ${run.not_evaluable_count ? `<small>${run.not_evaluable_count} checks need attention</small>` : ''}</td>
-              <td>${reviewStatus(run.status)}</td>
+              <td>${reviewStatus(run.status, run.case_decision)}</td>
               <td><button class="text-button" data-action="open-run" data-id="${esc(run.run_id)}">
                 ${reviewRecorded(run.status) ? 'View run' : 'Review observations'} →
               </button></td>
@@ -753,7 +759,7 @@ function renderRunDetail() {
       <div class="run-case-id">${esc(run.case.case_id)}</div>
       <h2 class="question">${esc(run.case.question)}</h2>
       <div class="run-meta">
-        ${badge(reviewed ? 'Review recorded' : 'Needs review', reviewed ? '' : 'amber')}
+        ${reviewStatus(reviewed ? 'reviewed' : 'awaiting_review', run.latest_review?.review?.decision)}
         ${run.dataset_metadata?.synthetic ? badge('Synthetic data', 'amber') : ''}
         <span>As of ${esc(run.case.as_of)}</span>
         <span>${verified ? 'Files verified' : badge('File verification failed', 'red')}</span>
@@ -1237,7 +1243,7 @@ function readReview(form) {
   const values = new FormData(form);
   if (form.dataset.reviewScope === 'case') {
     return {
-      schema_version: '2.1',
+      schema_version: '2.2',
       run_id: model.selectedRun,
       reviewer: String(values.get('reviewer') || '').trim(),
       decision: String(values.get('decision') || ''),
@@ -1340,10 +1346,9 @@ function saveReviewDraft() {
     const draft = readReview(form);
     model.reviewDrafts[model.selectedRun] = draft;
     const counter = document.querySelector('#review-count');
-    const message =
-      draft.schema_version === '2.1'
-        ? 'Case decision saved in this draft.'
-        : `${draft.findings.filter(reviewRowComplete).length} of ${draft.findings.length} observations have all assessment fields filled.`;
+    const message = isCaseReview(draft)
+      ? 'Case decision saved in this draft.'
+      : `${draft.findings.filter(reviewRowComplete).length} of ${draft.findings.length} observations have all assessment fields filled.`;
     if (counter && counter.textContent !== message) counter.textContent = message;
     updateDraftIndicator();
     if (model.page === 'investigate') updateFlowCube();
@@ -1468,27 +1473,22 @@ async function submitReview(form) {
   const submittedDraft = JSON.stringify(review);
   if (!model.run?.verification?.ok)
     throw new Error('The retained files must pass verification before a decision can be recorded.');
-  if (
-    review.schema_version !== '2.1' &&
-    model.page === 'investigate' &&
-    flowSummaryNeedsUpdate(review)
-  )
+  if (!isCaseReview(review) && model.page === 'investigate' && flowSummaryNeedsUpdate(review))
     throw new Error(
       'The individual assessments changed. Update the prepared summary or edit it before saving.',
     );
-  if (review.schema_version === '2.1') {
+  if (isCaseReview(review)) {
     if (!['keep_open', 'escalate', 'conclude'].includes(review.decision))
       throw new Error('Choose whether to keep the case open, escalate it, or conclude it.');
     if (review.reviewer.length < 2) throw new Error('Enter the name attached to this decision.');
     if (!review.acknowledge_limitations)
       throw new Error('Confirm that you reviewed the findings and coverage.');
-    if ((review.decision === 'conclude' || review.summary) && review.summary.length < 12)
-      throw new Error('A conclusion needs a specific note explaining the evidence.');
+    if (review.summary.length < 12)
+      throw new Error('Add a specific reason and next step (at least 12 characters).');
   }
-  const incomplete =
-    review.schema_version === '2.1'
-      ? -1
-      : review.findings.findIndex((row) => !reviewRowComplete(row));
+  const incomplete = isCaseReview(review)
+    ? -1
+    : review.findings.findIndex((row) => !reviewRowComplete(row));
   if (incomplete !== -1) {
     model.reviewPage = Math.floor(incomplete / PAGE_SIZE);
     if (model.page === 'investigate') {
@@ -1834,7 +1834,11 @@ function flowCubeFaces() {
     {
       title: 'Assessment',
       complete: reviewReady,
-      status: reviewReady ? 'Recorded' : review ? 'Draft' : '',
+      status: reviewReady
+        ? caseDecisionStatus(run.latest_review.review.decision) || 'Recorded'
+        : review
+          ? 'Draft'
+          : '',
       value: reviewReady ? 'Recorded' : review ? 'Draft' : '—',
       detail: 'Case decision and notes',
     },
@@ -1881,6 +1885,7 @@ function flowCube() {
 function flowGuide() {
   const flow = flowState();
   const run = ['review', 'package'].includes(flow.stage) ? model.run : null;
+  const disposition = caseDecisionStatus(run?.latest_review?.review?.decision);
   const findings = array(run?.analysis?.findings);
   const face = flow.inspectionFace ?? flow.cubeFace;
   const stages = flowCubeFaces();
@@ -1925,9 +1930,7 @@ function flowGuide() {
         ? 'Retained files could not be verified'
         : face >= 4
           ? flowReviewRecorded(run)
-            ? run.latest_export
-              ? 'Evidence package created'
-              : 'Case decision recorded'
+            ? `${disposition ? `Recorded: ${disposition}` : 'Case decision recorded'}${run.latest_export ? ' / Evidence package created' : ''}`
             : model.reviewDrafts[model.selectedRun]
               ? 'Case decision has unsaved changes'
               : run?.latest_review
@@ -1973,7 +1976,13 @@ function savedWorkView() {
     .toSorted((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
   const investigations = runs.map((run) => {
     const title = savedRunTitle(run);
-    return `<li><button type="button" class="saved-work-item" data-flow="resume" data-id="${esc(run.run_id)}"><span class="saved-work-name">${esc(title)}</span><span class="saved-work-meta"><span>${esc(displayDate(run.created_at))}</span><span>${countLabel(run.findings_count, 'observation')}${reviewRecorded(run.status) ? ' / Assessed' : ''}</span></span></button></li>`;
+    const disposition = reviewRecorded(run.status) && caseDecisionStatus(run.case_decision);
+    const assessment = disposition
+      ? ` / Recorded: ${disposition}`
+      : reviewRecorded(run.status)
+        ? ' / Assessed'
+        : '';
+    return `<li><button type="button" class="saved-work-item" data-flow="resume" data-id="${esc(run.run_id)}"><span class="saved-work-name">${esc(title)}</span><span class="saved-work-meta"><span>${esc(displayDate(run.created_at))}</span><span>${countLabel(run.findings_count, 'observation')}${esc(assessment)}</span></span></button></li>`;
   });
   const records = datasets.map((dataset) => {
     const selected = dataset.identity_association === 'user_selected_public_record';
@@ -2287,16 +2296,18 @@ function legacyFlowReviewView() {
     </form>`;
 }
 
-function caseDecisionTitle(decision) {
-  return (
-    { keep_open: 'Keep open', escalate: 'Escalate', conclude: 'Conclude' }[decision] ||
-    'Not recorded'
-  );
+function caseDecisionStatus(decision) {
+  const labels = { keep_open: 'Keep open', escalate: 'Escalated', conclude: 'Concluded' };
+  return Object.hasOwn(labels, decision) ? labels[decision] : '';
+}
+
+function isCaseReview(review) {
+  return ['2.1', '2.2'].includes(review?.schema_version);
 }
 
 function caseReviewDraft() {
   const review = model.reviewDrafts[model.selectedRun] || model.run?.latest_review?.review;
-  return review?.schema_version === '2.1' ? review : {};
+  return isCaseReview(review) ? review : {};
 }
 
 function caseReviewView() {
@@ -2312,8 +2323,8 @@ function caseReviewView() {
   return `<div class="flow-intro case-heading"><h1>Assessment</h1><p>${esc(run.dataset_metadata?.label || run.case?.question || 'Retained investigation')}</p>
     <p class="small muted">${countLabel(array(run.analysis?.findings).length, 'observation')} / ${countLabel(complete, 'completed check')}${gaps ? ` / ${countLabel(gaps, 'check')} not evaluated` : ''}${run.dataset_metadata?.synthetic ? ' / Fictional example' : ''}</p></div>
     ${array(run.review_validation?.issues).length ? `<div class="callout error">${list(run.review_validation.issues)}</div>` : ''}
-    <div class="actions"><button type="button" class="text-button" data-flow="finding-list">Review findings ↗</button><button type="button" class="text-button" data-flow="coverage">Checks and sources ↗</button></div>
-    ${saved ? `<p class="small muted">Recorded by ${esc(saved.reviewer)}${saved.schema_version === '2.1' ? `: ${esc(caseDecisionTitle(saved.decision))}` : ' in an earlier review'}. Saving keeps that record and adds a revision.</p>` : ''}
+    <div class="actions"><button type="button" class="text-button" data-flow="finding-list">Review findings ↗</button>${supportingRecordsAction(run)}<button type="button" class="text-button" data-flow="coverage">Checks and sources ↗</button></div>
+    ${saved ? `<p class="small muted">Recorded by ${esc(saved.reviewer)}${isCaseReview(saved) ? `: ${esc(caseDecisionStatus(saved.decision))}` : ' in an earlier review'}. Saving keeps that record and adds a revision.</p>` : ''}
     <form id="review-form" data-review-scope="case" class="case-decision-form" data-dirty="${model.reviewDrafts[model.selectedRun] ? 'true' : 'false'}">
       <h2>Case decision</h2>
       <fieldset class="case-decisions"><legend class="sr-only">Decision for this investigation</legend>
@@ -2328,7 +2339,7 @@ function caseReviewView() {
           )
           .join('')}
       </fieldset>
-      <div class="field"><label for="review-summary">Case note <span class="muted">Optional unless concluding</span></label><textarea id="review-summary" name="summary" rows="3" minlength="12" maxlength="10000" placeholder="Add evidence, reasoning, or a handoff note.">${esc(draft.summary || '')}</textarea></div>
+      <div class="field"><label for="review-summary">Reason and next step</label><textarea id="review-summary" name="summary" rows="3" required minlength="12" maxlength="10000" placeholder="Explain the evidence, remaining uncertainty, and what happens next.">${esc(draft.summary || '')}</textarea></div>
       <div class="field case-reviewer"><label for="reviewer">Your name</label><input id="reviewer" name="reviewer" value="${esc(draft.reviewer || '')}" required minlength="2" maxlength="200" autocomplete="name"></div>
       <label class="inline-check"><input type="checkbox" name="acknowledge_limitations" required ${draft.acknowledge_limitations ? 'checked' : ''}><span>I reviewed the findings and coverage, including missing evidence.</span></label>
       <div class="form-actions"><button type="submit" ${run.verification?.ok ? '' : 'disabled'}>Record case decision →</button></div>
@@ -2512,7 +2523,7 @@ function findingEvidenceView(run, index) {
           ]),
         )
       : {};
-  return `<article class="finding-detail"><nav class="finding-detail-nav" aria-label="Finding navigation"><button type="button" class="text-button" data-flow="finding-list">← All findings</button><button type="button" class="text-button" data-flow="review-summary">Case assessment ↗</button></nav>
+  return `<article class="finding-detail"><nav class="finding-detail-nav" aria-label="Finding navigation"><button type="button" class="text-button" data-flow="finding-list">← All findings</button>${supportingRecordsAction(run)}<button type="button" class="text-button" data-flow="review-summary">Case assessment ↗</button></nav>
     <header class="flow-intro"><span class="object-label">${esc(
       array(finding.entity_ids)
         .map((id) => retainedEntityName(id, run))
@@ -2539,8 +2550,8 @@ function flowPackageView() {
   const pending = Boolean(review && model.reviewDrafts[model.selectedRun] && !ready);
   return `<div class="flow-intro"><h1>Evidence package</h1><p>Original records, results, and the recorded assessment.</p></div>${flowLegacyNote(run)}
     ${run?.dataset_metadata?.synthetic ? `<p>${badge('Synthetic example', 'amber')}</p>` : ''}
-    <section class="flow-section"><h2>Recorded assessment</h2>${review?.schema_version === '2.1' ? `<h3>${esc(caseDecisionTitle(review.decision))}</h3>${review.summary ? `<p>${esc(review.summary)}</p>` : ''}` : `<p>${esc(review?.summary || 'Record a case decision before creating an evidence package.')}</p>`}<p class="small muted">Reviewer: ${esc(review?.reviewer || 'Not recorded')}</p>
-      ${review?.schema_version === '2.1' ? `<p class="small muted">Assessment covers ${countLabel(array(review.scope_finding_ids).length, 'observation')}.</p>` : `<div class="review-progress"><span>${rows.filter((row) => row.disposition === 'follow_up').length} follow up</span><span>${rows.filter((row) => row.disposition === 'escalate').length} escalate</span><span>${rows.filter((row) => row.disposition === 'explained').length} explained</span></div>`}
+    <section class="flow-section"><h2>Recorded assessment</h2>${isCaseReview(review) ? `<h3>${esc(caseDecisionStatus(review.decision))}</h3>${review.summary ? `<p>${esc(review.summary)}</p>` : ''}` : `<p>${esc(review?.summary || 'Record a case decision before creating an evidence package.')}</p>`}<p class="small muted">Reviewer: ${esc(review?.reviewer || 'Not recorded')}</p>
+      ${isCaseReview(review) ? `<p class="small muted">Assessment covers ${countLabel(array(review.scope_finding_ids).length, 'observation')}.</p>` : `<div class="review-progress"><span>${rows.filter((row) => row.disposition === 'follow_up').length} follow up</span><span>${rows.filter((row) => row.disposition === 'escalate').length} escalate</span><span>${rows.filter((row) => row.disposition === 'explained').length} explained</span></div>`}
       ${pending ? '<p class="callout">This saved decision has unsaved edits. Record those changes before creating a package.</p>' : ''}
       <div class="actions">${ready && run.latest_export ? '' : `<button type="button" data-action="export" ${ready ? '' : 'disabled'}>Create evidence package →</button>`}<button type="button" class="${pending ? '' : 'secondary'}" data-flow="review-summary">${pending ? 'Finish the case decision' : 'Revise assessment'}</button></div><div id="run-result" class="result-box">${ready && run.latest_export ? packageDownload(run.latest_export) : ''}</div>
     </section><section class="flow-section"><h2>Evidence integrity</h2><p class="small muted">Verify the saved files or repeat the analysis against them.</p><div class="actions"><button type="button" class="secondary" data-action="verify">Verify files</button><button type="button" class="secondary" data-action="replay">Replay analysis</button></div></section>`;
@@ -2556,9 +2567,70 @@ function flatSections(html) {
 }
 
 function showFlowDocument(title, content) {
+  dialogRevision += 1;
   document.querySelector('#dialog-title').textContent = title;
   document.querySelector('#dialog-content').innerHTML = flatSections(content);
   document.querySelector('#evidence-dialog').showModal();
+}
+
+function supportingRecordsAction(run) {
+  return run?.verification?.ok && run.dataset_metadata?.counts?.diligence > 0
+    ? '<button type="button" class="text-button" data-flow="supporting-records" aria-haspopup="dialog">Supporting records ↗</button>'
+    : '';
+}
+
+function supportingRecordsView(evidence) {
+  const rows = array(evidence.rows);
+  if (!rows.length) return '<p class="small muted">No supporting records are retained.</p>';
+  return `<section class="supporting-records"><p class="small muted">All retained diligence records, including records that produced no finding.</p>
+    <div class="table-wrap"><table><thead><tr><th scope="col">Date</th><th scope="col">Entity</th><th scope="col">Record</th><th scope="col">Supporting context</th><th scope="col">Provenance</th></tr></thead><tbody>${rows
+      .map(
+        (row) =>
+          `<tr><td>${esc(displayDate(row.record?.date) || 'Not supplied')}</td><td>${evidenceTableCell('entity_id', row.record?.entity_id)}</td><td><strong>${esc(row.record?.title)}</strong><small>${esc(row.id)}</small></td><td>${esc(row.record?.text).replaceAll('\n', '<br>')}${row.record?.source_url ? `<p>${sourceLink(row.record.source_url, 'Source link ↗')}</p>` : ''}</td><td><button type="button" class="text-button" data-action="evidence" data-table="diligence" data-id="${esc(row.id)}" data-supporting-offset="${evidence.offset}" aria-label="Open ${esc(row.record?.title || row.id)} with provenance">View ↗</button></td></tr>`,
+      )
+      .join('')}</tbody></table></div>
+    <div class="actions evidence-pagination"><span class="small muted">${evidence.offset + 1}–${evidence.offset + rows.length} of ${evidence.total} records</span><button type="button" class="text-button" data-flow="supporting-records" data-offset="${Math.max(0, evidence.offset - evidence.limit)}" ${evidence.offset === 0 ? 'disabled' : ''}>Previous</button><button type="button" class="text-button" data-flow="supporting-records" data-offset="${evidence.offset + rows.length}" ${evidence.offset + rows.length >= evidence.total ? 'disabled' : ''}>Next</button></div></section>`;
+}
+
+async function openSupportingRecords(offset = 0) {
+  preserveDrafts();
+  if (!model.run?.verification?.ok)
+    throw new Error(
+      'The retained files must pass verification before supporting records can open.',
+    );
+  const view = currentView();
+  const retainedRun = model.run;
+  showFlowDocument(
+    'Supporting records',
+    '<p class="small muted" role="status">Loading supporting records…</p>',
+  );
+  const revision = dialogRevision;
+  const current = () => viewIsCurrent(view) && revision === dialogRevision;
+  try {
+    const evidence = await api(
+      `runs/${encodeURIComponent(view.runId)}/supporting-records?offset=${offset}&limit=40`,
+    );
+    if (current()) {
+      document.querySelector('#dialog-content').innerHTML = supportingRecordsView(evidence);
+      notice.hidden = true;
+    }
+  } catch (error) {
+    if (error.status === 409) {
+      retainedRun.verification = { ok: false, issues: [error.message] };
+      if (model.run === retainedRun && ['investigate', 'runs'].includes(model.page)) {
+        preserveDrafts();
+        if (model.page === 'investigate') renderGuided();
+        else renderRuns();
+      }
+    }
+    if (current()) {
+      document.querySelector('#dialog-content').innerHTML =
+        `<div class="callout error"><p>${esc(error.message)}</p>${error.status === 409 ? '' : `<button type="button" class="secondary" data-flow="supporting-records" data-offset="${offset}">Retry records</button>`}</div>`;
+      notice.hidden = true;
+    }
+  } finally {
+    if (notice.className === 'notice busy') notice.hidden = true;
+  }
 }
 
 function flowScreeningBrief(run) {
@@ -2601,7 +2673,7 @@ function flowFindingsView() {
     ${flowScreeningBrief(run)}
     ${observations.length ? `<section class="flow-section"><h2>${countLabel(observations.length, 'observation')}</h2>${indexView(observations)}</section>` : ''}
     ${missing.length ? `<section class="flow-section"><div class="panel-heading"><h2>Missing context</h2>${run.dataset_metadata?.counts?.entities === 1 ? '<button type="button" class="text-button" data-flow="research-identity">Research identity →</button>' : ''}</div>${indexView(missing)}</section>` : ''}
-    <div class="object-next"><button type="button" data-flow="findings-reviewed">${flowResultsReviewed(run) ? 'Continue to assessment' : 'Mark results reviewed'} →</button><button class="text-button" type="button" data-flow="coverage">Checks and sources ↗</button></div>`;
+    <div class="object-next"><button type="button" data-flow="findings-reviewed">${flowResultsReviewed(run) ? 'Continue to assessment' : 'Mark results reviewed'} →</button>${supportingRecordsAction(run)}<button class="text-button" type="button" data-flow="coverage">Checks and sources ↗</button></div>`;
 }
 
 function flowNotReady(description) {
@@ -2634,7 +2706,7 @@ function flowFaceView(index) {
     const counts = run?.dataset_metadata?.counts || flowDataset()?.counts;
     const research = run?.identity_research || flowDataset()?.identity_research;
     if (research?.selected_candidate)
-      return `<div class="flow-intro"><h1>Records</h1></div>${identityProfile(research.selected_candidate)}<div class="object-next"><button type="button" data-flow="continue">Sources →</button><button type="button" class="text-button" data-flow="identity-info">Source details ↗</button></div>`;
+      return `<div class="flow-intro"><h1>Records</h1></div>${identityProfile(research.selected_candidate)}<div class="object-next"><button type="button" data-flow="continue">Sources →</button>${supportingRecordsAction(run)}<button type="button" class="text-button" data-flow="identity-info">Source details ↗</button></div>`;
     return `<div class="flow-intro"><h1>Records</h1><p>${esc(countsText(counts))}</p></div><div class="records-inventory">${Object.entries(
       counts || {},
     )
@@ -2644,7 +2716,7 @@ function flowFaceView(index) {
       )
       .join(
         '',
-      )}</div><div class="object-next"><button type="button" data-flow="continue">Sources →</button>${counts?.entities === 1 ? '<button type="button" class="text-button" data-flow="research-identity">Research identity</button>' : ''}<button type="button" class="secondary" data-flow="back-data">Choose other records</button></div>`;
+      )}</div><div class="object-next"><button type="button" data-flow="continue">Sources →</button>${supportingRecordsAction(run)}${counts?.entities === 1 ? '<button type="button" class="text-button" data-flow="research-identity">Research identity</button>' : ''}<button type="button" class="secondary" data-flow="back-data">Choose other records</button></div>`;
   }
   if (index === 1) {
     if (run) {
@@ -3383,6 +3455,10 @@ function handleFlowClick(button) {
     flowOperation('Recording source acceptance…', approveFlowSources);
   if (action === 'findings-reviewed') reviewFlowFindings();
   if (action === 'coverage') showFlowDocument('Coverage and missing evidence', renderCoverage());
+  if (action === 'supporting-records')
+    task('Loading supporting records…', () =>
+      openSupportingRecords(Number(button.dataset.offset || 0)),
+    );
   if (action === 'check-info') {
     const check = [
       ...array(flow.plan?.selected_checks),
@@ -3730,13 +3806,37 @@ async function exportRun() {
 }
 
 async function inspectEvidence(button, official = false) {
+  preserveDrafts();
+  const revision = ++dialogRevision;
   const view = currentView();
+  const retainedRun = model.run;
   const id = button.dataset.id;
   const query = official
     ? `source-evidence?id=${encodeURIComponent(id)}`
     : `evidence?table=${encodeURIComponent(button.dataset.table)}&id=${encodeURIComponent(id)}`;
-  const evidence = await api(`runs/${encodeURIComponent(view.runId)}/${query}`);
-  if (!viewIsCurrent(view)) return;
+  let evidence;
+  try {
+    evidence = await api(`runs/${encodeURIComponent(view.runId)}/${query}`);
+  } catch (error) {
+    if (error.status === 409) {
+      retainedRun.verification = { ok: false, issues: [error.message] };
+      if (model.run === retainedRun && ['investigate', 'runs'].includes(model.page)) {
+        preserveDrafts();
+        if (model.page === 'investigate') renderGuided();
+        else renderRuns();
+      }
+      if (viewIsCurrent(view) && revision === dialogRevision)
+        showFlowDocument(
+          'Evidence unavailable',
+          `<p class="callout error">${esc(error.message)}</p>`,
+        );
+    }
+    throw error;
+  }
+  if (!viewIsCurrent(view) || revision !== dialogRevision) {
+    if (notice.className === 'notice busy') notice.hidden = true;
+    return;
+  }
   document.querySelector('#dialog-title').textContent = official
     ? evidence.record.name || `Official source / ${id}`
     : `${human(evidence.table)} / ${id}`;
@@ -3762,6 +3862,10 @@ async function inspectEvidence(button, official = false) {
   if (model.page === 'investigate') {
     const panel = document.querySelector('#dialog-content');
     panel.innerHTML = flatSections(panel.innerHTML);
+  }
+  if (button.dataset.supportingOffset !== undefined) {
+    const panel = document.querySelector('#dialog-content');
+    panel.innerHTML = `<button type="button" class="text-button" data-flow="supporting-records" data-offset="${esc(button.dataset.supportingOffset)}">← Supporting records</button>${panel.innerHTML}`;
   }
   document.querySelector('#evidence-dialog').showModal();
   notice.hidden = true;
@@ -3934,10 +4038,27 @@ document.querySelector('.skip-link').addEventListener('click', (event) => {
   event.preventDefault();
   main.focus();
 });
-document
-  .querySelector('#close-dialog')
-  .addEventListener('click', () => document.querySelector('#evidence-dialog').close());
+document.querySelector('#close-dialog').addEventListener('click', () => {
+  dialogRevision += 1;
+  document.querySelector('#evidence-dialog').close();
+});
+document.querySelector('#evidence-dialog').addEventListener('close', () => {
+  dialogRevision += 1;
+});
 document.querySelector('#evidence-dialog').addEventListener('click', (event) => {
+  const supporting = event.target.closest('button');
+  if (supporting?.dataset.flow === 'supporting-records') {
+    if (!supporting.disabled && !model.operation) handleFlowClick(supporting);
+    return;
+  }
+  if (
+    supporting?.dataset.action === 'evidence' &&
+    supporting.dataset.supportingOffset !== undefined
+  ) {
+    if (!supporting.disabled)
+      task('Loading the retained supporting record…', () => inspectEvidence(supporting));
+    return;
+  }
   const button = event.target.closest('.saved-work button[data-flow]');
   if (!button || model.operation) return;
   document.querySelector('#evidence-dialog').close();

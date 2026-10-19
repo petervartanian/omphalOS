@@ -164,7 +164,7 @@ def test_return_to_overview_captures_unsaved_case_decision_and_reopens_it() -> N
   click(flowButton('overview'));
   assert.equal(run('model.flow.surfaceOpen'), false);
   const draft = JSON.parse(run('JSON.stringify(model.reviewDrafts.runA)'));
-  assert.equal(draft.schema_version, '2.1');
+  assert.equal(draft.schema_version, '2.2');
   assert.equal(draft.reviewer, 'Analyst Example');
   assert.equal(draft.decision, 'keep_open');
   assert.equal(draft.summary, note);

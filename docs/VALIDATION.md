@@ -1,6 +1,18 @@
 # Validation of omphalOS 2.0.0
 
-Executed October 13–16, 2026 (America/New_York), on an Apple Silicon Mac. Each dated section records its own checkpoint; earlier counts and interface descriptions are historical. These results describe actual checks, not a claim that the system is perfect, legally certified, or operationally calibrated.
+Executed October 13–18, 2026 (America/New_York), on an Apple Silicon Mac. Each dated section records its own checkpoint; earlier counts and interface descriptions are historical. These results describe actual checks, not a claim that the system is perfect, legally certified, or operationally calibrated.
+
+## Investigator simulation and handoff, October 18
+
+The [simulation results](SIMULATION_RESULTS.md) map the exercised synthetic cases to the [public research](SIMULATION_RESEARCH.md). Tests reproduce clock collisions and backward corrections, distinct case dispositions, missing coverage, contrary identity context, new inputs, review revisions, retained supporting records, legacy review compatibility, and stale or failed evidence responses. New interface decisions use review 2.2 with one required reason and next-step note; earlier reviews are not silently rewritten.
+
+An isolated headless Playwright MCP browser ran the static WebAssembly edition with a fictional supplier, buyer, one shipment, three payments, an installment explanation, and an inspection note. Import completed only Records. Source acceptance and execution completed their own stages. The payment observation exposed three payments totaling USD 30,000 with original-row provenance; six unavailable checks remained explicit. An empty decision note was rejected. An authored keep-open decision survived export and reload. Revising it to escalation removed the earlier package's current-completion state and produced a distinct export. Supporting records opened from Assessment with provenance while preserving the decision note.
+
+The downloaded revised package passed verification with 28 payload files. It retained the exact uploaded bytes, both supplied explanations, the analyst's next action, readable check coverage, and an explicit absence of separate supervisory approval. Its SHA-256 was `ec25053bbfc14a4315c3558d3b345e21d48298820d2b282a1c551ebb1c75d7a3`. The default overview had no document overflow at 1280×900 and 390×844. The report loaded without remote assets or horizontal document overflow. These are targeted browser observations, not a comprehensive accessibility or practitioner-usability study.
+
+The actual pinned WebAssembly runtime passed review 2.2, supporting-record routing, export, verification, replay, reopening, and backup/restore with network access disabled. The browser build contains 30 verified application/runtime files and no synthetic workspace. Existing Go/Rust verifier binaries matched the unchanged native source and passed their 24 conformance subtests; local toolchains were unavailable for rebuilding. CI is configured to rebuild them independently on three operating systems.
+
+During development, one run correctly stopped after report source was edited while its process was alive. The final integrated check uses frozen source. The expected duplicate-ZIP warning comes from a negative archive test.
 
 ## Explicit stage review, October 16
 
