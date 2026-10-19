@@ -620,6 +620,47 @@ def test_scoping_preserves_literal_evidence_paths_and_text():
     assert original["latest_export"]["download_url"] == "/api/exports/package.zip"
 
 
+@pytest.mark.parametrize(
+    "server_path",
+    [
+        "/private/server/path",
+        r"C:\private\server\path",
+        "C:/private/server/path",
+        r"\\server\share\private\path",
+        "//server/share/private/path",
+        r"\private\server\path",
+        r"C:relative\server\path",
+        "runs/example/review.json",
+        r"runs\example\review.json",
+    ],
+)
+def test_scoping_redacts_metadata_paths_on_every_platform(server_path):
+    record = {"path": server_path, "download_url": "/api/exports/literal-evidence.zip"}
+    review = {"summary": server_path, "raw_record": record}
+    original = {
+        "path": server_path,
+        "record": record,
+        "raw_record": record,
+        "latest_export": {
+            "path": server_path,
+            "download_url": "/api/exports/package.zip",
+        },
+        "latest_review": {"path": server_path, "review": review},
+        "handoff": {"path": server_path, "download_url": "/api/exports/original.zip"},
+    }
+    prefix = "/team/api/matters/example/engine/"
+    result = _public(original, prefix)
+    assert "path" not in result
+    for key in ("latest_export", "latest_review", "handoff"):
+        assert "path" not in result[key]
+        assert original[key]["path"] == server_path
+    assert result["record"] == record and result["raw_record"] == record
+    assert result["latest_review"]["review"] == review
+    assert result["latest_export"]["download_url"] == prefix + "exports/package.zip"
+    assert result["handoff"]["download_url"] == prefix + "exports/original.zip"
+    assert original["path"] == server_path
+
+
 def test_unauthorized_password_change_does_not_start_hashing(team, monkeypatch):
     client = Client(team[0], "viewer")
 

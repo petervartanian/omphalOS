@@ -50,7 +50,10 @@ def _public(value: Any, prefix: str) -> Any:
     if not isinstance(value, dict):
         return value
     result = dict(value)
-    if isinstance(result.get("path"), str) and Path(result["path"]).is_absolute():
+    # These response wrappers use `path` for server filesystem metadata, whether
+    # absolute, drive-relative, or workspace-relative. Its syntax must not depend
+    # on the OS serving the request. Record/review contents are not traversed.
+    if isinstance(result.get("path"), str):
         del result["path"]
     for key in ("latest_export", "latest_review", "handoff"):
         if isinstance(result.get(key), dict):
