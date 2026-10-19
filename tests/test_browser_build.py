@@ -89,6 +89,9 @@ def test_browser_entry_urls_hash_transformed_assets_without_changing_native_inde
         "reviewer.js",
         "browser.js",
         "app.js",
+        "logo.svg",
+        "favicon.ico",
+        "apple-touch-icon.png",
     }
     for name, version in versions.items():
         assert version == builder.digest(assets[name])[:16]
@@ -98,23 +101,33 @@ def test_browser_entry_urls_hash_transformed_assets_without_changing_native_inde
     assert b'src="/app.js"' in original_index and b"?v=" not in original_index
 
 
-def test_changed_renderer_gets_new_url_while_unchanged_assets_keep_their_urls(
-    builder, tmp_path
+@pytest.mark.parametrize("changed", ["box.js", "logo.svg"])
+def test_changed_asset_gets_new_url_while_unchanged_assets_keep_their_urls(
+    builder, tmp_path, changed
 ):
     directory = builder.ROOT / "src" / "omphalos" / "ui"
     for name in builder.UI_FILES:
         (tmp_path / name).write_bytes((directory / name).read_bytes())
     first = builder.browser_interface(tmp_path)
-    (tmp_path / "box.js").write_bytes(
-        first["box.js"] + b"\n// Updated renderer fixture\n"
+    (tmp_path / changed).write_bytes(
+        first[changed] + b"\n<!-- Updated asset fixture -->\n"
     )
     second = builder.browser_interface(tmp_path)
-    for name in ("styles.css", "box.js", "reviewer.js", "browser.js", "app.js"):
+    for name in (
+        "styles.css",
+        "box.js",
+        "reviewer.js",
+        "browser.js",
+        "app.js",
+        "logo.svg",
+        "favicon.ico",
+        "apple-touch-icon.png",
+    ):
         first_url = f"./{name}?v={builder.digest(first[name])[:16]}".encode()
         second_url = f"./{name}?v={builder.digest(second[name])[:16]}".encode()
         assert first_url in first["index.html"]
         assert second_url in second["index.html"]
-        assert (first_url != second_url) is (name == "box.js")
+        assert (first_url != second_url) is (name == changed)
     assert builder.browser_interface(tmp_path) == second
 
 
