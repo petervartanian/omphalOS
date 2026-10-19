@@ -30,6 +30,7 @@ UI_FILES = {
     "index.html",
     "app.js",
     "box.js",
+    "reviewer.js",
     "styles.css",
     "browser.js",
     "browser-worker.js",
@@ -190,7 +191,7 @@ def browser_interface(directory: Path) -> dict[str, bytes]:
             raise ValueError(f"Required browser interface asset is missing: {name}")
         assets[name] = browser_asset(name, source.read_bytes())
     index = assets["index.html"].decode("utf-8")
-    for name in ("styles.css", "box.js", "browser.js", "app.js"):
+    for name in ("styles.css", "box.js", "reviewer.js", "browser.js", "app.js"):
         reference = f'="./{name}"'
         if index.count(reference) != 1:
             raise ValueError(f"Expected one browser entry-point reference: {name}")

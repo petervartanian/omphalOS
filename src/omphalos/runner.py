@@ -270,7 +270,10 @@ class Workspace:
         anchored to the current manifest. Its assessment and retained evidence
         remain unchecked until the run is opened or an explicit check is made.
         """
+        from .collaboration import handoff_labels
+
         records: list[dict[str, Any]] = []
+        imported_labels = handoff_labels(self)
         for path in sorted(safe_child(self.root, "runs").iterdir(), reverse=True):
             if not path.is_dir() or path.is_symlink() or path.name.startswith("."):
                 continue
@@ -286,6 +289,7 @@ class Workspace:
                         "run_id": path.name,
                         "case_id": manifest["case_id"],
                         "dataset_id": retained_case["dataset_id"],
+                        "dataset_label": imported_labels.get(path.name, ""),
                         "created_at": manifest["created_at"],
                         "analysis_digest": manifest["analysis_digest"],
                         "findings_count": len(analysis["findings"]),
@@ -591,7 +595,10 @@ class Workspace:
             "plan_approved": bool(recorded_workflow),
             **(recorded_workflow or {}),
         }
+        from .collaboration import handoff_for_run
+
         return {
+            "handoff": handoff_for_run(self, run_id) if verification["ok"] else None,
             "workflow": workflow_state,
             "entity_names": entity_names,
             "screening_source": screening_source,
@@ -652,7 +659,13 @@ class Workspace:
                     return None
                 if archive.read("run/manifest.json") != manifest.read_bytes():
                     return None
-            return {"name": name, "download_url": f"/api/exports/{name}"}
+            return {
+                "name": name,
+                "download_url": f"/api/exports/{name}",
+                "sha256": saved["sha256"],
+                "review_id": saved["review_id"],
+                "run_manifest_sha256": saved["run_manifest_sha256"],
+            }
         except (ValueError, OSError, KeyError, TypeError, zipfile.BadZipFile):
             return None
 

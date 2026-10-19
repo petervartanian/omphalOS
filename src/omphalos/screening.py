@@ -13,6 +13,10 @@ from difflib import SequenceMatcher
 from .sources import effective_date_issues
 from .util import canonical_json, sha256_bytes
 
+# Keep pathological exact-name collisions from exhausting a browser workspace.
+# Crossing this limit yields unavailable coverage, never a truncated clean result.
+MAX_RETAINED_CANDIDATES = 10_000
+
 # These identify organizational form, not a particular legal entity. Only full
 # phrases are removed for descriptive wording: "research" or "production" alone
 # may be part of a distinctive name. Original names and aliases are never edited.
@@ -278,6 +282,9 @@ def candidate_findings(
     eligible_entities = eligible_screening_entities(entities)
     findings = []
     omitted = 0
+    retained_exact_or_identifier = 0
+    total_retained = 0
+    entities_compared = 0
     # Prepare Unicode, sorted tokens, and character counts only once per source name.
     prepared = [
         (
@@ -296,6 +303,7 @@ def candidate_findings(
         Decimal(0), 2 * minimum_score - 1
     ).as_integer_ratio()
     for entity in eligible_entities:
+        entities_compared += 1
         candidates = []
         names = [
             _prepare_candidate_name(name, primary=index == 0)
@@ -406,10 +414,40 @@ def candidate_findings(
                 )
             )
         candidates.sort(key=lambda item: (not bool(item[4]), -item[0], item[1]))
-        omitted += max(0, len(candidates) - max_candidates)
-        for _, _, entry, best, ids, country_context, id_comparisons in candidates[
-            :max_candidates
-        ]:
+        # An approximate-name display limit must not hide a source entry with
+        # an exact normalized-name or typed-identifier match. Those entries can
+        # carry different list categories, dates, or programs and need review.
+        retained = []
+        approximate_count = 0
+        for candidate in candidates:
+            if candidate[4] or candidate[0] == 1:
+                retained.append(candidate)
+                retained_exact_or_identifier += 1
+            elif approximate_count < max_candidates:
+                retained.append(candidate)
+                approximate_count += 1
+        entity_omitted = len(candidates) - len(retained)
+        omitted += entity_omitted
+        total_retained += len(retained)
+        if total_retained > MAX_RETAINED_CANDIDATES:
+            # Check before building findings for this entity. Drop earlier
+            # findings too: a partial screening must not resemble a completed
+            # result. The lower bound is explicit because later entities have
+            # not been compared.
+            return [], {
+                "entities_considered": entities_compared,
+                "entities_without_usable_identity": len(entities)
+                - len(eligible_entities),
+                "source_records_considered": len(considered),
+                "source_records_excluded_by_dates": len(entries) - len(considered),
+                "source_records_with_inconsistent_dates": len(inconsistent_dates),
+                "candidates_omitted_by_display_limit": omitted,
+                "candidates_retained_exact_or_identifier": 0,
+                "candidate_output_limit_exceeded": True,
+                "candidate_output_limit": MAX_RETAINED_CANDIDATES,
+                "candidate_count_at_least": total_retained,
+            }
+        for _, _, entry, best, ids, country_context, id_comparisons in retained:
             key = [entity["entity_id"], snapshot["snapshot_id"], entry["record_id"]]
             alias_quality = [
                 a.get("quality")
@@ -436,6 +474,17 @@ def candidate_findings(
                         {"table": "entities", "record_id": entity["entity_id"]}
                     ],
                     "metrics": {
+                        "candidate_selection": (
+                            "typed_identifier"
+                            if ids
+                            else (
+                                "exact_normalized_name"
+                                if best[0] == 1
+                                else "approximate_name"
+                            )
+                        ),
+                        "candidates_for_entity": len(candidates),
+                        "approximate_candidates_omitted_for_entity": entity_omitted,
                         "name_similarity": format(
                             best[0].quantize(Decimal("0.0001")), "f"
                         ),
@@ -515,4 +564,8 @@ def candidate_findings(
         "source_records_excluded_by_dates": len(entries) - len(considered),
         "source_records_with_inconsistent_dates": len(inconsistent_dates),
         "candidates_omitted_by_display_limit": omitted,
+        "candidates_retained_exact_or_identifier": retained_exact_or_identifier,
+        "candidate_output_limit_exceeded": False,
+        "candidate_output_limit": MAX_RETAINED_CANDIDATES,
+        "candidate_count_at_least": total_retained,
     }

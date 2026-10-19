@@ -83,7 +83,13 @@ def test_browser_entry_urls_hash_transformed_assets_without_changing_native_inde
     assets = builder.browser_interface(directory)
     html = assets["index.html"].decode()
     versions = dict(re.findall(r'(?:src|href)="\./([^"?]+)\?v=([0-9a-f]{16})"', html))
-    assert set(versions) == {"styles.css", "box.js", "browser.js", "app.js"}
+    assert set(versions) == {
+        "styles.css",
+        "box.js",
+        "reviewer.js",
+        "browser.js",
+        "app.js",
+    }
     for name, version in versions.items():
         assert version == builder.digest(assets[name])[:16]
     assert html.index('src="./browser.js?v=') < html.index('src="./app.js?v=')
@@ -103,7 +109,7 @@ def test_changed_renderer_gets_new_url_while_unchanged_assets_keep_their_urls(
         first["box.js"] + b"\n// Updated renderer fixture\n"
     )
     second = builder.browser_interface(tmp_path)
-    for name in ("styles.css", "box.js", "browser.js", "app.js"):
+    for name in ("styles.css", "box.js", "reviewer.js", "browser.js", "app.js"):
         first_url = f"./{name}?v={builder.digest(first[name])[:16]}".encode()
         second_url = f"./{name}?v={builder.digest(second[name])[:16]}".encode()
         assert first_url in first["index.html"]

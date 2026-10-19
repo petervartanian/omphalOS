@@ -76,6 +76,10 @@ The export path scans textual evidence and reports for defined patterns: AWS acc
 
 This is a limited accidental-disclosure check. It is not a comprehensive secret detector or a classification-boundary control. Nothing in a successful scan establishes permission to distribute an input or report.
 
+## Independent reviewer receipts
+
+A detached browser reviewer receipt binds a decision and reason to the exact package digest, run, analysis, and assessment revision. It is verified with WebCrypto and an externally confirmed reviewer key. It is not appended to the reviewed ZIP or silently applied to newer packages. See [TEAM_REVIEW.md](TEAM_REVIEW.md) for the protocol, passphrase protection, trust removal, conflict handling, and storage boundaries. This feature does not change the inventory verifier, authenticate organization roles, or rewrite historical reports.
+
 ## Optional external signatures
 
 ```sh

@@ -64,7 +64,7 @@ async function main() {
   );
   const result = JSON.parse(
     pyodide.runPython(`
-import sys, json, ssl, http.server, socket, importlib.metadata, hashlib, io, zipfile
+import sys, json, ssl, http.server, socket, importlib.metadata, hashlib, io, zipfile, base64
 sys.path.insert(0, '/app')
 from pydantic import BaseModel, ValidationError
 from omphalos.models import Case
@@ -142,6 +142,26 @@ assert app.export_bytes(package['download_url']) == archive
 app = BrowserApp('/restored-workspace')
 assert request('/api/state')['token'] == state['token']
 assert request('/api/runs/' + run_id + '/verify', {})['ok']
+app = BrowserApp('/handoff-recipient')
+handoff_file = {'name': 'received.zip', 'content_base64': base64.b64encode(archive).decode('ascii')}
+preview = request('/api/handoffs/inspect', {'file': handoff_file})
+assert preview['package_sha256'] == package['sha256']
+received = request('/api/handoffs/import', {'file': handoff_file, 'expected_sha256': preview['package_sha256']})
+assert received['imported'] and received['run_id'] == run_id
+received_run = request('/api/runs/' + run_id)
+assert received_run['latest_export']['sha256'] == package['sha256']
+assert received_run['handoff']['continuation_dataset_id'] == received['continuation_dataset_id']
+assert app.export_bytes(received['download_url']) == archive
+assert not request('/api/handoffs/import', {'file': handoff_file, 'expected_sha256': preview['package_sha256']})['imported']
+recipient_backup = app.backup_bytes()
+app = BrowserApp('/handoff-recovered')
+assert app.restore_bytes(recipient_backup)['status'] == 200
+assert request('/api/runs/' + run_id)['handoff']['package_sha256'] == package['sha256']
+continued_case = app.context.workspace.get_case(received['continuation_case_id'])
+assert 'workflow' not in continued_case
+continued = app.context.workspace.run_case(received['continuation_case_id'])
+assert continued['run_id'] != run_id
+assert app.context.workspace.get_run(continued['run_id'])['latest_review'] is None
 json.dumps({
     'python': '.'.join(str(v) for v in sys.version_info[:3]),
     'pydantic': importlib.metadata.version('pydantic'),
@@ -154,6 +174,7 @@ json.dumps({
     'workspace_reopened': True,
     'backup_restored_and_reopened': True,
     'case_decision_and_reason_preserved': True,
+    'handoff_import_reopen_backup_continue': True,
     'export_bytes': len(archive),
 })
 `),

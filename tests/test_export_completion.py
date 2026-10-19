@@ -20,6 +20,9 @@ def test_package_completion_requires_current_review_and_survives_reopen(workspac
     assert retained == {
         "name": exported["name"],
         "download_url": "/api/exports/" + exported["name"],
+        "sha256": exported["digest"],
+        "review_id": first["review_id"],
+        "run_manifest_sha256": read_json(Path(first["path"]))["run_manifest_sha256"],
     }
     workspace.save_review(run_id, case_review(run, "escalate"))
     assert workspace.get_run(run_id)["latest_export"] is None

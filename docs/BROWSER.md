@@ -10,6 +10,10 @@ Use **Open → Download workspace backup** to retain the complete workspace, inc
 
 Workspace backups also preserve work that has not reached assessment or Package. A restore validates the complete file inventory and retained records before replacing this browser's workspace. Its staged replacement can recover an interrupted swap. Backups have a 512 MiB compressed and expanded limit and are private investigation data; their hashes detect changed bytes, not authenticated authorship.
 
+## Case exchange and signed review
+
+Use **Open → Open a case package** to add a verified investigation without replacing the workspace. Continue from separate local copies, or use **Independent review** in Package to sign or check a detached reviewer receipt. WebCrypto handles these P-256 signatures in the browser; the Python engine continues to verify the evidence archive. A reviewer key must be confirmed externally before it is trusted. This is separate from the native CLI Ed25519 verifier. Signing keys are passphrase-encrypted in a separate browser store; keys, trust settings, and receipts are not included in workspace backups. Download receipts separately. See [case handoffs and independent review](TEAM_REVIEW.md) for the workflow, storage limits, and trust model.
+
 ## Build and verify
 
 From the application repository:
@@ -45,7 +49,7 @@ These use the [official Pyodide release](https://github.com/pyodide/pyodide/rele
 
 ## Supported boundaries
 
-The normal import, investigation, assessment, unsigned package, hash verification, and replay workflows use the Python engine. Native command-line detached Ed25519 signature verification is not included in the browser runtime. `cryptography` is not silently replaced by an older version, and the recorded environment identifies the installed browser dependencies. A signed package's publisher signature cannot be authenticated by the browser edition without the optional cryptographic verifier; byte-integrity checks and authenticated authorship are separate claims.
+The normal import, investigation, assessment, unsigned package, hash verification, and replay workflows use the Python engine. Native command-line detached Ed25519 signature verification is not included in the browser runtime. `cryptography` is not silently replaced by an older version, and the recorded environment identifies the installed browser dependencies. A native Ed25519 publisher signature cannot be checked by the browser edition without the optional verifier; the separate P-256 reviewer receipt workflow uses WebCrypto. Byte-integrity checks and authenticated authorship are separate claims.
 
 Live public lookups are subject to each provider's browser access policy. The browser bridge permits direct requests to the Consolidated Screening List, GLEIF, and Wikidata, with the required Wikidata CORS parameter. OFAC's download endpoint does not currently permit direct cross-origin browser access; its published source file can be downloaded and imported. No third-party CORS proxy is used. Source retrieval sends the requested lookup to its public provider; local record processing does not require an application server.
 

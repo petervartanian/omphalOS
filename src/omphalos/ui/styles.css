@@ -1224,13 +1224,19 @@ dialog::backdrop {
   background: #00000045;
 }
 .dialog-heading {
+  position: sticky;
+  top: calc(-1 * var(--space-6));
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
+  padding-top: var(--space-6);
   padding-bottom: var(--space-4);
+  margin-top: calc(-1 * var(--space-6));
   margin-bottom: var(--space-5);
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 .dialog-heading h2 {
   font-size: 18px;

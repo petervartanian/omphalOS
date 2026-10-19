@@ -84,7 +84,7 @@ A passed check does not establish the truth of source records, the quality of a 
 
 ## Scope and operating limits
 
-Local mode serves one analyst on their computer. The website edition saves one workspace in each browser and does not provide organization accounts, shared cases, cross-device synchronization, or role-based access. Download evidence packages for durable copies. It is not a collaborative case-management service. It does not provide a complete beneficial-ownership graph, automatic jurisdiction/license decisions, document OCR, international rule coverage, institution-specific retention enforcement, or legal conclusions. Ownership and diligence rows preserve supplied evidence; they do not establish completeness or an automatic 50 Percent Rule decision.
+Local mode serves one analyst on their computer. The website edition saves one workspace in each browser. It supports verified case-package import, separate continuation, and signed reviewer receipts through [case handoffs and independent review](docs/TEAM_REVIEW.md). It does not provide organization accounts, simultaneous editing, a central case database, cross-device synchronization, or role-based access. Download evidence packages for durable copies. It is not a collaborative case-management service. It does not provide a complete beneficial-ownership graph, automatic jurisdiction/license decisions, document OCR, international rule coverage, institution-specific retention enforcement, or legal conclusions. Ownership and diligence rows preserve supplied evidence; they do not establish completeness or an automatic 50 Percent Rule decision.
 
 Do not interpret an expired listing retained by a publisher as an active restriction, or a later snapshot as a complete historical list. Review source dates and the underlying agency guidance. Public aggregate trade statistics cannot supply the company-level shipment and payment evidence this application needs.
 
@@ -105,6 +105,8 @@ For interface development, use Node.js 24 or newer and run `npm ci --ignore-scri
 [Security boundaries](SECURITY.md), [contribution guide](CONTRIBUTING.md), [data schema](docs/DATA.md), and [independent verifiers](native/README.md).
 
 Application code retains the original **CC0-1.0** license. Packaged Geist and Geist Mono fonts come from `geist@1.7.2` and retain the **SIL Open Font License 1.1**, copied in [font-license.txt](src/omphalos/ui/font-license.txt). Fonts load from the local application, with no third-party font request. Imported data and publisher snapshots retain their own terms and provenance.
+
+The [detection benchmark](docs/DETECTION_BENCHMARK.md) measures labeled synthetic targets, misses, extra observations, and unavailable coverage across all checks, and accepts separately authorized labeled corpora. The [practitioner evaluation protocol](docs/PRACTITIONER_EVALUATION.md) specifies the human study that remains to be conducted.
 
 The [investigator simulations](docs/SIMULATION_RESULTS.md) document the defects found, fixes, executed scenarios, and remaining limits. Their [research basis](docs/SIMULATION_RESEARCH.md) links the public guidance and operational manuals.
 
