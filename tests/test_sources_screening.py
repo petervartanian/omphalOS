@@ -88,7 +88,7 @@ def test_unicode_and_token_order_similarity_not_probability():
     assert name_score("华为技术", "华为技术") == 1
 
 
-def test_snapshot_display_limit_omissions_explicit(tmp_path):
+def test_snapshot_exact_candidates_not_hidden_by_display_limit(tmp_path):
     payload = csl_payload()
     for row in payload["results"]:
         row.pop("start_date", None)
@@ -100,7 +100,8 @@ def test_snapshot_display_limit_omissions_explicit(tmp_path):
         date(2026, 10, 13),
         max_candidates=1,
     )
-    assert len(findings) == 1 and counts["candidates_omitted_by_display_limit"] == 2
+    assert len(findings) == 3 and counts["candidates_omitted_by_display_limit"] == 0
+    assert counts["candidates_retained_exact_or_identifier"] == 3
 
 
 def test_partial_list_rejected(tmp_path):

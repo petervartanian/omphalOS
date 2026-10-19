@@ -20,6 +20,9 @@ const model = {
   reviewPage: 0,
   referenceLimits: {},
   operation: false,
+  handoff: null,
+  independentReview: null,
+  receiptCache: {},
 };
 const PAGE_SIZE = 20;
 const BOX_STEPS = ['I', 'II', 'III', 'IV', 'V', 'VI'];
@@ -236,7 +239,7 @@ async function task(message, fn) {
   if (trigger?.tagName === 'BUTTON') trigger.setAttribute('aria-busy', 'true');
   const controls = [
     ...document.querySelectorAll(
-      '[data-flow="approve-sources"], [data-flow="findings-reviewed"], [data-flow="run"], [data-flow="fetch-run"], [data-flow="import"], [data-flow="plan"], [data-flow="fetch"], [data-flow="repreview"], button[type="submit"], button[data-action="verify"], button[data-action="replay"], button[data-action="export"], button[data-action="open-run"], button[data-action="load-case"], #refresh',
+      '[data-flow="approve-sources"], [data-flow="findings-reviewed"], [data-flow="run"], [data-flow="fetch-run"], [data-flow="import"], [data-flow="plan"], [data-flow="fetch"], [data-flow="repreview"], button[type="submit"], button[data-action="verify"], button[data-action="replay"], button[data-action="export"], button[data-action="open-run"], button[data-action="load-case"], [data-flow="handoff-import"], [data-handoff-file], [data-reviewer-file], [data-reviewer-action], #refresh',
     ),
   ];
   const disabled = controls.map((control) => control.disabled);
@@ -1704,7 +1707,7 @@ function flowLegacyNote(run) {
   if (flowWorkflowRecorded(run)) return '';
   if (!run?.verification?.ok)
     return '<p class="callout error">The retained files could not be verified. Stage approvals cannot be verified.</p>';
-  return `<div class="callout workflow-history"><p>This run has no recorded source acceptance or plan approval. Its saved results and assessment remain available.</p><button type="button" class="text-button" data-flow="investigate-dataset" data-id="${esc(run?.case?.dataset_id || '')}">Review these records anew →</button></div>`;
+  return `<div class="callout workflow-history"><p>This run has no recorded source acceptance or plan approval. Its saved results and assessment remain available.</p><button type="button" class="text-button" data-flow="investigate-dataset" data-id="${esc(run?.handoff?.continuation_dataset_id || run?.case?.dataset_id || '')}">Review these records anew →</button></div>`;
 }
 
 function flowStageAccess(index) {
@@ -1966,7 +1969,9 @@ function flowStartView() {
 
 function savedRunTitle(run) {
   const dataset = array(model.state.datasets).find((item) => item.dataset_id === run.dataset_id);
-  return dataset?.label || run.dataset_id || run.case_id || 'Untitled investigation';
+  return (
+    run.dataset_label || dataset?.label || run.dataset_id || run.case_id || 'Untitled investigation'
+  );
 }
 
 function savedWorkView() {
@@ -2006,7 +2011,77 @@ function savedWorkView() {
     const detail = [kind, countsText(dataset.counts)].filter(Boolean).join(' / ');
     return `<li><button type="button" class="saved-work-item" data-flow="investigate-dataset" data-id="${esc(dataset.dataset_id)}"><span class="saved-work-name">${esc(title)}</span><span class="saved-work-meta"><span>${esc(detail)}</span><span>Investigate →</span></span></button></li>`;
   });
-  return `<div class="saved-work">${model.state?.storage?.mode === 'browser' ? '<div class="actions browser-workspace-tools"><button type="button" class="text-button" data-browser-backup>Download workspace backup</button><label class="text-button browser-restore-label">Restore a backup<input type="file" accept=".zip,application/zip" data-browser-restore aria-label="Choose a workspace backup to restore"></label></div>' : ''}${investigations.length ? `<section aria-label="Investigations"><h3>Investigations</h3><ul>${investigations.join('')}</ul></section>` : ''}${records.length ? `<section aria-label="Records"><h3>Records</h3><ul>${records.join('')}</ul></section>` : ''}${!investigations.length && !records.length ? '<p class="small muted">No saved work yet.</p>' : ''}</div>`;
+  return `<div class="saved-work"><div class="actions"><label class="text-button browser-restore-label">Open a case package<input type="file" accept=".zip,application/zip" data-handoff-file aria-label="Choose an evidence package to open"></label></div>${model.state?.storage?.mode === 'browser' ? '<div class="actions browser-workspace-tools"><button type="button" class="text-button" data-browser-backup>Download workspace backup</button><label class="text-button browser-restore-label">Restore a backup<input type="file" accept=".zip,application/zip" data-browser-restore aria-label="Choose a workspace backup to restore"></label></div>' : ''}${investigations.length ? `<section aria-label="Investigations"><h3>Investigations</h3><ul>${investigations.join('')}</ul></section>` : ''}${records.length ? `<section aria-label="Records"><h3>Records</h3><ul>${records.join('')}</ul></section>` : ''}${!investigations.length && !records.length ? '<p class="small muted">No saved work yet.</p>' : ''}</div>`;
+}
+
+function handoffPreviewView(preview) {
+  return `<section class="flow-section"><h3>${esc(preview.case_title || 'Received investigation')}</h3><p>${esc(caseDecisionStatus(preview.decision) || 'Recorded assessment')} · ${esc(preview.analyst || 'Analyst not recorded')}</p><p class="small muted">${esc(countsText(preview.counts))}</p><p>The retained files passed verification. Adding this case keeps your existing work.</p><div class="actions"><button type="button" data-flow="handoff-import">Add to my workspace →</button><button type="button" class="information-button" data-flow="handoff-info" aria-label="About received case packages" aria-haspopup="dialog">i</button></div></section>`;
+}
+
+async function inspectHandoff(file) {
+  preserveDrafts();
+  model.handoff = null;
+  const view = currentView();
+  showFlowDocument(
+    'Open case package',
+    '<p role="status">Checking the package and retained records…</p>',
+  );
+  const revision = dialogRevision;
+  try {
+    const [payload] = await filesPayload([file]);
+    const preview = await api('handoffs/inspect', { file: payload });
+    if (!viewIsCurrent(view) || revision !== dialogRevision) return;
+    if (preview.verification?.ok !== true || !/^[a-f0-9]{64}$/.test(preview.package_sha256 || ''))
+      throw new Error('This package did not pass verification. No records were added.');
+    model.handoff = { file: payload, preview };
+    document.querySelector('#dialog-content').innerHTML = handoffPreviewView(preview);
+    announce('Package checked. Review it before adding it to your workspace.');
+  } catch (error) {
+    if (viewIsCurrent(view) && revision === dialogRevision) {
+      document.querySelector('#dialog-content').innerHTML =
+        `<p class="callout error">${esc(error.message)}</p><label class="text-button browser-restore-label">Choose another package<input type="file" accept=".zip,application/zip" data-handoff-file aria-label="Choose another evidence package"></label>`;
+      throw error;
+    }
+  } finally {
+    if ((!viewIsCurrent(view) || revision !== dialogRevision) && notice.className === 'notice busy')
+      notice.hidden = true;
+  }
+}
+
+async function importHandoff() {
+  const handoff = model.handoff;
+  if (!handoff?.preview || handoff.preview.verification?.ok !== true)
+    throw new Error('Choose and check a case package first.');
+  preserveDrafts();
+  const view = currentView();
+  const revision = dialogRevision;
+  let result;
+  try {
+    result = await api('handoffs/import', {
+      file: handoff.file,
+      expected_sha256: handoff.preview.package_sha256,
+    });
+  } catch (error) {
+    if (viewIsCurrent(view) && revision === dialogRevision)
+      document.querySelector('#dialog-content').innerHTML =
+        `${handoffPreviewView(handoff.preview)}<p class="callout error">${esc(error.message)}</p>`;
+    throw error;
+  }
+  await refresh(false);
+  if (viewIsCurrent(view) && revision === dialogRevision) {
+    model.handoff = null;
+    document.querySelector('#evidence-dialog').close();
+    if (model.page !== 'investigate') {
+      model.page = 'investigate';
+      location.hash = 'investigate';
+    }
+    await resumeFlowRun(result.run_id);
+  }
+  announce(
+    result.imported
+      ? 'Case added. The original records and assessment are retained.'
+      : 'This package is already in your workspace.',
+  );
 }
 
 function flowGoalsView() {
@@ -2536,6 +2611,334 @@ function findingEvidenceView(run, index) {
   </article>`;
 }
 
+function packageReviewContext(run = model.run) {
+  if (!flowReviewRecorded(run) || !run?.latest_export?.sha256 || !run.latest_review?.review_id)
+    return null;
+  return {
+    package_sha256: run.latest_export.sha256,
+    run_id: run.manifest?.run_id || model.selectedRun,
+    review_id: run.latest_review.review_id,
+    analysis_digest: run.manifest?.analysis_digest || run.verification?.analysis_digest,
+    analyst: run.latest_review.review.reviewer,
+  };
+}
+
+function reviewerApi() {
+  if (!window.OmphalosReviewer)
+    throw new Error('Signed review is unavailable. Reload this page to load the review tools.');
+  return window.OmphalosReviewer;
+}
+
+function independentReceiptSummary(context) {
+  const receipts = context && model.receiptCache[context.package_sha256];
+  if (!receipts) return '';
+  const trusted = receipts.filter(
+    (item) => item.trusted && !item.own_key && !item.same_analyst_name,
+  );
+  if (!trusted.length) return 'No review from a trusted reviewer key.';
+  const decisions = new Set(trusted.map((item) => item.receipt.payload.decision));
+  if (decisions.size > 1) return 'Conflicting signed reviews — resolve with the reviewers.';
+  return decisions.has('request_changes')
+    ? 'Reviewer requested changes.'
+    : 'Approved by a trusted reviewer key.';
+}
+
+function independentReviewActions(run) {
+  const context = packageReviewContext(run);
+  if (!context) return '';
+  return '<div class="actions"><button type="button" class="secondary" data-flow="independent-review" aria-haspopup="dialog">Independent review ↗</button></div>';
+}
+
+function signedReceiptView(item) {
+  const payload = item.receipt.payload;
+  const label = payload.decision === 'approve' ? 'Approved' : 'Changes requested';
+  const trust = item.own_key
+    ? 'Signed in this browser'
+    : item.same_analyst_name
+      ? 'Same name as the analyst'
+      : item.trusted
+        ? 'Trusted reviewer key'
+        : 'Reviewer key not trusted';
+  return `<section class="flow-section"><h3>${label} · ${esc(payload.reviewer_name)}</h3><p>${esc(payload.note)}</p><p class="small muted">${esc(displayDate(payload.created_at))} / ${trust}</p><button type="button" class="text-button" data-reviewer-action="download-receipt" data-id="${esc(item.id)}">Download signed receipt ↓</button></section>`;
+}
+
+function reviewerDialogView(session) {
+  const pending = session.pending;
+  if (pending) {
+    const payload = pending.receipt.payload;
+    return `<section class="flow-section"><h3>${payload.decision === 'approve' ? 'Approved' : 'Changes requested'} · ${esc(payload.reviewer_name)}</h3><p>${esc(payload.note)}</p><p>The signature matches this exact package.</p>${pending.own_key || pending.same_analyst_name ? '<p class="callout">This receipt cannot count as independent review: it uses this browser’s key or the analyst’s name.</p>' : pending.trusted ? '<button type="button" data-reviewer-action="accept-receipt">Retain signed review →</button>' : `<p class="small muted">Confirm the reviewer’s key through a separate trusted channel before accepting this receipt.</p><p class="mono small word-break">${esc(pending.reviewer.key_sha256)}</p><form id="reviewer-trust-form"><div class="field"><label for="reviewer-fingerprint">Fingerprint received directly from your reviewer</label><input id="reviewer-fingerprint" name="fingerprint" required pattern="[A-Fa-f0-9]{64}" minlength="64" maxlength="64" autocomplete="off" spellcheck="false"></div><button type="submit">Trust this key and retain review →</button></form>`}</section><button type="button" class="text-button" data-reviewer-action="back">← Review tools</button><p id="reviewer-status" role="status" hidden></p>`;
+  }
+  const caseLabel = `<p><strong>${esc(session.caseTitle || 'Evidence package')}</strong>${session.caseDecision ? ` / ${esc(session.caseDecision)}` : ''}</p>`;
+  if (session.mode === 'sign') {
+    const draft = session.signDraft || {};
+    const form = session.profile
+      ? `<form id="reviewer-sign-form"><h3>Review this package</h3><p class="small muted">Signing as ${esc(session.profile.name)}</p><input type="text" name="username" autocomplete="username" value="${esc(session.profile.name)}" hidden><div class="field"><label for="reviewer-decision">Decision</label><select id="reviewer-decision" name="decision" required><option value="">Choose a decision</option><option value="approve" ${draft.decision === 'approve' ? 'selected' : ''}>Approve this package</option><option value="request_changes" ${draft.decision === 'request_changes' ? 'selected' : ''}>Request changes</option></select></div><div class="field"><label for="reviewer-note">Reason and next step</label><textarea id="reviewer-note" name="note" rows="3" minlength="12" maxlength="10000" required>${esc(draft.note || '')}</textarea></div><div class="field"><label for="reviewer-unlock">Signing passphrase</label><input id="reviewer-unlock" name="passphrase" type="password" maxlength="1024" autocomplete="current-password" required></div><button type="submit">Sign review →</button></form>`
+      : '<form id="reviewer-profile-form"><h3>Your signing key</h3><div class="field"><label for="reviewer-signing-name">Your name</label><input id="reviewer-signing-name" name="name" minlength="2" maxlength="120" autocomplete="name" required></div><div class="field"><label for="reviewer-passphrase">Signing passphrase</label><input id="reviewer-passphrase" name="passphrase" type="password" minlength="14" maxlength="1024" autocomplete="new-password" required><small>At least 14 characters. Store it in your password manager.</small></div><div class="field"><label for="reviewer-confirm">Confirm passphrase</label><input id="reviewer-confirm" name="confirmation" type="password" minlength="14" maxlength="1024" autocomplete="new-password" required></div><button type="submit">Create my signing key →</button></form>';
+    return `<button type="button" class="text-button" data-reviewer-action="back">← Review tools</button>${caseLabel}${form}<p id="reviewer-status" role="status" hidden></p>`;
+  }
+  return `${caseLabel}<div class="actions"><button type="button" data-reviewer-action="start-review">Review this package</button><label class="text-button browser-restore-label">Open a signed review<input type="file" accept=".json,application/json" data-reviewer-file aria-label="Choose a signed review receipt"></label><button type="button" class="information-button" data-reviewer-action="info" aria-label="About signing and reviewer trust">i</button></div>${reviewerReceiptsView(session)}<div class="actions">${session.profile ? '<button type="button" class="text-button" data-reviewer-action="download-key">Download my public key card ↓</button>' : ''}<button type="button" class="text-button" data-reviewer-action="trust-settings">Trusted reviewer keys</button></div><p id="reviewer-status" role="status" hidden></p>`;
+}
+
+function reviewerReceiptsView(session) {
+  const received = session.receipts.map(signedReceiptView).join('');
+  return `<div id="reviewer-receipts">${session.receipts.length ? `<p class="small muted">${esc(independentReceiptSummary(session.context))}</p>` : ''}${received}${session.issued.map(signedReceiptView).join('')}${!session.receipts.length && !session.issued.length ? '<p class="small muted">No signed reviews for this package.</p>' : ''}</div>`;
+}
+
+async function refreshReviewerTrust() {
+  const session = model.independentReview;
+  if (!session || !reviewerSessionIsCurrent(session) || model.operation) return;
+  try {
+    const service = reviewerApi();
+    const [receipts, issued] = await Promise.all([
+      service.receipts(session.context),
+      service.issued(session.context),
+    ]);
+    if (!reviewerSessionIsCurrent(session) || model.operation) return;
+    Object.assign(session, { receipts, issued });
+    model.receiptCache[session.context.package_sha256] = receipts;
+    if (session.pending) {
+      const pending = await service.inspect(session.pending.receipt, session.context);
+      if (!reviewerSessionIsCurrent(session) || model.operation) return;
+      if (pending.trusted !== session.pending.trusted) {
+        session.pending = pending;
+        document.querySelector('#dialog-content').innerHTML = reviewerDialogView(session);
+      }
+    } else {
+      const region = document.querySelector('#reviewer-receipts');
+      if (region)
+        region.innerHTML = reviewerReceiptsView(session).replace(
+          /^<div id="reviewer-receipts">|<\/div>$/g,
+          '',
+        );
+    }
+  } catch (error) {
+    if (!reviewerSessionIsCurrent(session)) return;
+    const region = document.querySelector('#reviewer-receipts');
+    if (region)
+      region.innerHTML = `<p class="callout error">Reviewer trust could not be checked: ${esc(error.message)}</p>`;
+  }
+}
+
+function reviewerSessionIsCurrent(session) {
+  return (
+    model.independentReview === session &&
+    viewIsCurrent(session.view) &&
+    dialogRevision === session.revision
+  );
+}
+
+async function updateReviewerDialog(session) {
+  const service = reviewerApi();
+  const [profile, receipts, issued] = await Promise.all([
+    service.profile(),
+    service.receipts(session.context),
+    service.issued(session.context),
+  ]);
+  if (!reviewerSessionIsCurrent(session)) return;
+  Object.assign(session, { profile, receipts, issued });
+  model.receiptCache[session.context.package_sha256] = receipts;
+  document.querySelector('#dialog-content').innerHTML = reviewerDialogView(session);
+  document.querySelector('#evidence-dialog').scrollTop = 0;
+}
+
+async function openIndependentReview() {
+  preserveDrafts();
+  if (!packageReviewContext())
+    throw new Error('Create a package for the recorded assessment first.');
+  const view = currentView();
+  showFlowDocument('Independent review', '<p role="status">Checking the current package…</p>');
+  const revision = dialogRevision;
+  try {
+    const run = await api(`runs/${encodeURIComponent(view.runId)}`);
+    if (!viewIsCurrent(view) || revision !== dialogRevision) return;
+    model.run = run;
+    const context = packageReviewContext(run);
+    if (!context) {
+      if (model.page === 'investigate') renderGuided();
+      throw new Error(
+        'This package is no longer current or its retained files failed verification. Return to the assessment before requesting review.',
+      );
+    }
+    const session = {
+      context,
+      view,
+      revision,
+      profile: null,
+      receipts: [],
+      issued: [],
+      pending: null,
+      mode: 'list',
+      signDraft: null,
+    };
+    session.caseTitle = run.dataset_metadata?.label || run.case?.question || run.manifest?.run_id;
+    session.caseDecision = caseDecisionStatus(run.latest_review?.review?.decision);
+    model.independentReview = session;
+    await updateReviewerDialog(session);
+  } catch (error) {
+    if (error.status === 409 && viewIsCurrent(view)) {
+      model.run.verification = { ok: false, issues: [error.message] };
+      if (model.page === 'investigate') renderGuided();
+      else if (model.page === 'runs') renderRuns();
+    }
+    if (viewIsCurrent(view) && revision === dialogRevision) {
+      model.independentReview = null;
+      document.querySelector('#dialog-content').innerHTML =
+        `<p class="callout error">${esc(error.message)}</p>`;
+      throw error;
+    }
+  } finally {
+    if (notice.className === 'notice busy') notice.hidden = true;
+  }
+}
+
+async function verifyReviewerContext(session) {
+  let run;
+  try {
+    run = await api(`runs/${encodeURIComponent(session.context.run_id)}`);
+  } catch (error) {
+    if (error.status === 409 && viewIsCurrent(session.view)) {
+      preserveDrafts();
+      model.run.verification = { ok: false, issues: [error.message] };
+      if (model.page === 'investigate') renderGuided();
+      else if (model.page === 'runs') renderRuns();
+      if (reviewerSessionIsCurrent(session))
+        document.querySelector('#dialog-content').innerHTML =
+          `<p class="callout error">${esc(error.message)}</p>`;
+      model.independentReview = null;
+    }
+    throw error;
+  }
+  if (!reviewerSessionIsCurrent(session))
+    throw new Error('Review closed. Open the package again before continuing.');
+  const context = packageReviewContext(run);
+  if (
+    !context ||
+    Object.keys(session.context).some((key) => context[key] !== session.context[key])
+  ) {
+    preserveDrafts();
+    model.run = run;
+    model.independentReview = null;
+    document.querySelector('#dialog-content').innerHTML =
+      '<p class="callout error">The case or package changed. Close this dialog and open the current package before reviewing it.</p>';
+    if (model.page === 'investigate') renderGuided();
+    else if (model.page === 'runs') renderRuns();
+    throw new Error('The package changed. No review was signed or accepted.');
+  }
+  model.run = run;
+}
+
+function reviewerTask(message, fn) {
+  const session = model.independentReview;
+  if (!session || !reviewerSessionIsCurrent(session)) return;
+  task(message, async () => {
+    try {
+      await fn(session);
+    } catch (error) {
+      if (reviewerSessionIsCurrent(session)) {
+        const status = document.querySelector('#reviewer-status');
+        if (status) {
+          status.textContent = error.message;
+          status.className = 'callout error';
+          status.hidden = false;
+          status.setAttribute('role', 'alert');
+        }
+      }
+      throw error;
+    }
+  });
+}
+
+function downloadReviewJson(value, name) {
+  const url = URL.createObjectURL(
+    new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: 'application/json' }),
+  );
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function inspectSignedReview(file, session) {
+  if (file.size > 128 * 1024)
+    throw new Error('A signed review receipt must be smaller than 128 KiB.');
+  let receipt;
+  try {
+    receipt = JSON.parse(await file.text());
+  } catch {
+    throw new Error('Choose a signed review JSON file.');
+  }
+  const inspected = await reviewerApi().inspect(receipt, session.context);
+  if (!reviewerSessionIsCurrent(session)) return;
+  session.pending = inspected;
+  document.querySelector('#dialog-content').innerHTML = reviewerDialogView(session);
+  announce('Signature checked against this package.');
+}
+
+async function acceptSignedReview(session, fingerprint) {
+  const pending = session.pending;
+  if (!pending) throw new Error('Open a signed review first.');
+  await verifyReviewerContext(session);
+  if (fingerprint) await reviewerApi().trustReviewer(pending.reviewer, fingerprint.trim());
+  await reviewerApi().receive(pending.receipt, session.context);
+  if (!reviewerSessionIsCurrent(session)) return;
+  session.pending = null;
+  session.mode = 'list';
+  await updateReviewerDialog(session);
+  announce('Signed review retained for this package.');
+}
+
+function handleReviewerClick(button) {
+  const session = model.independentReview;
+  if (!session || !reviewerSessionIsCurrent(session) || model.operation) return;
+  const action = button.dataset.reviewerAction;
+  if (action === 'start-review') {
+    session.mode = 'sign';
+    reviewerTask('Opening review signing…', async (current) => {
+      await updateReviewerDialog(current);
+      if (reviewerSessionIsCurrent(current)) notice.hidden = true;
+    });
+  }
+  if (action === 'back') {
+    session.pending = null;
+    session.mode = 'list';
+    reviewerTask('Checking review status…', async (current) => {
+      await updateReviewerDialog(current);
+      if (reviewerSessionIsCurrent(current)) notice.hidden = true;
+    });
+  }
+  if (action === 'download-key' && session.profile)
+    downloadReviewJson(
+      session.profile,
+      `omphalos-reviewer-${session.profile.key_sha256.slice(0, 12)}.json`,
+    );
+  if (action === 'download-receipt') {
+    const item = [...session.receipts, ...session.issued].find(
+      (receipt) => receipt.id === button.dataset.id,
+    );
+    if (item) downloadReviewJson(item.receipt, `omphalos-review-${item.id.slice(0, 12)}.json`);
+  }
+  if (action === 'accept-receipt')
+    reviewerTask('Retaining the signed review…', (current) => acceptSignedReview(current));
+  if (action === 'info')
+    document.querySelector('#dialog-content').innerHTML =
+      `<p class="mono small word-break">Package SHA-256: ${esc(session.context.package_sha256)}</p><p>Signatures bind the reviewer’s note to the exact package bytes. A trusted key means you confirmed its fingerprint with that person through a separate trusted channel. It does not certify their role, authority, or judgment.</p><p>Your encrypted signing key stays in this browser. Its passphrase is required for every signature and is never saved or sent. Losing the passphrase or clearing browser data requires a new key that reviewers must confirm again. Workspace backups exclude signing keys, trust settings, and receipts; download receipts separately. Download your public key card to share your fingerprint.</p><p>Send packages and signed receipts through your existing secure sharing channel. Copies do not synchronize. A changed package needs a new review. Conflicting reviews remain visible until you resolve them with the reviewers.</p><button type="button" class="text-button" data-reviewer-action="back">← Review tools</button>`;
+  if (action === 'trust-settings')
+    reviewerTask('Loading trusted reviewer keys…', async (current) => {
+      const trusted = await reviewerApi().trustedReviewers();
+      if (!reviewerSessionIsCurrent(current)) return;
+      document.querySelector('#dialog-content').innerHTML =
+        `<h3>Trusted reviewer keys</h3>${trusted.length ? trusted.map((card) => `<section class="flow-section"><strong>${esc(card.name)}</strong><p class="mono small word-break">${esc(card.key_sha256)}</p><button type="button" class="text-button" data-reviewer-action="forget-key" data-id="${esc(card.key_sha256)}">Stop trusting this key</button></section>`).join('') : '<p>No reviewer keys have been confirmed.</p>'}<button type="button" class="text-button" data-reviewer-action="back">← Review tools</button><p id="reviewer-status" role="status" hidden></p>`;
+      notice.hidden = true;
+    });
+  if (action === 'forget-key')
+    reviewerTask('Removing reviewer trust…', async (current) => {
+      await reviewerApi().forgetReviewer(button.dataset.id);
+      await updateReviewerDialog(current);
+      announce('Key no longer trusted. Its signed receipts are retained.');
+    });
+}
+
 function packageDownload(artifact) {
   return artifact?.download_url
     ? `<a class="download-link" href="${esc(artifact.download_url)}" download>Download evidence package ↓</a>`
@@ -2553,7 +2956,7 @@ function flowPackageView() {
     <section class="flow-section"><h2>Recorded assessment</h2>${isCaseReview(review) ? `<h3>${esc(caseDecisionStatus(review.decision))}</h3>${review.summary ? `<p>${esc(review.summary)}</p>` : ''}` : `<p>${esc(review?.summary || 'Record a case decision before creating an evidence package.')}</p>`}<p class="small muted">Reviewer: ${esc(review?.reviewer || 'Not recorded')}</p>
       ${isCaseReview(review) ? `<p class="small muted">Assessment covers ${countLabel(array(review.scope_finding_ids).length, 'observation')}.</p>` : `<div class="review-progress"><span>${rows.filter((row) => row.disposition === 'follow_up').length} follow up</span><span>${rows.filter((row) => row.disposition === 'escalate').length} escalate</span><span>${rows.filter((row) => row.disposition === 'explained').length} explained</span></div>`}
       ${pending ? '<p class="callout">This saved decision has unsaved edits. Record those changes before creating a package.</p>' : ''}
-      <div class="actions">${ready && run.latest_export ? '' : `<button type="button" data-action="export" ${ready ? '' : 'disabled'}>Create evidence package →</button>`}<button type="button" class="${pending ? '' : 'secondary'}" data-flow="review-summary">${pending ? 'Finish the case decision' : 'Revise assessment'}</button></div><div id="run-result" class="result-box">${ready && run.latest_export ? packageDownload(run.latest_export) : ''}</div>
+      <div class="actions">${ready && run.latest_export ? '' : `<button type="button" data-action="export" ${ready ? '' : 'disabled'}>Create evidence package →</button>`}<button type="button" class="${pending ? '' : 'secondary'}" data-flow="review-summary">${pending ? 'Finish the case decision' : 'Revise assessment'}</button></div><div id="run-result" class="result-box">${ready && run.latest_export ? packageDownload(run.latest_export) : ''}</div>${independentReviewActions(run)}${run.verification?.ok && run.handoff?.continuation_dataset_id ? `<div class="actions"><button type="button" class="text-button" data-flow="continue-handoff">Continue with these records →</button></div>` : ''}
     </section><section class="flow-section"><h2>Evidence integrity</h2><p class="small muted">Verify the saved files or repeat the analysis against them.</p><div class="actions"><button type="button" class="secondary" data-action="verify">Verify files</button><button type="button" class="secondary" data-action="replay">Replay analysis</button></div></section>`;
 }
 
@@ -3241,7 +3644,7 @@ async function resumeFlowRun(id) {
     resultsReview: null,
     reviewIndex: firstIncomplete < 0 ? findings.length : firstIncomplete,
     findingIndex: null,
-    datasetId: run.case?.dataset_id || '',
+    datasetId: run.handoff?.continuation_dataset_id || run.case?.dataset_id || '',
     subjectName: run.dataset_metadata?.label || '',
     asOf: run.case?.as_of || dateToday(),
     goalId,
@@ -3257,7 +3660,7 @@ async function resumeFlowRun(id) {
     plan: null,
     planInputs: null,
     settingsOpen: false,
-    snapshotId: run.case?.watchlist_snapshot_id || '',
+    snapshotId: run.handoff?.continuation_source_id || run.case?.watchlist_snapshot_id || '',
     cubeFace: resumeFace,
     inspectionFace: null,
     surfaceOpen: false,
@@ -3334,8 +3737,35 @@ function handleFlowClick(button) {
   if (action === 'cube') selectFlowFace(Number(button.dataset.face));
   if (action === 'open-work') {
     preserveDrafts();
+    model.handoff = null;
     showFlowDocument('Open', savedWorkView());
   }
+  if (action === 'continue-handoff' && model.run?.verification?.ok && model.run?.handoff) {
+    const handoff = model.run.handoff;
+    const asOf = model.run.case?.as_of || dateToday();
+    preserveDrafts();
+    invalidateFlow({
+      stage: 'plan',
+      datasetId: handoff.continuation_dataset_id,
+      asOf,
+      snapshotId: handoff.continuation_source_id || '',
+      sourcePolicy: handoff.continuation_source_id ? 'selected' : 'automatic',
+    });
+    flowOperation(
+      'Preparing a separate continuation…',
+      () => investigateFlowDataset(handoff.continuation_dataset_id),
+      true,
+    );
+  }
+  if (action === 'independent-review') task('Opening signed review tools…', openIndependentReview);
+  if (action === 'handoff-import') task('Adding the verified case package…', importHandoff);
+  if (action === 'handoff-preview' && model.handoff)
+    showFlowDocument('Open case package', handoffPreviewView(model.handoff.preview));
+  if (action === 'handoff-info')
+    showFlowDocument(
+      'Received case packages',
+      '<p>Verification checks the retained bytes against the package inventory. It does not establish who supplied the package or whether its claims are true.</p><p>The original analysis and recorded assessment are preserved. Further work uses a separate copy of the records and source snapshot. Packages do not synchronize between people or devices.</p><button type="button" class="text-button" data-flow="handoff-preview">← Package preview</button>',
+    );
   if (action === 'import-info')
     showFlowDocument(
       'Record formats',
@@ -3776,7 +4206,7 @@ async function exportRun() {
   const run = await api(`runs/${encodeURIComponent(view.runId)}`);
   if (viewIsCurrent(view)) {
     model.run = run;
-    if (model.page === 'investigate') updateFlowCube();
+    if (model.page === 'investigate') renderGuided();
     if (
       !flowReviewRecorded(run) ||
       run.latest_export?.name !== result.name ||
@@ -4047,6 +4477,14 @@ document.querySelector('#evidence-dialog').addEventListener('close', () => {
 });
 document.querySelector('#evidence-dialog').addEventListener('click', (event) => {
   const supporting = event.target.closest('button');
+  if (supporting?.dataset.reviewerAction) {
+    if (!supporting.disabled) handleReviewerClick(supporting);
+    return;
+  }
+  if (['handoff-import', 'handoff-info', 'handoff-preview'].includes(supporting?.dataset.flow)) {
+    if (!supporting.disabled && !model.operation) handleFlowClick(supporting);
+    return;
+  }
   if (supporting?.dataset.flow === 'supporting-records') {
     if (!supporting.disabled && !model.operation) handleFlowClick(supporting);
     return;
@@ -4063,6 +4501,77 @@ document.querySelector('#evidence-dialog').addEventListener('click', (event) => 
   if (!button || model.operation) return;
   document.querySelector('#evidence-dialog').close();
   handleFlowClick(button);
+});
+document.querySelector('#evidence-dialog').addEventListener('change', (event) => {
+  const input = event.target;
+  if (input.dataset.reviewerFile !== undefined && input.files?.length) {
+    const receipt = input.files[0];
+    input.value = '';
+    reviewerTask('Checking the signed review…', (session) => inspectSignedReview(receipt, session));
+    return;
+  }
+  if (input.dataset.handoffFile === undefined || !input.files?.length) return;
+  const file = input.files[0];
+  input.value = '';
+  if (!model.operation) task('Checking the received case package…', () => inspectHandoff(file));
+});
+document.querySelector('#evidence-dialog').addEventListener('input', (event) => {
+  const session = model.independentReview;
+  if (!session || !reviewerSessionIsCurrent(session) || session.mode !== 'sign') return;
+  const field = { 'reviewer-decision': 'decision', 'reviewer-note': 'note' }[event.target.id];
+  if (!field) return;
+  session.signDraft ||= {};
+  session.signDraft[field] = event.target.value;
+});
+document.querySelector('#evidence-dialog').addEventListener('submit', (event) => {
+  const form = event.target;
+  if (!['reviewer-profile-form', 'reviewer-sign-form', 'reviewer-trust-form'].includes(form.id))
+    return;
+  event.preventDefault();
+  if (
+    ['reviewer-profile-form', 'reviewer-sign-form'].includes(form.id) &&
+    model.independentReview?.mode !== 'sign'
+  )
+    return;
+  const values = new FormData(form);
+  const passphrase = String(values.get('passphrase') || '');
+  const confirmation = String(values.get('confirmation') || '');
+  for (const input of form.querySelectorAll?.('input[type="password"]') || []) input.value = '';
+  if (form.id === 'reviewer-profile-form')
+    reviewerTask('Creating your signing key…', async (session) => {
+      if (passphrase !== confirmation)
+        throw new Error('The passphrases do not match. Enter them again.');
+      await reviewerApi().createProfile(String(values.get('name') || '').trim(), passphrase);
+      session.mode = 'sign';
+      await updateReviewerDialog(session);
+      announce('Signing key created in this browser.');
+    });
+  if (form.id === 'reviewer-sign-form')
+    reviewerTask('Signing this package review…', async (session) => {
+      await verifyReviewerContext(session);
+      const receipt = await reviewerApi().sign(
+        session.context,
+        values.get('decision'),
+        String(values.get('note') || '').trim(),
+        passphrase,
+      );
+      session.mode = 'list';
+      session.signDraft = null;
+      await updateReviewerDialog(session);
+      if (reviewerSessionIsCurrent(session)) {
+        const issued = session.issued.find((item) => item.receipt.signature === receipt.signature);
+        const status = document.querySelector('#reviewer-status');
+        status.textContent =
+          'Review signed. Download its receipt above and send it to the case owner.';
+        status.hidden = false;
+        if (issued) downloadReviewJson(receipt, `omphalos-review-${issued.id.slice(0, 12)}.json`);
+      }
+      announce('Review signed for this exact package.');
+    });
+  if (form.id === 'reviewer-trust-form')
+    reviewerTask('Confirming the reviewer key…', (session) =>
+      acceptSignedReview(session, String(values.get('fingerprint') || '')),
+    );
 });
 document.querySelector('#refresh').addEventListener('click', () => {
   preserveDrafts();
@@ -4081,6 +4590,11 @@ document.querySelector('#refresh').addEventListener('click', () => {
       'Workspace refreshed. Unsaved case and review edits are retained in this page session.',
     );
   });
+});
+window.addEventListener('focus', refreshReviewerTrust);
+window.addEventListener('omphalos-reviewer-trust-changed', refreshReviewerTrust);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshReviewerTrust();
 });
 window.addEventListener('omphalos-browser-error', (event) => announce(event.detail, 'error'));
 window.addEventListener('omphalos-browser-restored', () => {

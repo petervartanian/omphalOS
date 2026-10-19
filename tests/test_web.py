@@ -476,7 +476,7 @@ class FormDataStub {
   has(name) { return Object.hasOwn(this.fields, name); }
 }
 const context = vm.createContext({
-  document: { querySelector: element, querySelectorAll: () => [], body: element('body') },
+  document: { querySelector: element, querySelectorAll: () => [], body: element('body'), addEventListener() {} },
   window: { addEventListener() {} }, location: { hash: '#overview' },
   fetch: () => new Promise(() => {}), FormData: FormDataStub, console,
 });

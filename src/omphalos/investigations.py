@@ -196,7 +196,10 @@ DEFINITIONS = [
                 "1",
             ),
             "max_candidates": integer(
-                5, 1, "Maximum candidates shown per entity; omissions are counted", 100
+                5,
+                1,
+                "Maximum additional approximate-name candidates per entity; exact normalized-name and typed-ID candidates are retained in completed screening",
+                100,
             ),
         },
         [
@@ -789,12 +792,22 @@ def _execute(
                 "Screening exceeds 20 million entity/list comparisons; narrow entity scope and run additional cases.",
             )
         findings, counts = candidate_findings(entities, watchlist, case.as_of, **params)
+        if counts["candidate_output_limit_exceeded"]:
+            return (
+                [],
+                0,
+                [
+                    "Screening stopped before completing all entity comparisons; no partial candidate findings are returned."
+                ],
+                f"At least {counts['candidate_count_at_least']} candidates exceed the supported screening output limit of {counts['candidate_output_limit']}. Narrow entity scope and run additional cases; if one entity exceeds the limit, review the selected official source directly.",
+            )
         eligible = (
             counts["entities_considered"] if counts["source_records_considered"] else 0
         )
         limitations += [
             f"Compared against {counts['source_records_considered']} source records; excluded {counts['source_records_excluded_by_dates']} outside explicit effective dates.",
-            f"Omitted {counts['candidates_omitted_by_display_limit']} candidates beyond the per-entity display limit.",
+            f"Retained {counts['candidates_retained_exact_or_identifier']} exact normalized-name or typed-identifier candidates without applying the approximate-name limit.",
+            f"Omitted {counts['candidates_omitted_by_display_limit']} approximate-name candidates beyond the per-entity display limit.",
         ]
         if counts["source_records_with_inconsistent_dates"]:
             limitations.append(

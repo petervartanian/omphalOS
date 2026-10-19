@@ -47,6 +47,7 @@ STATIC_FILES = {
     "/": "index.html",
     "/app.js": "app.js",
     "/box.js": "box.js",
+    "/reviewer.js": "reviewer.js",
     "/styles.css": "styles.css",
     "/geist.woff2": "geist.woff2",
     "/geist-mono.woff2": "geist-mono.woff2",
@@ -740,6 +741,43 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
 
     def _mutate(self, parts: list[str], body: dict) -> dict:
         ws = self.server.workspace
+        if parts in (["api", "handoffs", "inspect"], ["api", "handoffs", "import"]):
+            from .collaboration import HandoffConflict, import_package, inspect_package
+
+            importing = parts[-1] == "import"
+            _fields(
+                body,
+                {"file", "expected_sha256"} if importing else {"file"},
+                {"file", "expected_sha256"} if importing else {"file"},
+            )
+            file = body["file"]
+            if not isinstance(file, dict):
+                raise RequestError("Choose an omphalOS evidence package ZIP.")
+            _fields(file, {"name", "content_base64"}, {"name", "content_base64"})
+            name = _text(file["name"], "File name", 120)
+            if not name.lower().endswith(".zip"):
+                raise RequestError("Choose an omphalOS evidence package ZIP.")
+            encoded = file["content_base64"]
+            if not isinstance(encoded, str) or len(encoded) > 4 * (
+                (MAX_UPLOAD_BYTES + 2) // 3
+            ):
+                raise RequestError("The handoff exceeds 48 MiB.", 413)
+            try:
+                raw = base64.b64decode(encoded, validate=True)
+            except (ValueError, binascii.Error) as exc:
+                raise RequestError("Invalid base64 file content.") from exc
+            try:
+                if importing:
+                    return import_package(
+                        ws,
+                        raw,
+                        expected_sha256=_text(
+                            body["expected_sha256"], "Package digest", 64
+                        ),
+                    )
+                return inspect_package(raw)
+            except HandoffConflict as exc:
+                raise RequestError(str(exc), 409) from exc
         if len(parts) == 3 and parts[:2] == ["api", "workflow"]:
             return self._workflow(parts[2], body)
         if parts == ["api", "datasets", "import"]:

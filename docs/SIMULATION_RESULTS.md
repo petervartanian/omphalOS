@@ -25,7 +25,11 @@ The regression files are `test_investigator_simulations.py`, `test_investigator_
 
 The browser exercise uses an isolated headless Playwright MCP profile and static application files. Its fictional records are not included in the published application or any user's workspace. The task-sequence regression harness simulates interface state; it is distinct from the real-browser exercise.
 
-## Remaining boundaries
+## Subsequent work
+
+The subsequent release adds [case handoff and signed review](TEAM_REVIEW.md), a [labeled detection benchmark](DETECTION_BENCHMARK.md), and a [prepared practitioner study](PRACTITIONER_EVALUATION.md). The executed observations above describe the earlier simulation release; they are not retrospectively evidence of the later features.
+
+## Remaining boundaries at this checkpoint
 
 This exercise does not establish detection accuracy, false-positive burden, legal adequacy, or usability for working investigators. It does not add shared cases, authenticated roles, independent supervisor approval, complete official address screening, or automatic interpretation of diligence text. A later practitioner study should use an authorized representative case set, include a recipient who sees only the package, and measure errors and assistance needed without assuming a benchmark.
 
